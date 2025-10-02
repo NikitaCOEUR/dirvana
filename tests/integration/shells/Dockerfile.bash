@@ -20,24 +20,9 @@ RUN apk add --no-cache git
 COPY --from=builder /build/dirvana /usr/local/bin/dirvana
 RUN chmod +x /usr/local/bin/dirvana
 
-# Create test directory
+# Create test directory and copy config
 RUN mkdir -p /test/project
-
-# Create test config
-RUN cat > /test/project/.dirvana.yml << 'EOF'
-# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
-aliases:
-  testcmd: echo "Dirvana alias works in bash"
-
-functions:
-  testfunc: |
-    echo "Dirvana function works: $1"
-
-env:
-  TEST_VAR: bash-value
-  DYNAMIC_VAR:
-    sh: echo "dynamic-bash"
-EOF
+COPY tests/integration/shells/test-config-bash.yml /test/project/.dirvana.yml
 
 # Authorize the directory
 RUN /usr/local/bin/dirvana allow /test/project

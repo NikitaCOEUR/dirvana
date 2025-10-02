@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+
+# Test all alias features
+aliases:
+  # Simple string alias
+  testcmd: echo "Dirvana alias works in zsh"
+
+  # Alias with pipes and redirection
+  ll: ls -lah
+
+  # Alias with multiple commands
+  gitlog: git log --oneline --graph --all
+
+  # Zsh-specific features
+  history-stat: history 0 | awk '{print $2}' | sort | uniq -c | sort -nr | head
+
+# Test all function features
+functions:
+  # Simple function with parameters
+  testfunc: |
+    echo "Dirvana function works: $1"
+
+  # Function with multiple lines and logic
+  greet: |
+    if [[ -z "$1" ]]; then
+      echo "Hello, stranger!"
+    else
+      echo "Hello, $1!"
+    fi
+
+  # Function with arrays (zsh style)
+  listargs: |
+    local i=1
+    for arg in "$@"; do
+      echo "Arg $i: $arg"
+      i=$((i + 1))
+    done
+
+  # Function that uses environment variables
+  showenv: |
+    echo "Project: $PROJECT_NAME"
+    echo "Environment: $ENVIRONMENT"
+    echo "Build directory: $BUILD_DIR"
+
+  # Complex function with conditionals
+  checkfile: |
+    if [[ -f "$1" ]]; then
+      echo "✓ File exists: $1"
+      ls -lh "$1"
+    else
+      echo "✗ File not found: $1"
+      return 1
+    fi
+
+# Test all environment variable features
+env:
+  # Static string values
+  PROJECT_NAME: dirvana-test
+  ENVIRONMENT: integration
+  DEBUG: "true"
+  LOG_LEVEL: debug
+
+  # Dynamic values from shell commands
+  CURRENT_USER:
+    sh: whoami
+
+  CURRENT_DIR:
+    sh: pwd
+
+  GIT_BRANCH:
+    sh: git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main"
+
+  TIMESTAMP:
+    sh: date +%s
+
+  HOSTNAME:
+    sh: hostname
+
+  # Path-like variables
+  BUILD_DIR: /tmp/build
+  CACHE_DIR: /tmp/cache
+  OUTPUT_DIR: /tmp/output
+
+  # Numeric values (as strings)
+  MAX_WORKERS: "4"
+  TIMEOUT: "30"
+  RETRY_COUNT: "3"
+
+# Configuration flags
+local_only: false
+ignore_global: false
