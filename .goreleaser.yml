@@ -1,0 +1,101 @@
+# GoReleaser configuration
+# Documentation: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/dirvana
+    binary: dirvana
+    ldflags:
+      - -s -w
+      - -X github.com/NikitaCOEUR/dirvana/pkg/version.Version={{.Version}}
+      - -X github.com/NikitaCOEUR/dirvana/pkg/version.Commit={{.Commit}}
+      - -X github.com/NikitaCOEUR/dirvana/pkg/version.Date={{.Date}}
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github
+  sort: asc
+  abbrev: 7
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - '^build:'
+      - '^style:'
+      - typo
+  groups:
+    - title: 'Features'
+      regexp: '^feat:'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^fix:'
+      order: 1
+    - title: 'Performance Improvements'
+      regexp: '^perf:'
+      order: 2
+    - title: 'Refactoring'
+      regexp: '^refactor:'
+      order: 3
+    - title: 'Others'
+      order: 999
+
+release:
+  github:
+    owner: NikitaCOEUR
+    name: dirvana
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## Dirvana {{ .Tag }}
+
+    ### Installation
+
+    #### Using go install
+    ```bash
+    go install github.com/NikitaCOEUR/dirvana/cmd/dirvana@{{ .Tag }}
+    ```
+
+    #### Download binary
+    Download the appropriate binary for your platform from the assets below.
+
+  footer: |
+    **Full Changelog**: https://github.com/NikitaCOEUR/dirvana/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ---
+
+    Thank you to all contributors! 🎉
