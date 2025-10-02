@@ -1,0 +1,242 @@
+// Package main is the entry point for the Dirvana CLI application.
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	dircli "github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/pkg/version"
+	"github.com/urfave/cli/v3"
+)
+
+func main() {
+	// Get XDG paths
+	cacheHome := os.Getenv("XDG_CACHE_HOME")
+	if cacheHome == "" {
+		home, _ := os.UserHomeDir()
+		cacheHome = filepath.Join(home, ".cache")
+	}
+
+	dataHome := os.Getenv("XDG_DATA_HOME")
+	if dataHome == "" {
+		home, _ := os.UserHomeDir()
+		dataHome = filepath.Join(home, ".local", "share")
+	}
+
+	cachePath := filepath.Join(cacheHome, "dirvana", "cache.json")
+	authPath := filepath.Join(dataHome, "dirvana", "authorized.json")
+
+	app := &cli.Command{
+		Name:                  "dirvana",
+		Usage:                 "Automatic shell environment loader per folder",
+		Version:               version.Version,
+		EnableShellCompletion: true,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "log-level",
+				Value:   "warn",
+				Usage:   "Log level (debug, info, warn, error)",
+				Sources: cli.EnvVars("DIRVANA_LOG_LEVEL"),
+			},
+		},
+		Commands: []*cli.Command{
+			{
+				Name:  "export",
+				Usage: "Export shell code for current folder",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "prev",
+						Value:   "",
+						Usage:   "Previous directory for context cleanup",
+						Sources: cli.EnvVars("DIRVANA_PREV"),
+					},
+				},
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					return dircli.Export(dircli.ExportParams{
+						LogLevel:  cmd.String("log-level"),
+						PrevDir:   cmd.String("prev"),
+						CachePath: cachePath,
+						AuthPath:  authPath,
+					})
+				},
+			},
+			{
+				Name:  "allow",
+				Usage: "Authorize a project for automatic execution",
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					currentDir, err := os.Getwd()
+					if err != nil {
+						return fmt.Errorf("failed to get current directory: %w", err)
+					}
+
+					pathToAllow := currentDir
+					if cmd.Args().Len() > 0 {
+						pathToAllow = cmd.Args().Get(0)
+					}
+
+					return dircli.AllowWithParams(dircli.AllowParams{
+						AuthPath:    authPath,
+						PathToAllow: pathToAllow,
+						CachePath:   cachePath,
+						LogLevel:    cmd.String("log-level"),
+					})
+				},
+			},
+			{
+				Name:  "revoke",
+				Usage: "Revoke authorization for a project",
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					currentDir, err := os.Getwd()
+					if err != nil {
+						return fmt.Errorf("failed to get current directory: %w", err)
+					}
+
+					pathToRevoke := currentDir
+					if cmd.Args().Len() > 0 {
+						pathToRevoke = cmd.Args().Get(0)
+					}
+
+					return dircli.RevokeWithParams(dircli.RevokeParams{
+						AuthPath:     authPath,
+						PathToRevoke: pathToRevoke,
+						CachePath:    cachePath,
+						LogLevel:     cmd.String("log-level"),
+					})
+				},
+			},
+			{
+				Name:  "list",
+				Usage: "List all authorized projects",
+				Action: func(_ context.Context, _ *cli.Command) error {
+					return dircli.List(authPath)
+				},
+			},
+			{
+				Name:  "status",
+				Usage: "Show current Dirvana configuration status",
+				Action: func(_ context.Context, _ *cli.Command) error {
+					return dircli.Status(dircli.StatusParams{
+						CachePath: cachePath,
+						AuthPath:  authPath,
+					})
+				},
+			},
+			{
+				Name:  "init",
+				Usage: "Create a sample project file in current folder",
+				Action: func(_ context.Context, _ *cli.Command) error {
+					return dircli.Init()
+				},
+			},
+			{
+				Name:      "validate",
+				Usage:     "Validate a Dirvana configuration file",
+				ArgsUsage: "[config-file]",
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					configPath := ""
+					if cmd.Args().Len() > 0 {
+						configPath = cmd.Args().Get(0)
+					}
+					return dircli.Validate(configPath)
+				},
+			},
+			{
+				Name:  "edit",
+				Usage: "Edit or create a Dirvana configuration file in current directory",
+				Action: func(_ context.Context, _ *cli.Command) error {
+					return dircli.Edit()
+				},
+			},
+			{
+				Name:      "schema",
+				Usage:     "Display or export the JSON Schema for Dirvana configuration files",
+				ArgsUsage: "[output-file]",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "output",
+						Aliases: []string{"o"},
+						Usage:   "Output file path (prints to stdout if not specified)",
+					},
+				},
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					outputPath := cmd.String("output")
+					if outputPath == "" && cmd.Args().Len() > 0 {
+						outputPath = cmd.Args().Get(0)
+					}
+					return dircli.Schema(outputPath)
+				},
+			},
+			{
+				Name:  "hook",
+				Usage: "Print shell hook code for manual installation",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "shell",
+						Value:   "auto",
+						Usage:   "Shell type: bash, zsh, or auto",
+						Sources: cli.EnvVars("DIRVANA_SHELL"),
+					},
+				},
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					shell := dircli.DetectShell(cmd.String("shell"))
+					hookCode := dircli.GenerateHookCode(shell)
+
+					fmt.Println("# Add this to your shell config file:")
+					fmt.Printf("# For %s: add to ~/.%src\n\n", shell, shell)
+					fmt.Println(hookCode)
+
+					return nil
+				},
+			},
+			{
+				Name:  "setup",
+				Usage: "Automatically install or uninstall shell hook",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "shell",
+						Value:   "auto",
+						Usage:   "Shell type: bash, zsh, or auto",
+						Sources: cli.EnvVars("DIRVANA_SHELL"),
+					},
+					&cli.BoolFlag{
+						Name:    "uninstall",
+						Aliases: []string{"u"},
+						Usage:   "Uninstall the shell hook instead of installing it",
+					},
+				},
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					shell := dircli.DetectShell(cmd.String("shell"))
+
+					var result *dircli.SetupResult
+					var err error
+
+					if cmd.Bool("uninstall") {
+						result, err = dircli.UninstallHook(shell)
+					} else {
+						result, err = dircli.InstallHook(shell)
+					}
+
+					if err != nil {
+						return err
+					}
+
+					fmt.Println(result.Message)
+					if result.Updated && !cmd.Bool("uninstall") {
+						fmt.Println("\nTo activate in current shell, run:")
+						fmt.Printf("  source %s\n", result.RCFile)
+					}
+
+					return nil
+				},
+			},
+		},
+	}
+
+	if err := app.Run(context.Background(), os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
