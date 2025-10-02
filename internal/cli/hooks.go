@@ -74,7 +74,7 @@ func GenerateHookCode(shell string) string {
   fi
 
   local shell_code
-  shell_code=$(%s export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null)
+  shell_code=$(%s export --prev "${DIRVANA_PREV_DIR:-}")
   local exit_code=$?
   export DIRVANA_PREV_DIR="$PWD"
   [[ $exit_code -eq 0 && -n "$shell_code" ]] && eval "$shell_code" 2>/dev/null
@@ -141,7 +141,7 @@ __Dirvana-Hook`, binPath, binPath)
   # Only run if directory changed
   if [[ "$PWD" != "${DIRVANA_PREV_DIR:-}" ]]; then
     local shell_code
-    shell_code=$(%s export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null)
+    shell_code=$(%s export --prev "${DIRVANA_PREV_DIR:-}")
     local exit_code=$?
     export DIRVANA_PREV_DIR="$PWD"
     [[ $exit_code -eq 0 && -n "$shell_code" ]] && eval "$shell_code" 2>/dev/null

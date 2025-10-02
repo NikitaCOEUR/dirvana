@@ -36,9 +36,13 @@ func GenerateCleanupCode(aliases []string, functions []string, envVars []string)
 
 	lines = append(lines, "# Dirvana cleanup")
 
-	// Unalias
+	// Unalias and remove completions
 	for _, alias := range aliases {
 		lines = append(lines, "unalias "+alias+" 2>/dev/null || true")
+		// Remove bash completion
+		lines = append(lines, "complete -r "+alias+" 2>/dev/null || true")
+		// Remove zsh completion
+		lines = append(lines, "compdef -d "+alias+" 2>/dev/null || true")
 	}
 
 	// Unset functions

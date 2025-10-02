@@ -3,7 +3,6 @@
 
 # Shell aliases
 aliases:
-  ll: ls -lah
   gs: git status
   gd: git diff
 

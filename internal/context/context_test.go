@@ -77,6 +77,12 @@ func TestGenerateCleanupCode(t *testing.T) {
 	assert.Contains(t, code, "unalias gs")
 	assert.Contains(t, code, "unalias gd")
 
+	// Check completions are removed for aliases
+	assert.Contains(t, code, "complete -r ll")
+	assert.Contains(t, code, "compdef -d ll")
+	assert.Contains(t, code, "complete -r gs")
+	assert.Contains(t, code, "compdef -d gs")
+
 	// Check functions are unset
 	assert.Contains(t, code, "unset -f mkcd")
 	assert.Contains(t, code, "unset -f greet")
