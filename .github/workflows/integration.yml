@@ -1,0 +1,70 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-bash:
+    name: Test Bash Shell
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          check-latest: true
+
+      - name: Build binary
+        run: go build -o bin/dirvana ./cmd/dirvana
+
+      - name: Build Docker image
+        run: docker build -t dirvana-test-bash -f tests/integration/shells/Dockerfile.bash .
+
+      - name: Run Bash integration tests
+        run: docker run --rm dirvana-test-bash
+
+  test-zsh:
+    name: Test Zsh Shell
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          check-latest: true
+
+      - name: Build binary
+        run: go build -o bin/dirvana ./cmd/dirvana
+
+      - name: Build Docker image
+        run: docker build -t dirvana-test-zsh -f tests/integration/shells/Dockerfile.zsh .
+
+      - name: Run Zsh integration tests
+        run: docker run --rm dirvana-test-zsh
+
+  summary:
+    name: Integration Tests Summary
+    runs-on: ubuntu-latest
+    needs: [test-bash, test-zsh]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.test-bash.result }}" = "success" ] && \
+             [ "${{ needs.test-zsh.result }}" = "success" ]; then
+            echo "✅ All integration tests passed!"
+          else
+            echo "❌ Some integration tests failed"
+            exit 1
+          fi
