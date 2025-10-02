@@ -232,6 +232,24 @@ func main() {
 					return nil
 				},
 			},
+			{
+				Name:  "clean",
+				Usage: "Clean cache entries",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "all",
+						Aliases: []string{"a"},
+						Usage:   "Clear all cache entries instead of just current directory hierarchy",
+					},
+				},
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					return dircli.Clean(dircli.CleanParams{
+						CachePath: cachePath,
+						LogLevel:  cmd.String("log-level"),
+						All:       cmd.Bool("all"),
+					})
+				},
+			},
 		},
 	}
 
