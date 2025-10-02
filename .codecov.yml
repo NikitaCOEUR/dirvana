@@ -1,0 +1,52 @@
+codecov:
+  require_ci_to_pass: yes
+  notify:
+    wait_for_ci: yes
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        if_ci_failed: error
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+
+flag_management:
+  default_rules:
+    carryforward: true
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+      - type: patch
+        target: auto
+        threshold: 1%
+  individual_flags:
+    - name: unittests
+      paths:
+        - "**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+ignore:
+  - "**/*_test.go"
+  - "**/testdata/**"
+  - "cmd/dirvana/main.go"  # Main entry point, hard to test in isolation
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
