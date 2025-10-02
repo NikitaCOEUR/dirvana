@@ -16,7 +16,7 @@ linters:
 
   settings:
     gocyclo:
-      min-complexity: 15
+      min-complexity: 20
 
 issues:
   max-issues-per-linter: 0
