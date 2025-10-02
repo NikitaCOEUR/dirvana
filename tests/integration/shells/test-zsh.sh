@@ -134,11 +134,11 @@ else
     FAILED=$((FAILED + 1))
 fi
 
-if [[ "$DEBUG" == "true" ]]; then
-    echo "✓ DEBUG=$DEBUG"
+if [[ "$LOG_LEVEL" == "debug" ]]; then
+    echo "✓ LOG_LEVEL=$LOG_LEVEL"
     PASSED=$((PASSED + 1))
 else
-    echo "✗ DEBUG failed (got: $DEBUG)"
+    echo "✗ LOG_LEVEL failed (got: $LOG_LEVEL)"
     FAILED=$((FAILED + 1))
 fi
 

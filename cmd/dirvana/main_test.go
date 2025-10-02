@@ -72,9 +72,9 @@ func TestGenerateHookCode(t *testing.T) {
 			shell: "bash",
 			want: []string{
 				"__dirvana_hook()",
-				"__dirvana_cd()",
-				"alias cd='__dirvana_cd'",
-				"export",
+				"PROMPT_COMMAND",
+				"DIRVANA_PREV_DIR",
+				"[[ ! -t 0 ]]",
 			},
 		},
 		{

@@ -69,9 +69,9 @@ func TestGenerateHookCode(t *testing.T) {
 			shell: "bash",
 			want: []string{
 				"__dirvana_hook()",
-				"__dirvana_cd()",
-				"alias cd='__dirvana_cd'",
-				"export",
+				"PROMPT_COMMAND",
+				"DIRVANA_PREV_DIR",
+				"[[ ! -t 0 ]]",
 			},
 		},
 		{
@@ -112,8 +112,8 @@ func TestGenerateHookCode_DefaultShell(t *testing.T) {
 	code := GenerateHookCode("unknown")
 	assert.NotEmpty(t, code)
 	assert.Contains(t, code, "__dirvana_hook()")
-	assert.Contains(t, code, "__dirvana_cd()")
-	assert.Contains(t, code, "alias cd='__dirvana_cd'")
+	assert.Contains(t, code, "PROMPT_COMMAND")
+	assert.Contains(t, code, "[[ ! -t 0 ]]")
 }
 
 func TestGenerateHookCode_PowerShell(t *testing.T) {

@@ -41,7 +41,6 @@ functions:
 env:
   # Static values
   PROJECT_NAME: myproject
-  DEBUG: "true"
   LOG_LEVEL: debug
   APP_PORT: "8080"
   APP_HOST: localhost

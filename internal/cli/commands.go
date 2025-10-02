@@ -315,7 +315,7 @@ functions:
 # Environment variables
 env:
   PROJECT_NAME: myproject
-  DEBUG: "false"
+  LOG_LEVEL: info
 
 # Set to true to ignore parent configs
 local_only: false

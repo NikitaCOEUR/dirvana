@@ -17,7 +17,6 @@ functions:
 # Environment variables
 env:
   PROJECT_NAME: dirvana
-  DEBUG: "false"
   GIT_BRANCH:
     sh: git rev-parse --abbrev-ref HEAD
   BUILD_DIR:
