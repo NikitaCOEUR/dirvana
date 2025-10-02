@@ -68,17 +68,24 @@ func GenerateHookCode(shell string) string {
     return 0
   fi
 
+  # Don't run if stdin is not the terminal (prevents TUI interference)
+  if [[ ! -t 0 ]]; then
+    return 0
+  fi
+
   local shell_code
-  shell_code=$(%s export --prev "${DIRVANA_PREV_DIR:-}")
+  shell_code=$(%s export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null)
   local exit_code=$?
   export DIRVANA_PREV_DIR="$PWD"
-  [[ $exit_code -eq 0 && -n "$shell_code" ]] && eval "$shell_code"
+  [[ $exit_code -eq 0 && -n "$shell_code" ]] && eval "$shell_code" 2>/dev/null
   return 0
 }
 
 autoload -U add-zsh-hook
 add-zsh-hook chpwd __dirvana_hook
-__dirvana_hook`, binPath, binPath)
+
+# Run on startup only if stdin is a terminal
+[[ -t 0 ]] && __dirvana_hook`, binPath, binPath)
 
 	case ShellPowerShell, ShellPwsh:
 		return fmt.Sprintf(`function __Dirvana-Hook {
@@ -126,19 +133,30 @@ __Dirvana-Hook`, binPath, binPath)
     return 0
   fi
 
-  local shell_code
-  shell_code=$(%s export --prev "${DIRVANA_PREV_DIR:-}")
-  local exit_code=$?
-  export DIRVANA_PREV_DIR="$PWD"
-  [[ $exit_code -eq 0 && -n "$shell_code" ]] && eval "$shell_code"
+  # Don't run if stdin is not the terminal (prevents TUI interference)
+  if [[ ! -t 0 ]]; then
+    return 0
+  fi
+
+  # Only run if directory changed
+  if [[ "$PWD" != "${DIRVANA_PREV_DIR:-}" ]]; then
+    local shell_code
+    shell_code=$(%s export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null)
+    local exit_code=$?
+    export DIRVANA_PREV_DIR="$PWD"
+    [[ $exit_code -eq 0 && -n "$shell_code" ]] && eval "$shell_code" 2>/dev/null
+  fi
   return 0
 }
 
-__dirvana_cd() {
-  builtin cd "$@" && __dirvana_hook
-}
+# Add to PROMPT_COMMAND
+if [[ -z "${PROMPT_COMMAND}" ]]; then
+  PROMPT_COMMAND="__dirvana_hook"
+elif [[ ! "${PROMPT_COMMAND}" =~ __dirvana_hook ]]; then
+  PROMPT_COMMAND="__dirvana_hook;${PROMPT_COMMAND}"
+fi
 
-alias cd='__dirvana_cd'
-__dirvana_hook`, binPath, binPath)
+# Run on startup only if stdin is a terminal
+[[ -t 0 ]] && __dirvana_hook`, binPath, binPath)
 	}
 }

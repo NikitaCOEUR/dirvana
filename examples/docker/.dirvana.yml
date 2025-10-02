@@ -93,7 +93,6 @@ env:
 
   # Application settings
   APP_ENV: development
-  APP_DEBUG: "true"
 
   # Database
   POSTGRES_DB: myapp

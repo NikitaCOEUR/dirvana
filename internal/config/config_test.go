@@ -27,7 +27,7 @@ functions:
     echo "Hello, $1!"
 env:
   PROJECT_NAME: myproject
-  DEBUG: "true"
+  LOG_LEVEL: debug
 local_only: false
 `
 	require.NoError(t, os.WriteFile(configPath, []byte(yamlContent), 0644))
@@ -40,7 +40,7 @@ local_only: false
 	assert.Equal(t, "git status", cfg.Aliases["gs"])
 	assert.Contains(t, cfg.Functions["greet"], "Hello")
 	assert.Equal(t, "myproject", cfg.Env["PROJECT_NAME"])
-	assert.Equal(t, "true", cfg.Env["DEBUG"])
+	assert.Equal(t, "debug", cfg.Env["LOG_LEVEL"])
 	assert.False(t, cfg.LocalOnly)
 }
 

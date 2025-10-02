@@ -3,9 +3,17 @@ FROM golang:1.25-alpine AS builder
 # Install build dependencies
 RUN apk add --no-cache git
 
-# Copy source code
+# Set working directory
 WORKDIR /build
-COPY . .
+
+# Copy go mod files first (better layer caching)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy only necessary source files
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY pkg/ ./pkg/
 
 # Build static binary
 RUN CGO_ENABLED=0 go build -o dirvana ./cmd/dirvana

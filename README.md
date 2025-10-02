@@ -111,7 +111,6 @@ functions:
 env:
   # Static values
   PROJECT_NAME: myproject
-  DEBUG: "true"
   LOG_LEVEL: debug
 
   # Dynamic values from shell commands (like Taskfile)

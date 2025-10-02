@@ -93,7 +93,7 @@ env:
   # Application settings
   APP_NAME: myapp
   APP_ENV: development
-  DEBUG: "True"
+  PYTHON_DEBUG: "1"
   SECRET_KEY: dev-secret-key-change-in-production
 
   # Database (Django/Flask)

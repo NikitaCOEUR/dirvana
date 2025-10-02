@@ -19,7 +19,6 @@
     "PROJECT_NAME": "myproject",
     "RUST_BACKTRACE": "1",
     "RUST_LOG": "debug",
-    "DEBUG": "true",
     "GIT_BRANCH": {
       "sh": "git rev-parse --abbrev-ref HEAD"
     },

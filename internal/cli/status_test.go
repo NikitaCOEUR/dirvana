@@ -194,3 +194,198 @@ func TestStatus_WithHierarchy(t *testing.T) {
 	err = Status(params)
 	require.NoError(t, err)
 }
+
+func TestStatus_WithFlags(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Change to temp dir
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	// Create a config file with flags
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	configContent := `aliases:
+  test: echo test
+local_only: true
+ignore_global: true
+`
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	// Authorize the directory
+	err = Allow(authPath, tmpDir)
+	require.NoError(t, err)
+
+	params := StatusParams{
+		CachePath: cachePath,
+		AuthPath:  authPath,
+	}
+
+	// Should succeed and display flags
+	err = Status(params)
+	require.NoError(t, err)
+}
+
+func TestStatus_WithLongAlias(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Change to temp dir
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	// Create a config file with a very long alias command
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	longCommand := "echo this is a very long command that should be truncated when displayed in the status output to avoid cluttering the terminal"
+	configContent := "aliases:\n  longcmd: " + longCommand + "\n"
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	// Authorize the directory
+	err = Allow(authPath, tmpDir)
+	require.NoError(t, err)
+
+	params := StatusParams{
+		CachePath: cachePath,
+		AuthPath:  authPath,
+	}
+
+	// Should succeed and truncate the long alias
+	err = Status(params)
+	require.NoError(t, err)
+}
+
+func TestStatus_WithAdvancedAliases(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Change to temp dir
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	// Create a config file with advanced alias configurations
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	configContent := `aliases:
+  # Simple alias
+  simple: echo test
+
+  # Advanced alias with completion disabled
+  nocomp:
+    command: echo no completion
+    completion: false
+
+  # Advanced alias with inherited completion
+  withcomp:
+    command: kubectl get pods
+    completion: kubectl
+`
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	// Authorize the directory
+	err = Allow(authPath, tmpDir)
+	require.NoError(t, err)
+
+	params := StatusParams{
+		CachePath: cachePath,
+		AuthPath:  authPath,
+	}
+
+	// Should succeed and handle different alias types
+	err = Status(params)
+	require.NoError(t, err)
+}
+
+func TestTruncateString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		maxLen   int
+		expected string
+	}{
+		{
+			name:     "short string no truncation",
+			input:    "hello",
+			maxLen:   10,
+			expected: "hello",
+		},
+		{
+			name:     "exact length no truncation",
+			input:    "hello",
+			maxLen:   5,
+			expected: "hello",
+		},
+		{
+			name:     "long string truncated",
+			input:    "this is a very long string",
+			maxLen:   10,
+			expected: "this is...",
+		},
+		{
+			name:     "very short max length",
+			input:    "hello world",
+			maxLen:   5,
+			expected: "he...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := truncateString(tt.input, tt.maxLen)
+			require.Equal(t, tt.expected, result)
+		})
+	}
+}
+func TestStatus_InvalidCachePath(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := "/invalid/path/that/does/not/exist/cache.json"
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	err = os.WriteFile(configPath, []byte("aliases:\n  test: echo test\n"), 0644)
+	require.NoError(t, err)
+	err = Allow(authPath, tmpDir)
+	require.NoError(t, err)
+
+	params := StatusParams{CachePath: cachePath, AuthPath: authPath}
+	err = Status(params)
+	require.Error(t, err)
+}
+
+func TestStatus_InvalidAuthPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := "/invalid/path/that/does/not/exist/auth.json"
+
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	params := StatusParams{CachePath: cachePath, AuthPath: authPath}
+	err = Status(params)
+	require.Error(t, err)
+}

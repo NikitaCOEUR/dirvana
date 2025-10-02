@@ -36,7 +36,6 @@ python3 -m http.server ${1:-8000}
 # Static values
 PROJECT_NAME = "myproject"
 NODE_ENV = "development"
-DEBUG = "true"
 LOG_LEVEL = "debug"
 API_URL = "http://localhost:3000"
 API_KEY = "dev-key-12345"

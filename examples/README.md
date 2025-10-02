@@ -112,7 +112,7 @@ functions:
     echo "Deploying..."
 
 env:
-  DEBUG: "true"
+  LOG_LEVEL: debug
   GIT_BRANCH:
     sh: git branch --show-current
 ```
@@ -127,7 +127,7 @@ env:
     "deploy": "echo \"Deploying...\""
   },
   "env": {
-    "DEBUG": "true"
+    "LOG_LEVEL": "debug"
   }
 }
 ```
@@ -141,7 +141,7 @@ k = "kubectl"
 deploy = "echo 'Deploying...'"
 
 [env]
-DEBUG = "true"
+LOG_LEVEL = "debug"
 ```
 
 ## 🎯 Advanced Features Showcase
