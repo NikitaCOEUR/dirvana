@@ -14,9 +14,9 @@ linters:
     - gocyclo
     - revive
 
-linters-settings:
-  gocyclo:
-    min-complexity: 15
+  settings:
+    gocyclo:
+      min-complexity: 15
 
 issues:
   max-issues-per-linter: 0
