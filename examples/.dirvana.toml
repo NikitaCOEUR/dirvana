@@ -1,0 +1,53 @@
+# Dirvana TOML Configuration Example
+# Place this file in your project root as .dirvana.toml
+# Schema: https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+
+# Set to true to prevent merging with parent directory configs
+local_only = false
+
+# Shell aliases - shortcuts for common commands
+[aliases]
+ll = "ls -lah"
+gs = "git status"
+gd = "git diff"
+gc = "git commit"
+gp = "git push"
+gl = "git log --oneline --graph --decorate"
+build = "npm run build"
+test = "npm test"
+dev = "npm run dev"
+
+# Shell functions - reusable command sequences
+[functions]
+mkcd = """
+mkdir -p "$1" && cd "$1"
+"""
+
+gcm = """
+git commit -m "$1"
+"""
+
+serve = """
+python3 -m http.server ${1:-8000}
+"""
+
+# Environment variables
+[env]
+# Static values
+PROJECT_NAME = "myproject"
+NODE_ENV = "development"
+DEBUG = "true"
+LOG_LEVEL = "debug"
+API_URL = "http://localhost:3000"
+API_KEY = "dev-key-12345"
+
+# Dynamic values from shell commands (like Taskfile)
+# Use 'sh' field to execute shell command at load time
+[env.GIT_BRANCH]
+sh = "git rev-parse --abbrev-ref HEAD"
+
+[env.GIT_COMMIT]
+sh = "git rev-parse --short HEAD"
+
+[env.PROJECT_ROOT]
+sh = "pwd"

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json",
+  "aliases": {
+    "ll": "ls -lah",
+    "gs": "git status",
+    "gd": "git diff",
+    "gc": "git commit",
+    "gp": "git push",
+    "build": "cargo build",
+    "test": "cargo test",
+    "run": "cargo run"
+  },
+  "functions": {
+    "mkcd": "mkdir -p \"$1\" && cd \"$1\"",
+    "gcm": "git commit -m \"$1\"",
+    "watch": "cargo watch -x run"
+  },
+  "env": {
+    "PROJECT_NAME": "myproject",
+    "RUST_BACKTRACE": "1",
+    "RUST_LOG": "debug",
+    "DEBUG": "true",
+    "GIT_BRANCH": {
+      "sh": "git rev-parse --abbrev-ref HEAD"
+    },
+    "PROJECT_ROOT": {
+      "sh": "pwd"
+    }
+  },
+  "local_only": false
+}

@@ -1,0 +1,27 @@
+# Dirvana configuration file
+# Documentation: https://github.com/NikitaCOEUR/dirvana
+
+# Shell aliases
+aliases:
+  ll: ls -lah
+  gs: git status
+  gd: git diff
+
+# Shell functions
+functions:
+  mkcd: |
+    mkdir -p "$1" && cd "$1"
+  greet: |
+    echo "Hello, $1!"
+
+# Environment variables
+env:
+  PROJECT_NAME: dirvana
+  DEBUG: "false"
+  GIT_BRANCH:
+    sh: git rev-parse --abbrev-ref HEAD
+  BUILD_DIR:
+    sh: pwd
+
+# Set to true to ignore parent configs
+local_only: false

@@ -1,0 +1,136 @@
+version: '3'
+
+vars:
+  BINARY_NAME: dirvana
+  BUILD_DIR: bin
+  VERSION:
+    sh: echo "${VERSION:-dev}"
+  BUILD_TIME:
+    sh: date -u '+%Y-%m-%d_%H:%M:%S'
+  GIT_COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+  LDFLAGS: -ldflags "-X github.com/NikitaCOEUR/dirvana/pkg/version.Version={{.VERSION}} -X github.com/NikitaCOEUR/dirvana/pkg/version.BuildTime={{.BUILD_TIME}} -X github.com/NikitaCOEUR/dirvana/pkg/version.GitCommit={{.GIT_COMMIT}}"
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  deps:
+    desc: Install dependencies
+    cmds:
+      - echo "Installing dependencies..."
+      - go mod download
+      - go mod tidy
+
+  build:
+    desc: Build the binary
+    deps: [deps]
+    cmds:
+      - echo "Building {{.BINARY_NAME}}..."
+      - mkdir -p {{.BUILD_DIR}}
+      - go build {{.LDFLAGS}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/dirvana
+
+  install:
+    desc: Install the binary to GOPATH/bin
+    deps: [build]
+    cmds:
+      - echo "Installing {{.BINARY_NAME}}..."
+      - go install {{.LDFLAGS}} ./cmd/dirvana
+
+  test:
+    desc: Run tests
+    cmds:
+      - echo "Running tests..."
+      - go test -v ./...
+
+  test-verbose:
+    desc: Run tests with verbose output and race detector
+    cmds:
+      - echo "Running tests with verbose output..."
+      - go test -v -race ./...
+
+  test-coverage:
+    desc: Run tests with coverage
+    cmds:
+      - echo "Running tests with coverage..."
+      - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated coverage.html"
+      - go tool cover -func=coverage.out | grep total
+
+  test-integration:
+    desc: Run integration tests (requires Docker)
+    cmds:
+      - echo "Running integration tests..."
+      - |
+        if ! command -v docker &> /dev/null; then
+          echo "Docker not found. Please install Docker to run integration tests."
+          exit 1
+        fi
+      - ./tests/integration/shells/run-tests.sh
+
+  test-integration-bash:
+    desc: Run integration tests for Bash only
+    cmds:
+      - echo "Running Bash integration tests..."
+      - docker build -t dirvana-test-bash -f tests/integration/shells/Dockerfile.bash .
+      - docker run --rm dirvana-test-bash
+      - docker rmi dirvana-test-bash
+
+  test-integration-zsh:
+    desc: Run integration tests for Zsh only
+    cmds:
+      - echo "Running Zsh integration tests..."
+      - docker build -t dirvana-test-zsh -f tests/integration/shells/Dockerfile.zsh .
+      - docker run --rm dirvana-test-zsh
+      - docker rmi dirvana-test-zsh
+
+  test-all:
+    desc: Run all tests (unit + integration)
+    cmds:
+      - task: test
+      - task: test-integration
+
+  bench:
+    desc: Run benchmarks
+    cmds:
+      - echo "Running benchmarks..."
+      - go test -bench=. -benchmem ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - echo "Formatting code..."
+      - go fmt ./...
+
+  lint:
+    desc: Run linter
+    cmds:
+      - echo "Running linter..."
+      - |
+        if ! command -v golangci-lint &> /dev/null; then
+          echo "golangci-lint not found. Install it from https://golangci-lint.run/usage/install/"
+          exit 1
+        fi
+      - golangci-lint run ./...
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - echo "Cleaning..."
+      - rm -rf {{.BUILD_DIR}}
+      - rm -f coverage.out coverage.html
+
+  verify:
+    desc: Format code and run tests
+    cmds:
+      - task: fmt
+      - task: test
+
+  run:
+    desc: Build and run the binary
+    deps: [build]
+    cmds:
+      - ./{{.BUILD_DIR}}/{{.BINARY_NAME}} {{.CLI_ARGS}}

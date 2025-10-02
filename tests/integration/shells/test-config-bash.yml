@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+
+# Test all alias features
+aliases:
+  # Simple string alias
+  testcmd: echo "Dirvana alias works in bash"
+
+  # Alias with pipes and redirection
+  ll: ls -lah
+
+  # Alias with multiple commands
+  gitlog: git log --oneline --graph --all
+
+  # Complex alias with shell features
+  findlarge: find . -type f -size +100k -exec ls -lh {} \;
+
+# Test all function features
+functions:
+  # Simple function with parameters
+  testfunc: |
+    echo "Dirvana function works: $1"
+
+  # Function with multiple lines and logic
+  greet: |
+    if [ -z "$1" ]; then
+      echo "Hello, stranger!"
+    else
+      echo "Hello, $1!"
+    fi
+
+  # Function with loops
+  countdown: |
+    local count="${1:-5}"
+    while [ $count -gt 0 ]; do
+      echo "$count..."
+      count=$((count - 1))
+    done
+    echo "Done!"
+
+  # Function that uses environment variables
+  showenv: |
+    echo "Project: $PROJECT_NAME"
+    echo "Environment: $ENVIRONMENT"
+    echo "Build directory: $BUILD_DIR"
+
+# Test all environment variable features
+env:
+  # Static string values
+  PROJECT_NAME: dirvana-test
+  ENVIRONMENT: integration
+  DEBUG: "true"
+  LOG_LEVEL: debug
+
+  # Dynamic values from shell commands
+  CURRENT_USER:
+    sh: whoami
+
+  CURRENT_DIR:
+    sh: pwd
+
+  GIT_BRANCH:
+    sh: git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main"
+
+  TIMESTAMP:
+    sh: date +%s
+
+  # Path-like variables
+  BUILD_DIR: /tmp/build
+  CACHE_DIR: /tmp/cache
+
+  # Numeric values (as strings)
+  MAX_WORKERS: "4"
+  TIMEOUT: "30"
+
+# Configuration flags
+local_only: false
+ignore_global: false

@@ -1,0 +1,130 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+# Go Project Environment
+# Example configuration for Go development
+
+aliases:
+  # Go commands
+  gb: go build
+  gt: go test
+  gtv: go test -v
+  gtc: go test -cover
+  gr: go run
+  gm: go mod
+  gmt: go mod tidy
+  gmv: go mod verify
+  gmd: go mod download
+
+  # Testing shortcuts
+  test: go test -v ./...
+  testrace: go test -race ./...
+  testcover: go test -coverprofile=coverage.out ./...
+  bench: go test -bench=. -benchmem ./...
+
+  # Build shortcuts
+  build:
+    command: go build -o bin/app ./cmd/app
+    completion: false
+
+  buildpkgs:
+    command: go build -v ./...
+    completion: false
+
+  # Linting and formatting
+  lint: golangci-lint run
+  fmt: go fmt ./...
+  vet: go vet ./...
+
+  # Tools
+  godoc: godoc -http=:6060
+
+functions:
+  # Run tests for specific package
+  testpkg: |
+    go test -v "./$1"
+
+  # Run tests with coverage and open HTML report
+  cover: |
+    go test -coverprofile=coverage.out ./...
+    go tool cover -html=coverage.out
+
+  # Build for multiple platforms
+  buildall: |
+    GOOS=linux GOARCH=amd64 go build -o bin/app-linux-amd64 ./cmd/app
+    GOOS=darwin GOARCH=amd64 go build -o bin/app-darwin-amd64 ./cmd/app
+    GOOS=windows GOARCH=amd64 go build -o bin/app-windows-amd64.exe ./cmd/app
+
+  # Create new package with boilerplate
+  mkpkg: |
+    pkg="$1"
+    mkdir -p "$pkg"
+    cat > "$pkg/$pkg.go" <<EOF
+    package $pkg
+
+    // Package $pkg implements...
+    EOF
+    cat > "$pkg/${pkg}_test.go" <<EOF
+    package $pkg
+
+    import "testing"
+
+    func TestExample(t *testing.T) {
+        t.Skip("TODO: implement test")
+    }
+    EOF
+    echo "Created package: $pkg"
+
+  # Generate mocks
+  genmock: |
+    mockgen -source="$1" -destination="${1%.go}_mock.go" -package="$(basename $(dirname $1))"
+
+  # Quick benchmark comparison
+  benchcmp: |
+    go test -bench=. -benchmem ./... > new.txt
+    benchcmp old.txt new.txt
+
+  # Find direct dependencies
+  deps: |
+    go list -f '{{join .Imports "\n"}}' ./... | sort -u
+
+env:
+  # Go settings
+  GO111MODULE: "on"
+  GOFLAGS: "-mod=vendor"
+  CGO_ENABLED: "0"
+
+  # Build settings
+  GOOS: linux
+  GOARCH: amd64
+
+  # Application settings
+  APP_NAME: myapp
+  APP_VERSION: 1.0.0
+  APP_PORT: "8080"
+
+  # Database
+  DATABASE_URL: postgres://localhost:5432/myapp?sslmode=disable
+
+  # Redis
+  REDIS_ADDR: localhost:6379
+
+  # Logging
+  LOG_LEVEL: debug
+  LOG_FORMAT: json
+
+  # Dynamic values
+  GO_VERSION:
+    sh: go version | awk '{print $3}'
+
+  GIT_COMMIT:
+    sh: git rev-parse --short HEAD
+
+  GIT_BRANCH:
+    sh: git rev-parse --abbrev-ref HEAD
+
+  BUILD_TIME:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ
+
+  MODULE_NAME:
+    sh: go list -m
+
+local_only: false

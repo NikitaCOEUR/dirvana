@@ -1,0 +1,162 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+# Advanced Completion Examples
+# Demonstrates the three ways to handle shell completion in Dirvana
+
+aliases:
+  # ============================================
+  # 1. AUTO-DETECTION (Default - Simplest)
+  # ============================================
+  # Dirvana automatically detects the base command and copies its completion
+
+  k: kubectl
+  # Automatically inherits kubectl completion
+
+  g: git
+  # Automatically inherits git completion
+
+  d: docker
+  # Automatically inherits docker completion
+
+  tf: terraform
+  # Automatically inherits terraform completion
+
+
+  # ============================================
+  # 2. EXPLICIT INHERITANCE
+  # ============================================
+  # Use when wrapping commands in scripts but want the original completion
+
+  # Example: Custom kubectl wrapper
+  mykubectl:
+    command: /usr/local/bin/my-kubectl-wrapper.sh
+    completion: kubectl
+    # Uses kubectl completion even though command is a wrapper script
+
+  # Example: Custom git wrapper
+  mygit:
+    command: ~/bin/git-wrapper
+    completion: git
+
+  # Example: Disable completion entirely
+  simple:
+    command: echo "Hello World"
+    completion: false
+    # No completion, just runs the command
+
+
+  # ============================================
+  # 3. CUSTOM COMPLETION (Most Flexible)
+  # ============================================
+  # Define your own completion logic for bash and zsh
+
+  # Example: Deploy to specific environments
+  deploy:
+    command: ./scripts/deploy.sh
+    completion:
+      bash: "complete -W 'dev staging production' deploy"
+      zsh: "compdef '_arguments \"1: :(dev staging production)\"' deploy"
+
+  # Example: Service management
+  svc:
+    command: ./scripts/service-manager.sh
+    completion:
+      bash: "complete -W 'start stop restart status logs' svc"
+      zsh: "compdef '_arguments \"1: :(start stop restart status logs)\"' svc"
+
+  # Example: Multi-level completion
+  cloud:
+    command: ./scripts/cloud-cli.sh
+    completion:
+      bash: |
+        _cloud_completion() {
+          local cur="${COMP_WORDS[COMP_CWORD]}"
+          local prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+          case "$prev" in
+            cloud)
+              COMPREPLY=( $(compgen -W "deploy delete list logs" -- "$cur") )
+              ;;
+            deploy|delete)
+              COMPREPLY=( $(compgen -W "dev staging prod" -- "$cur") )
+              ;;
+            *)
+              COMPREPLY=()
+              ;;
+          esac
+        }
+        complete -F _cloud_completion cloud
+      zsh: |
+        _cloud() {
+          local -a commands envs
+          commands=(
+            'deploy:Deploy application'
+            'delete:Delete application'
+            'list:List deployments'
+            'logs:View logs'
+          )
+          envs=('dev' 'staging' 'prod')
+
+          if (( CURRENT == 2 )); then
+            _describe 'command' commands
+          elif (( CURRENT == 3 )); then
+            case "$words[2]" in
+              deploy|delete)
+                _describe 'environment' envs
+                ;;
+            esac
+          fi
+        }
+        compdef _cloud cloud
+
+  # Example: File-based completion
+  config:
+    command: ./scripts/config-manager.sh
+    completion:
+      bash: "complete -W '$(ls configs/*.yml | xargs -n1 basename | cut -d. -f1)' config"
+      zsh: "compdef '_files -W configs -g \"*.yml\"' config"
+
+
+  # ============================================
+  # REAL-WORLD EXAMPLES
+  # ============================================
+
+  # Database connections
+  dbconnect:
+    command: ./scripts/db-connect.sh
+    completion:
+      bash: "complete -W 'dev staging prod local' dbconnect"
+      zsh: "compdef '_arguments \"1: :(dev staging prod local)\"' dbconnect"
+
+  # Environment switcher
+  switchenv:
+    command: ./scripts/switch-env.sh
+    completion:
+      bash: "complete -W 'development staging production' switchenv"
+      zsh: "compdef '_arguments \"1: :(development staging production)\"' switchenv"
+
+  # Log viewer with service names
+  viewlogs:
+    command: docker compose logs -f
+    completion:
+      bash: "complete -W '$(docker compose ps --services 2>/dev/null)' viewlogs"
+      zsh: "compdef '_docker-compose' viewlogs"
+
+  # SSH to project servers
+  pssh:
+    command: ssh
+    completion:
+      bash: "complete -W 'web-01 web-02 db-01 cache-01' pssh"
+      zsh: "compdef '_arguments \"1: :(web-01 web-02 db-01 cache-01)\"' pssh"
+
+functions:
+  # Helper to test completion
+  testcomp: |
+    echo "Press TAB after typing each command to test completion:"
+    echo "  k get <TAB>"
+    echo "  deploy <TAB>"
+    echo "  cloud deploy <TAB>"
+
+env:
+  PROJECT_NAME: advanced-completion-demo
+
+local_only: false

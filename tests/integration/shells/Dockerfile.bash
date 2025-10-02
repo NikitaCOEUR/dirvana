@@ -1,0 +1,39 @@
+FROM golang:1.25-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git
+
+# Copy source code
+WORKDIR /build
+COPY . .
+
+# Build static binary
+RUN CGO_ENABLED=0 go build -o dirvana ./cmd/dirvana
+
+# Final stage
+FROM bash:5.2
+
+# Install required tools
+RUN apk add --no-cache git
+
+# Copy the dirvana binary from builder
+COPY --from=builder /build/dirvana /usr/local/bin/dirvana
+RUN chmod +x /usr/local/bin/dirvana
+
+# Create test directory and copy config
+RUN mkdir -p /test/project
+COPY tests/integration/shells/test-config-bash.yml /test/project/.dirvana.yml
+
+# Authorize the directory
+RUN /usr/local/bin/dirvana allow /test/project
+
+# Install the hook
+RUN /usr/local/bin/dirvana setup --shell bash
+
+# Copy test script
+COPY tests/integration/shells/test-bash.sh /test-bash.sh
+RUN chmod +x /test-bash.sh
+
+WORKDIR /test/project
+
+CMD ["/test-bash.sh"]

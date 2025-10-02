@@ -1,0 +1,137 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+# Rust Project Environment
+# Example configuration for Rust development
+
+aliases:
+  # Cargo shortcuts
+  c: cargo
+  cb: cargo build
+  cbr: cargo build --release
+  cr: cargo run
+  crr: cargo run --release
+  ct: cargo test
+  ctv: cargo test -- --nocapture
+  cc: cargo check
+  ccl: cargo clippy
+  cf: cargo fmt
+  cdoc: cargo doc --open
+  cu: cargo update
+  ca: cargo add
+  crm: cargo rm
+
+  # Build profiles
+  dev: cargo build
+  release: cargo build --release
+
+  # Testing
+  test: cargo test
+  testall: cargo test --all-features
+  testw: cargo watch -x test
+  bench: cargo bench
+
+  # Clippy
+  clippy: cargo clippy -- -D warnings
+  clippyall: cargo clippy --all-targets --all-features -- -D warnings
+
+  # Tools
+  expand: cargo expand
+  tree: cargo tree
+  outdated: cargo outdated
+  audit: cargo audit
+
+functions:
+  # Create new binary project
+  newbin: |
+    cargo new "$1"
+    cd "$1"
+
+  # Create new library project
+  newlib: |
+    cargo new --lib "$1"
+    cd "$1"
+
+  # Run with specific features
+  runf: |
+    cargo run --features "$1"
+
+  # Build for specific target
+  buildt: |
+    cargo build --target "$1"
+
+  # Run tests for specific module
+  testmod: |
+    cargo test "$1" -- --nocapture
+
+  # Run example
+  example: |
+    cargo run --example "$1"
+
+  # Clean and rebuild
+  rebuild: |
+    cargo clean
+    cargo build
+
+  # Check all combinations of features
+  checkall: |
+    cargo check --all-features
+    cargo check --no-default-features
+
+  # Profile release build
+  profile: |
+    cargo build --release
+    perf record -g target/release/"$1"
+    perf report
+
+  # Generate coverage
+  coverage: |
+    cargo tarpaulin --out Html
+
+  # Watch and rebuild on changes
+  watch: |
+    cargo watch -x "check" -x "test --all-features"
+
+env:
+  # Rust settings
+  RUST_BACKTRACE: "1"
+  RUST_LOG: debug
+  RUSTFLAGS: -Dwarnings
+
+  # Cargo settings
+  CARGO_INCREMENTAL: "1"
+  CARGO_TARGET_DIR: target
+
+  # Application settings
+  APP_NAME: myapp
+  APP_VERSION: 0.1.0
+  APP_ENV: development
+
+  # Build settings
+  RUSTC_WRAPPER: sccache
+
+  # Database
+  DATABASE_URL: postgres://localhost:5432/myapp
+
+  # Server settings
+  HOST: 0.0.0.0
+  PORT: "8080"
+
+  # Logging
+  RUST_LOG_STYLE: always
+
+  # Dynamic values
+  RUST_VERSION:
+    sh: rustc --version | awk '{print $2}'
+
+  CARGO_VERSION:
+    sh: cargo --version | awk '{print $2}'
+
+  GIT_HASH:
+    sh: git rev-parse --short HEAD
+
+  BUILD_DATE:
+    sh: date -u +%Y-%m-%d
+
+  TARGET_TRIPLE:
+    sh: rustc -vV | grep host | awk '{print $2}'
+
+local_only: false

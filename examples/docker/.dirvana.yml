@@ -1,0 +1,126 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+# Docker Development Environment
+# Example configuration for Docker-based projects
+
+aliases:
+  # Docker shortcuts
+  d: docker
+  dc: docker compose
+  dcu: docker compose up
+  dcud: docker compose up -d
+  dcd: docker compose down
+  dcl: docker compose logs
+  dcp: docker compose ps
+  dcr: docker compose restart
+  dce: docker compose exec
+
+  # Docker commands with completion
+  dps:
+    command: docker ps
+    completion: docker
+
+  dpsa:
+    command: docker ps -a
+    completion: docker
+
+  di:
+    command: docker images
+    completion: docker
+
+  # Build shortcuts
+  dbuild: docker compose build
+  drebuild: docker compose build --no-cache
+
+functions:
+  # Execute command in running container
+  dexec: |
+    container="${1:-app}"
+    shift
+    docker compose exec "$container" "${@:-sh}"
+
+  # View logs for specific service
+  dlogs: |
+    service="${1:-app}"
+    docker compose logs -f "$service"
+
+  # Restart specific service
+  drestart: |
+    service="${1:-app}"
+    docker compose restart "$service"
+
+  # Clean up Docker resources
+  dclean: |
+    docker system prune -f
+    docker volume prune -f
+
+  # Remove all stopped containers
+  drm: |
+    docker ps -a -q | xargs -r docker rm
+
+  # Remove dangling images
+  drmi: |
+    docker images -f "dangling=true" -q | xargs -r docker rmi
+
+  # Shell into container
+  dsh: |
+    container="${1:-app}"
+    docker compose exec "$container" sh
+
+  # Build and restart service
+  dbr: |
+    service="${1:-app}"
+    docker compose build "$service"
+    docker compose up -d "$service"
+
+  # Show container resource usage
+  dstats: |
+    docker stats --no-stream
+
+  # Backup volume
+  dbackup: |
+    volume="$1"
+    output="${2:-backup.tar.gz}"
+    docker run --rm -v "$volume:/data" -v "$(pwd):/backup" alpine \
+      tar czf "/backup/$output" -C /data .
+    echo "Backup created: $output"
+
+env:
+  # Docker settings
+  COMPOSE_PROJECT_NAME: myproject
+  COMPOSE_FILE: docker-compose.yml
+  DOCKER_BUILDKIT: "1"
+  COMPOSE_DOCKER_CLI_BUILD: "1"
+
+  # Application settings
+  APP_ENV: development
+  APP_DEBUG: "true"
+
+  # Database
+  POSTGRES_DB: myapp
+  POSTGRES_USER: myapp
+  POSTGRES_PASSWORD: secret
+  POSTGRES_HOST: db
+  POSTGRES_PORT: "5432"
+
+  # Redis
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+
+  # Nginx
+  NGINX_HOST: localhost
+  NGINX_PORT: "80"
+
+  # Dynamic values
+  DOCKER_VERSION:
+    sh: docker --version | awk '{print $3}' | tr -d ','
+
+  COMPOSE_VERSION:
+    sh: docker compose version --short
+
+  HOST_USER_ID:
+    sh: id -u
+
+  HOST_GROUP_ID:
+    sh: id -g
+
+local_only: false

@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+# Dirvana YAML Configuration Example
+# Place this file in your project root as .dirvana.yml
+
+# Shell aliases - shortcuts for common commands
+aliases:
+  # List files with details
+  ll: ls -lah
+
+  # Git shortcuts
+  gs: git status
+  gd: git diff
+  gc: git commit
+  gp: git push
+  gl: git log --oneline --graph --decorate
+
+  # Project specific
+  build: go build -o bin/myapp ./cmd/myapp
+  test: go test -v ./...
+  run: ./bin/myapp
+
+# Shell functions - reusable command sequences
+functions:
+  # Create directory and cd into it
+  mkcd: |
+    mkdir -p "$1" && cd "$1"
+
+  # Git commit with message
+  gcm: |
+    git commit -m "$1"
+
+  # Find files by name
+  ff: |
+    find . -name "$1"
+
+  # Grep in files recursively
+  rgrep: |
+    grep -r "$1" .
+
+# Environment variables
+env:
+  # Static values
+  PROJECT_NAME: myproject
+  DEBUG: "true"
+  LOG_LEVEL: debug
+  APP_PORT: "8080"
+  APP_HOST: localhost
+  DB_HOST: localhost
+  DB_PORT: "5432"
+  DB_NAME: myproject_dev
+
+  # Dynamic values from shell commands (like Taskfile)
+  # Use 'sh' field to execute shell command at load time
+  GIT_BRANCH:
+    sh: git rev-parse --abbrev-ref HEAD
+  GIT_COMMIT:
+    sh: git rev-parse --short HEAD
+  PROJECT_ROOT:
+    sh: pwd
+  CURRENT_USER:
+    sh: whoami
+  BUILD_TIME:
+    sh: date +%s
+
+# Set to true to prevent merging with parent directory configs
+# When true, only this config file will be used
+local_only: false
