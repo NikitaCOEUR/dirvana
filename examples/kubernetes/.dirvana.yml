@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+# Kubernetes Development Environment
+# Example configuration for working with Kubernetes clusters
+#
+# IMPORTANT: For kubectl completion to work, you need to have kubectl completion enabled:
+#   Bash: source <(kubectl completion bash)
+#   Zsh:  source <(kubectl completion zsh)
+# Add this to your ~/.bashrc or ~/.zshrc BEFORE the Dirvana hook
+
+aliases:
+  # Simple kubectl alias with auto-detected completion
+  k: kubectl
+
+  # Kubectl shortcuts - simple aliases (auto-detect completion)
+  kgp: kubectl get pods
+  kgs: kubectl get services
+  kgd: kubectl get deployments
+  kctx: kubectl config use-context
+  kns: kubectl config set-context --current --namespace
+
+  # Helm alias
+  h: helm
+
+  # Custom deploy script with completion
+  deploy:
+    command: ./scripts/deploy.sh
+    completion:
+      bash: "complete -W 'dev staging prod' deploy"
+      zsh: "compdef '_arguments \"1: :(dev staging prod)\"' deploy"
+
+functions:
+  # Get logs from all pods matching a pattern
+  klogs: |
+    kubectl get pods -A | grep "$1" | awk '{print $2, "-n", $1}' | xargs -L1 kubectl logs
+
+  # Port forward with auto-discovery
+  kpf: |
+    pod=$(kubectl get pods | grep "$1" | head -n1 | awk '{print $1}')
+    kubectl port-forward "$pod" "${2:-8080}:8080"
+
+  # Execute command in pod
+  kexec: |
+    pod=$(kubectl get pods | grep "$1" | head -n1 | awk '{print $1}')
+    kubectl exec -it "$pod" -- "${@:2}"
+
+  # Delete all pods matching pattern
+  kdelpods: |
+    kubectl get pods | grep "$1" | awk '{print $1}' | xargs kubectl delete pod
+
+env:
+  # Kubernetes context
+  KUBECONFIG: ~/.kube/config
+
+  # Current context (dynamic)
+  K8S_CONTEXT:
+    sh: kubectl config current-context
+
+  # Current namespace
+  K8S_NAMESPACE:
+    sh: kubectl config view --minify --output 'jsonpath={..namespace}'
+
+  # Helm settings
+  HELM_EXPERIMENTAL_OCI: "1"
+
+  # Development cluster settings
+  DEV_CLUSTER: dev-cluster
+  STAGING_CLUSTER: staging-cluster
+  PROD_CLUSTER: prod-cluster
+
+local_only: false

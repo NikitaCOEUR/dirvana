@@ -1,0 +1,134 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+# Python Project Environment
+# Example configuration for Python development with virtualenv
+
+aliases:
+  # Python shortcuts
+  py: python3
+  pip: pip3
+
+  # Virtual environment
+  activate: source venv/bin/activate
+  deactivate: deactivate
+
+  # Package management
+  pipi: pip install
+  pipu: pip uninstall
+  pipf: pip freeze
+  pipr: pip install -r requirements.txt
+  piprd: pip install -r requirements-dev.txt
+
+  # Testing
+  pytest: pytest -v
+  testw: pytest --watch
+  testc: pytest --cov
+  testcov: pytest --cov=. --cov-report=html
+
+  # Linting and formatting
+  lint: pylint **/*.py
+  fmt: black .
+  isort: isort .
+  flake: flake8 .
+  mypy: mypy .
+
+  # Django (if applicable)
+  dj: python manage.py
+  djrun: python manage.py runserver
+  djmm: python manage.py makemigrations
+  djm: python manage.py migrate
+  djshell: python manage.py shell
+  djtest: python manage.py test
+
+  # Flask (if applicable)
+  flask: flask
+
+functions:
+  # Create and activate virtual environment
+  mkvenv: |
+    python3 -m venv "${1:-venv}"
+    source "${1:-venv}/bin/activate"
+    pip install --upgrade pip
+
+  # Install package and add to requirements
+  pipis: |
+    pip install "$1"
+    pip freeze | grep -i "$1" >> requirements.txt
+
+  # Run tests for specific file
+  testfile: |
+    pytest -v "$1"
+
+  # Run tests with coverage for specific module
+  testmod: |
+    pytest --cov="$1" tests/
+
+  # Quick commit and push
+  qcp: |
+    git add .
+    git commit -m "$1"
+    git push
+
+  # Start Jupyter notebook
+  notebook: |
+    jupyter notebook --no-browser --port="${1:-8888}"
+
+  # Profile Python script
+  profile: |
+    python -m cProfile -o profile.stats "$1"
+    python -c "import pstats; p = pstats.Stats('profile.stats'); p.sort_stats('cumulative'); p.print_stats(20)"
+
+  # Find TODO/FIXME in code
+  todos: |
+    grep -rn "TODO\|FIXME" --include="*.py" .
+
+env:
+  # Python settings
+  PYTHONPATH: .
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+
+  # Virtual environment
+  VIRTUAL_ENV: ./venv
+
+  # Application settings
+  APP_NAME: myapp
+  APP_ENV: development
+  DEBUG: "True"
+  SECRET_KEY: dev-secret-key-change-in-production
+
+  # Database (Django/Flask)
+  DATABASE_URL: postgresql://localhost:5432/myapp_dev
+  DB_HOST: localhost
+  DB_PORT: "5432"
+  DB_NAME: myapp_dev
+  DB_USER: myapp
+  DB_PASSWORD: dev_password
+
+  # Redis
+  REDIS_URL: redis://localhost:6379/0
+
+  # Flask specific
+  FLASK_APP: app.py
+  FLASK_ENV: development
+  FLASK_DEBUG: "1"
+
+  # Django specific
+  DJANGO_SETTINGS_MODULE: myapp.settings.development
+
+  # Testing
+  PYTEST_ADDOPTS: -v --tb=short
+
+  # Dynamic values
+  PYTHON_VERSION:
+    sh: python3 --version | awk '{print $2}'
+
+  PIP_VERSION:
+    sh: pip3 --version | awk '{print $2}'
+
+  GIT_BRANCH:
+    sh: git rev-parse --abbrev-ref HEAD
+
+  VENV_ACTIVE:
+    sh: '[ -n "$VIRTUAL_ENV" ] && echo "yes" || echo "no"'
+
+local_only: false

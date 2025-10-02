@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+# Node.js/TypeScript Project Environment
+# Example configuration for modern Node.js development
+
+aliases:
+  # Package manager shortcuts
+  ni: npm install
+  nid: npm install --save-dev
+  nu: npm uninstall
+  nr: npm run
+  nt: npm test
+  nb: npm run build
+  nw: npm run watch
+  ns: npm start
+  nd: npm run dev
+
+  # Yarn alternatives
+  y: yarn
+  ya: yarn add
+  yad: yarn add --dev
+  yr: yarn remove
+  ys: yarn start
+  yt: yarn test
+  yb: yarn build
+
+  # pnpm shortcuts
+  p: pnpm
+  pi: pnpm install
+  pa: pnpm add
+  pad: pnpm add -D
+  pr: pnpm run
+
+  # Git shortcuts for commits
+  gc: git commit
+  gca: git commit --amend
+
+functions:
+  # Create new React component
+  mkcomp: |
+    name="$1"
+    mkdir -p "src/components/$name"
+    cat > "src/components/$name/$name.tsx" <<EOF
+    import React from 'react';
+
+    interface ${name}Props {
+      // Add props here
+    }
+
+    export const $name: React.FC<${name}Props> = () => {
+      return (
+        <div>
+          $name Component
+        </div>
+      );
+    };
+    EOF
+    echo "Created component: src/components/$name/$name.tsx"
+
+  # Run tests for specific file
+  testfile: |
+    npm test -- "$1"
+
+  # Quick commit and push
+  qcp: |
+    git add .
+    git commit -m "$1"
+    git push
+
+  # Clean node_modules and reinstall
+  cleaninstall: |
+    rm -rf node_modules package-lock.json
+    npm install
+
+  # Find unused dependencies
+  findunused: |
+    npx depcheck
+
+env:
+  # Node environment
+  NODE_ENV: development
+
+  # Application settings
+  APP_NAME: myapp
+  APP_PORT: "3000"
+  APP_HOST: localhost
+
+  # API settings
+  API_URL: http://localhost:4000
+  API_TIMEOUT: "30000"
+
+  # Database
+  DATABASE_URL: postgresql://localhost:5432/myapp_dev
+
+  # Redis
+  REDIS_URL: redis://localhost:6379
+
+  # Dynamic values
+  NODE_VERSION:
+    sh: node --version
+
+  NPM_VERSION:
+    sh: npm --version
+
+  GIT_BRANCH:
+    sh: git rev-parse --abbrev-ref HEAD
+
+  PROJECT_ROOT:
+    sh: pwd
+
+local_only: false
