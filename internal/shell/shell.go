@@ -122,16 +122,23 @@ func generateCompletion(aliasName string, aliasConf config.AliasConfig) []string
 		fields := strings.Fields(aliasConf.Command)
 		if len(fields) > 0 {
 			baseCmd := fields[0]
-			// Bash: Use __start_<cmd> function if it exists (works for kubectl, docker, etc)
-			// Otherwise fall back to basic completion
-			lines = append(lines, fmt.Sprintf("complete -o default -F __start_%s %s 2>/dev/null || complete -o bashdefault -o default %s 2>/dev/null || true", baseCmd, aliasName, aliasName))
+			// Bash: Check if completion exists for base command and copy it
+			lines = append(lines, fmt.Sprintf("if complete -p %s &>/dev/null; then", baseCmd))
+			lines = append(lines, fmt.Sprintf("  eval \"$(complete -p %s | sed 's/ %s$/ %s/')\"", baseCmd, baseCmd, aliasName))
+			lines = append(lines, "else")
+			lines = append(lines, fmt.Sprintf("  complete -o bashdefault -o default %s 2>/dev/null || true", aliasName))
+			lines = append(lines, "fi")
 			// Zsh: copy completions from base command (this works perfectly)
 			lines = append(lines, fmt.Sprintf("compdef %s=%s 2>/dev/null || true", aliasName, baseCmd))
 		}
 
 	case string:
 		// Inherit from specified command
-		lines = append(lines, fmt.Sprintf("complete -o default -F __start_%s %s 2>/dev/null || complete -o bashdefault -o default %s 2>/dev/null || true", comp, aliasName, aliasName))
+		lines = append(lines, fmt.Sprintf("if complete -p %s &>/dev/null; then", comp))
+		lines = append(lines, fmt.Sprintf("  eval \"$(complete -p %s | sed 's/ %s$/ %s/')\"", comp, comp, aliasName))
+		lines = append(lines, "else")
+		lines = append(lines, fmt.Sprintf("  complete -o bashdefault -o default %s 2>/dev/null || true", aliasName))
+		lines = append(lines, "fi")
 		lines = append(lines, fmt.Sprintf("compdef %s=%s 2>/dev/null || true", aliasName, comp))
 
 	case bool:
