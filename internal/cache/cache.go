@@ -21,6 +21,8 @@ type Entry struct {
 	Aliases   []string `json:"aliases,omitempty"`
 	Functions []string `json:"functions,omitempty"`
 	EnvVars   []string `json:"env_vars,omitempty"`
+	// Map of alias/function name to actual command (for dirvana exec)
+	CommandMap map[string]string `json:"command_map,omitempty"`
 }
 
 // Cache manages persistent and in-memory cache

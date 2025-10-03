@@ -250,6 +250,45 @@ func main() {
 					})
 				},
 			},
+			{
+				Name:      "exec",
+				Usage:     "Execute a dirvana-managed alias or function",
+				ArgsUsage: "<alias> [args...]",
+				Hidden:    true, // Hidden from help - used internally by shell aliases
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					if cmd.Args().Len() == 0 {
+						return fmt.Errorf("alias name required")
+					}
+
+					alias := cmd.Args().Get(0)
+					args := cmd.Args().Slice()[1:]
+
+					return dircli.Exec(dircli.ExecParams{
+						CachePath: cachePath,
+						LogLevel:  cmd.String("log-level"),
+						Alias:     alias,
+						Args:      args,
+					})
+				},
+			},
+			{
+				Name:      "completion",
+				Usage:     "Generate shell completions for dirvana-managed aliases",
+				ArgsUsage: "[completion-args...]",
+				Hidden:    true, // Hidden from help - used internally by completion functions
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					// Bash completion provides COMP_LINE, COMP_POINT, COMP_WORDS, COMP_CWORD
+					// For now, we'll just use the arguments passed
+					words := cmd.Args().Slice()
+
+					return dircli.Completion(dircli.CompletionParams{
+						CachePath: cachePath,
+						LogLevel:  cmd.String("log-level"),
+						Words:     words,
+						CWord:     len(words) - 1,
+					})
+				},
+			},
 		},
 	}
 

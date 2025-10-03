@@ -67,3 +67,23 @@ func mergeTwoKeyLists(map1, map2 map[string]string) []string {
 	}
 	return keys
 }
+
+// buildCommandMap creates a map of alias/function names to their commands
+// This is used by dirvana exec to resolve aliases
+func buildCommandMap(aliases map[string]config.AliasConfig, functions map[string]string) map[string]string {
+	commandMap := make(map[string]string, len(aliases)+len(functions))
+
+	// Add aliases
+	for name, aliasConf := range aliases {
+		commandMap[name] = aliasConf.Command
+	}
+
+	// Add functions (they'll be executed as shell functions)
+	// For now, functions are stored but will need special handling in exec
+	for name := range functions {
+		// Mark functions with a special prefix so we know to handle them differently
+		commandMap[name] = "__dirvana_function__" + name
+	}
+
+	return commandMap
+}

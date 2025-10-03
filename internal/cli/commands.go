@@ -118,6 +118,9 @@ func Export(params ExportParams) error {
 	functions := keysFromMap(merged.Functions)
 	envVars := mergeTwoKeyLists(staticEnv, shellEnv)
 
+	// Build command map for dirvana exec
+	commandMap := buildCommandMap(aliases, merged.Functions)
+
 	// Generate shell code
 	shellCode := comps.shell.Generate(aliases, merged.Functions, staticEnv, shellEnv)
 
@@ -128,15 +131,16 @@ func Export(params ExportParams) error {
 
 	// Update cache
 	entry := &cache.Entry{
-		Path:      currentDir,
-		Hash:      hash,
-		ShellCode: shellCode,
-		Timestamp: time.Now(),
-		Version:   version.Version,
-		LocalOnly: merged.LocalOnly,
-		Aliases:   aliasKeys,
-		Functions: functions,
-		EnvVars:   envVars,
+		Path:       currentDir,
+		Hash:       hash,
+		ShellCode:  shellCode,
+		Timestamp:  time.Now(),
+		Version:    version.Version,
+		LocalOnly:  merged.LocalOnly,
+		Aliases:    aliasKeys,
+		Functions:  functions,
+		EnvVars:    envVars,
+		CommandMap: commandMap,
 	}
 
 	if err := comps.cache.Set(entry); err != nil {
