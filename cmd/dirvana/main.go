@@ -277,15 +277,35 @@ func main() {
 				ArgsUsage: "[completion-args...]",
 				Hidden:    true, // Hidden from help - used internally by completion functions
 				Action: func(_ context.Context, cmd *cli.Command) error {
-					// Bash completion provides COMP_LINE, COMP_POINT, COMP_WORDS, COMP_CWORD
-					// For now, we'll just use the arguments passed
-					words := cmd.Args().Slice()
+					// Bash completion provides COMP_WORDS via args
+					// and COMP_CWORD via DIRVANA_COMP_CWORD env var
+
+					// IMPORTANT: Use os.Args directly instead of cmd.Args()
+					// because urfave/cli treats "--" as a special separator
+					// and filters it out, but we need it for kubectl completion
+					var words []string
+					foundCompletion := false
+					for _, arg := range os.Args {
+						if arg == "completion" {
+							foundCompletion = true
+							continue
+						}
+						if foundCompletion {
+							words = append(words, arg)
+						}
+					}
+
+					// Get COMP_CWORD from environment
+					cword := len(words) - 1 // default to last word
+					if cwordStr := os.Getenv("DIRVANA_COMP_CWORD"); cwordStr != "" {
+						_, _ = fmt.Sscanf(cwordStr, "%d", &cword) // Ignore errors, keep default
+					}
 
 					return dircli.Completion(dircli.CompletionParams{
 						CachePath: cachePath,
 						LogLevel:  cmd.String("log-level"),
 						Words:     words,
-						CWord:     len(words) - 1,
+						CWord:     cword,
 					})
 				},
 			},

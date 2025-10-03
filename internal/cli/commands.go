@@ -121,6 +121,9 @@ func Export(params ExportParams) error {
 	// Build command map for dirvana exec
 	commandMap := buildCommandMap(aliases, merged.Functions)
 
+	// Build completion map for overriding completion commands
+	completionMap := buildCompletionMap(aliases)
+
 	// Generate shell code
 	shellCode := comps.shell.Generate(aliases, merged.Functions, staticEnv, shellEnv)
 
@@ -131,16 +134,17 @@ func Export(params ExportParams) error {
 
 	// Update cache
 	entry := &cache.Entry{
-		Path:       currentDir,
-		Hash:       hash,
-		ShellCode:  shellCode,
-		Timestamp:  time.Now(),
-		Version:    version.Version,
-		LocalOnly:  merged.LocalOnly,
-		Aliases:    aliasKeys,
-		Functions:  functions,
-		EnvVars:    envVars,
-		CommandMap: commandMap,
+		Path:          currentDir,
+		Hash:          hash,
+		ShellCode:     shellCode,
+		Timestamp:     time.Now(),
+		Version:       version.Version,
+		LocalOnly:     merged.LocalOnly,
+		Aliases:       aliasKeys,
+		Functions:     functions,
+		EnvVars:       envVars,
+		CommandMap:    commandMap,
+		CompletionMap: completionMap,
 	}
 
 	if err := comps.cache.Set(entry); err != nil {
