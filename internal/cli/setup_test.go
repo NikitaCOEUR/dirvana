@@ -552,23 +552,23 @@ func TestInstallHook_WithCompletion(t *testing.T) {
 	_ = os.Setenv("HOME", tmpDir)
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
-	// Install hook (should also install completion)
+	// Install hook (completion is now handled dynamically by dirvana export)
 	result, err := InstallHook("bash")
 	require.NoError(t, err)
 	assert.True(t, result.Updated)
-	assert.True(t, result.CompletionInstalled)
+	assert.False(t, result.CompletionInstalled) // Static completion no longer installed
 	assert.Contains(t, result.Message, "installed")
-	assert.Contains(t, result.Message, "completion")
 
-	// Verify both hook and completion were added
+	// Verify hook was added (but not static completion)
 	data, err := os.ReadFile(rcFile)
 	require.NoError(t, err)
 
 	content := string(data)
 	assert.Contains(t, content, HookMarkerStart)
 	assert.Contains(t, content, HookMarkerEnd)
-	assert.Contains(t, content, CompletionMarkerStart)
-	assert.Contains(t, content, CompletionMarkerEnd)
+	// Static completion markers should NOT be present (completion is now dynamic)
+	assert.NotContains(t, content, CompletionMarkerStart)
+	assert.NotContains(t, content, CompletionMarkerEnd)
 }
 
 func TestInstallHook_CompletionAlreadyInstalled(t *testing.T) {
@@ -577,18 +577,13 @@ func TestInstallHook_CompletionAlreadyInstalled(t *testing.T) {
 
 	// Create rc file with hook already installed
 	hookCode := GenerateHookCode("bash")
-	binPath, _ := os.Executable()
-	completionCode := fmt.Sprintf("command -v %s &> /dev/null && source <(%s completion bash)", binPath, binPath)
-	completionBlock := fmt.Sprintf("%s\n%s\n%s", CompletionMarkerStart, completionCode, CompletionMarkerEnd)
 
 	existingContent := fmt.Sprintf(`# My bashrc
 
 %s
 %s
 %s
-
-%s
-`, HookMarkerStart, hookCode, HookMarkerEnd, completionBlock)
+`, HookMarkerStart, hookCode, HookMarkerEnd)
 	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
 
 	// Mock home directory
@@ -596,13 +591,12 @@ func TestInstallHook_CompletionAlreadyInstalled(t *testing.T) {
 	_ = os.Setenv("HOME", tmpDir)
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
-	// Install hook - should detect both are up to date
+	// Install hook - should detect it's already up to date
 	result, err := InstallHook("bash")
 	require.NoError(t, err)
 	assert.False(t, result.Updated)
 	assert.False(t, result.CompletionInstalled)
 	assert.Contains(t, result.Message, "hook is up to date")
-	assert.Contains(t, result.Message, "completion is up to date")
 }
 
 func TestInstallHook_FileDoesNotExist(t *testing.T) {

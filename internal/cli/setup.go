@@ -103,8 +103,10 @@ func InstallHook(shell string) (*SetupResult, error) {
 		if currentHook == hookBlock {
 			warning := checkDirenvConflict(rcFile)
 
-			// Try to install or update completion
-			completionChanged, wasUpdate, _ := InstallCompletion(shell, rcFile)
+			// Completion is now handled by dirvana export, no need for static completion
+			// completionChanged, wasUpdate, _ := InstallCompletion(shell, rcFile)
+			completionChanged, wasUpdate := false, false
+			_ = wasUpdate // unused
 
 			message := fmt.Sprintf("✓ Dirvana hook is up to date in %s%s", rcFile, warning)
 			if completionChanged {
@@ -133,8 +135,10 @@ func InstallHook(shell string) (*SetupResult, error) {
 
 		warning := checkDirenvConflict(rcFile)
 
-		// Try to install or update completion
-		completionChanged, wasUpdate, _ := InstallCompletion(shell, rcFile)
+		// Completion is now handled by dirvana export, no need for static completion
+		// completionChanged, wasUpdate, _ := InstallCompletion(shell, rcFile)
+		completionChanged, wasUpdate := false, false
+		_ = wasUpdate // unused
 
 		message := fmt.Sprintf("✓ Dirvana hook updated in %s%s", rcFile, warning)
 		if completionChanged {
@@ -172,8 +176,10 @@ func InstallHook(shell string) (*SetupResult, error) {
 
 	warning := checkDirenvConflict(rcFile)
 
-	// Try to install or update completion
-	completionChanged, wasUpdate, _ := InstallCompletion(shell, rcFile)
+	// Completion is now handled by dirvana export, no need for static completion
+	// completionChanged, wasUpdate, _ := InstallCompletion(shell, rcFile)
+	completionChanged, wasUpdate := false, false
+	_ = wasUpdate // unused
 
 	message := fmt.Sprintf("✓ Dirvana hook installed in %s%s", rcFile, warning)
 	if completionChanged {
