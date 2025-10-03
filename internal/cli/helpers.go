@@ -87,3 +87,20 @@ func buildCommandMap(aliases map[string]config.AliasConfig, functions map[string
 
 	return commandMap
 }
+
+// buildCompletionMap creates a map of alias names to completion commands
+// Only includes aliases that have explicit completion configuration
+func buildCompletionMap(aliases map[string]config.AliasConfig) map[string]string {
+	completionMap := make(map[string]string)
+
+	for name, aliasConf := range aliases {
+		// Only add if there's an explicit completion command (string type)
+		if aliasConf.Completion != nil {
+			if completionCmd, ok := aliasConf.Completion.(string); ok && completionCmd != "" {
+				completionMap[name] = completionCmd
+			}
+		}
+	}
+
+	return completionMap
+}

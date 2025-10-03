@@ -23,6 +23,9 @@ type Entry struct {
 	EnvVars   []string `json:"env_vars,omitempty"`
 	// Map of alias/function name to actual command (for dirvana exec)
 	CommandMap map[string]string `json:"command_map,omitempty"`
+	// Map of alias name to completion command (overrides CommandMap for completion)
+	// Example: k -> kubectl (when k executes kubecolor but completes with kubectl)
+	CompletionMap map[string]string `json:"completion_map,omitempty"`
 }
 
 // Cache manages persistent and in-memory cache
