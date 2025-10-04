@@ -12,6 +12,7 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/config"
 	dircontext "github.com/NikitaCOEUR/dirvana/internal/context"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
+	"github.com/NikitaCOEUR/dirvana/internal/timing"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
 
@@ -23,63 +24,54 @@ type ExportParams struct {
 	AuthPath  string
 }
 
-// Export generates and outputs shell code for the current directory
-func Export(params ExportParams) error {
-	log := logger.New(params.LogLevel, os.Stderr)
+// activeChains holds previous and current active config chains
+type activeChains struct {
+	prev    []string
+	current []string
+}
 
-	// Get current directory
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
+// calculateActiveChains computes active config chains for previous and current directories
+func calculateActiveChains(prevDir, currentDir string, authMgr *auth.Auth, configLoader *config.Loader) activeChains {
+	chains := activeChains{}
 
-	log.Debug().Str("dir", currentDir).Str("prev", params.PrevDir).Msg("Exporting shell code")
-
-	// Initialize components
-	comps, err := initializeComponents(params.CachePath, params.AuthPath)
-	if err != nil {
-		return err
-	}
-
-	// Calculate active config chains for cleanup logic
-	var prevActiveChain, currentActiveChain []string
-	if params.PrevDir != "" && params.PrevDir != currentDir {
-		prevActiveChain = dircontext.GetActiveConfigChain(params.PrevDir, comps.auth, comps.config)
-		currentActiveChain = dircontext.GetActiveConfigChain(currentDir, comps.auth, comps.config)
+	if prevDir != "" && prevDir != currentDir {
+		chains.prev = dircontext.GetActiveConfigChain(prevDir, authMgr, configLoader)
+		chains.current = dircontext.GetActiveConfigChain(currentDir, authMgr, configLoader)
 	} else {
 		// Same directory or no previous directory
-		currentActiveChain = dircontext.GetActiveConfigChain(currentDir, comps.auth, comps.config)
+		chains.current = dircontext.GetActiveConfigChain(currentDir, authMgr, configLoader)
 	}
 
-	// Determine what needs cleanup
-	cleanupDirs := dircontext.CalculateCleanup(prevActiveChain, currentActiveChain)
+	return chains
+}
+
+// generateCleanupCodeForDirs generates cleanup code for directories that need cleanup
+func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache, log *logger.Logger) string {
 	var cleanupCode string
-	if len(cleanupDirs) > 0 {
-		// Cleanup each directory individually
-		for _, dir := range cleanupDirs {
-			if entry, found := comps.cache.Get(dir); found {
-				cleanupCode += dircontext.GenerateCleanupCode(
-					entry.Aliases,
-					entry.Functions,
-					entry.EnvVars,
-				)
-				log.Debug().Str("cleanup_dir", dir).Msg("Cleaning up config")
-			}
+
+	if len(cleanupDirs) == 0 {
+		return cleanupCode
+	}
+
+	// Cleanup each directory individually
+	for _, dir := range cleanupDirs {
+		if entry, found := cacheStorage.Get(dir); found {
+			cleanupCode += dircontext.GenerateCleanupCode(
+				entry.Aliases,
+				entry.Functions,
+				entry.EnvVars,
+			)
+			log.Debug().Str("cleanup_dir", dir).Msg("Cleaning up config")
 		}
 	}
 
-	// If no active configs in current directory, just output cleanup and return
-	if len(currentActiveChain) == 0 {
-		if cleanupCode != "" {
-			fmt.Print(cleanupCode)
-		} else {
-			fmt.Print("") // Output empty string so shell hook doesn't fail
-		}
-		return nil
-	}
+	return cleanupCode
+}
 
-	// Detect current shell early (for error messages and shell-specific code generation)
+// detectTargetShell determines the target shell for code generation
+func detectTargetShell() string {
 	targetShell := DetectShell("auto")
+
 	if targetShell == "bash" {
 		// Check if it's a real detection or just the default fallback
 		if os.Getenv("DIRVANA_SHELL") == "" &&
@@ -89,35 +81,43 @@ func Export(params ExportParams) error {
 		}
 	}
 
-	// Check if current directory has a local config but is not in the active chain
-	// This means it exists but is not authorized - show warning
-	if config.HasLocalConfig(currentDir) {
-		// Check if currentDir is in the active chain
-		isInActiveChain := false
-		for _, dir := range currentActiveChain {
-			if dir == currentDir {
-				isInActiveChain = true
-				break
-			}
-		}
+	return targetShell
+}
 
-		if !isInActiveChain {
-			// Current directory has local config but is not authorized
-			suggestion := "dirvana allow " + currentDir
-			if targetShell != "" {
-				suggestion += "\n💡 Then reload with: eval \"$(DIRVANA_SHELL=" + targetShell + " dirvana export)\""
-			} else {
-				suggestion += "\n💡 Then reload with: eval \"$(dirvana export)\""
-			}
+// checkUnauthorizedConfig warns if current directory has an unauthorized config
+func checkUnauthorizedConfig(currentDir string, currentActiveChain []string, targetShell string, log *logger.Logger) {
+	if !config.HasLocalConfig(currentDir) {
+		return
+	}
 
-			log.Warn().
-				Str("dir", currentDir).
-				Msg("Local dirvana config found but directory not authorized. Run: " + suggestion)
+	// Check if currentDir is in the active chain
+	isInActiveChain := false
+	for _, dir := range currentActiveChain {
+		if dir == currentDir {
+			isInActiveChain = true
+			break
 		}
 	}
 
-	// Load each config in the active chain and cache individual definitions
+	if !isInActiveChain {
+		// Current directory has local config but is not authorized
+		suggestion := "dirvana allow " + currentDir
+		if targetShell != "" {
+			suggestion += "\n💡 Then reload with: eval \"$(DIRVANA_SHELL=" + targetShell + " dirvana export)\""
+		} else {
+			suggestion += "\n💡 Then reload with: eval \"$(dirvana export)\""
+		}
+
+		log.Warn().
+			Str("dir", currentDir).
+			Msg("Local dirvana config found but directory not authorized. Run: " + suggestion)
+	}
+}
+
+// loadAndMergeConfigs loads all configs in the active chain and caches them
+func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *logger.Logger) *config.Config {
 	var mergedConfig *config.Config
+
 	for _, configDir := range currentActiveChain {
 		// Find config file in this directory
 		var configPath string
@@ -181,6 +181,56 @@ func Export(params ExportParams) error {
 		}
 	}
 
+	return mergedConfig
+}
+
+// Export generates and outputs shell code for the current directory
+func Export(params ExportParams) error {
+	timer := timing.NewTimer()
+	log := logger.New(params.LogLevel, os.Stderr)
+
+	// Get current directory
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	log.Debug().Str("dir", currentDir).Str("prev", params.PrevDir).Msg("Exporting shell code")
+
+	// Initialize components
+	comps, err := initializeComponents(params.CachePath, params.AuthPath)
+	if err != nil {
+		return err
+	}
+	timer.Mark("init")
+
+	// Calculate active config chains for cleanup logic
+	chains := calculateActiveChains(params.PrevDir, currentDir, comps.auth, comps.config)
+	timer.Mark("calc_chains")
+
+	// Determine what needs cleanup
+	cleanupDirs := dircontext.CalculateCleanup(chains.prev, chains.current)
+	cleanupCode := generateCleanupCodeForDirs(cleanupDirs, comps.cache, log)
+
+	// If no active configs in current directory, just output cleanup and return
+	if len(chains.current) == 0 {
+		if cleanupCode != "" {
+			fmt.Print(cleanupCode)
+		} else {
+			fmt.Print("") // Output empty string so shell hook doesn't fail
+		}
+		return nil
+	}
+
+	// Detect current shell early (for error messages and shell-specific code generation)
+	targetShell := detectTargetShell()
+
+	// Check if current directory has a local config but is not in the active chain
+	checkUnauthorizedConfig(currentDir, chains.current, targetShell, log)
+
+	// Load each config in the active chain and cache individual definitions
+	mergedConfig := loadAndMergeConfigs(chains.current, comps, log)
+
 	// If no valid configs loaded, output cleanup and return
 	if mergedConfig == nil {
 		if cleanupCode != "" {
@@ -190,6 +240,7 @@ func Export(params ExportParams) error {
 		}
 		return nil
 	}
+	timer.Mark("load_configs")
 
 	// Get merged environment variables and aliases
 	staticEnv, shellEnv := mergedConfig.GetEnvVars()
@@ -202,19 +253,24 @@ func Export(params ExportParams) error {
 
 	// Generate shell code from merged config
 	shellCode := comps.shell.Generate(aliases, mergedConfig.Functions, staticEnv, shellEnv)
+	timer.Mark("generate_shell")
 
 	// Prepend cleanup code if needed
 	if cleanupCode != "" {
 		shellCode = cleanupCode + "\n" + shellCode
 	}
 
+	// Log timing information in debug mode
+	totalDur := timer.Elapsed()
 	log.Debug().
-		Int("active_configs", len(currentActiveChain)).
+		Int("active_configs", len(chains.current)).
 		Int("cleanup_configs", len(cleanupDirs)).
 		Int("aliases", len(aliases)).
 		Int("functions", len(mergedConfig.Functions)).
 		Int("static_env", len(staticEnv)).
 		Int("shell_env", len(shellEnv)).
+		Dur("total_ms", totalDur).
+		Str("timing", timer.Summary()).
 		Msg("Generated shell code")
 
 	fmt.Print(shellCode)

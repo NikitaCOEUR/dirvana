@@ -674,7 +674,7 @@ func TestHasLocalConfig(t *testing.T) {
 	assert.True(t, HasLocalConfig(tmpDir))
 
 	// Test with different config types
-	os.Remove(configPath)
+	_ = os.Remove(configPath)
 	assert.False(t, HasLocalConfig(tmpDir))
 
 	// .dirvana.yaml
@@ -682,14 +682,14 @@ func TestHasLocalConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  test: echo test"), 0644))
 	assert.True(t, HasLocalConfig(tmpDir))
 
-	os.Remove(configPath)
+	_ = os.Remove(configPath)
 
 	// .dirvana.toml
 	configPath = filepath.Join(tmpDir, ".dirvana.toml")
 	require.NoError(t, os.WriteFile(configPath, []byte("[aliases]\ntest = \"echo test\""), 0644))
 	assert.True(t, HasLocalConfig(tmpDir))
 
-	os.Remove(configPath)
+	_ = os.Remove(configPath)
 
 	// .dirvana.json
 	configPath = filepath.Join(tmpDir, ".dirvana.json")

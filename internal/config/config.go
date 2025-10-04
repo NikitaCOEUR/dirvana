@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/parsers/toml"
@@ -145,11 +146,21 @@ func (c *Config) GetEnvVars() (map[string]string, map[string]string) {
 	return staticVars, shellVars
 }
 
+// cachedConfig stores a parsed config with its modification time and hash
+type cachedConfig struct {
+	config  *Config
+	modTime time.Time
+	size    int64
+	hash    string
+}
+
 // Loader handles loading and parsing configuration files
 type Loader struct {
 	k *koanf.Koanf
 	// Cache for loaded configs to avoid re-reading files
 	configCache map[string]*Config
+	// Cache for parsed configs with modtime validation
+	parsedCache map[string]*cachedConfig
 }
 
 // New creates a new config loader
@@ -157,6 +168,7 @@ func New() *Loader {
 	return &Loader{
 		k:           koanf.New("."),
 		configCache: make(map[string]*Config),
+		parsedCache: make(map[string]*cachedConfig),
 	}
 }
 
@@ -183,7 +195,7 @@ func (l *Loader) IsLocalOnly(dir string) bool {
 			break
 		}
 	}
-	
+
 	if configPath == "" {
 		return false
 	}
@@ -207,6 +219,18 @@ func (l *Loader) IsLocalOnly(dir string) bool {
 
 // Load reads and parses a configuration file
 func (l *Loader) Load(path string) (*Config, error) {
+	// Check if we have a cached version
+	if cached, exists := l.parsedCache[path]; exists {
+		// Verify file hasn't been modified (check both modtime and size)
+		fileInfo, err := os.Stat(path)
+		if err == nil && !fileInfo.ModTime().After(cached.modTime) && fileInfo.Size() == cached.size {
+			// Cache is still valid
+			return cached.config, nil
+		}
+		// File was modified, invalidate cache
+		delete(l.parsedCache, path)
+	}
+
 	// Create a new koanf instance for isolated loading
 	k := koanf.New(".")
 
@@ -241,18 +265,64 @@ func (l *Loader) Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	// Cache the parsed config with its modtime, size and compute hash
+	fileInfo, err := os.Stat(path)
+	if err == nil {
+		// Compute hash for caching
+		data, hashErr := os.ReadFile(path)
+		var hashStr string
+		if hashErr == nil {
+			hash := sha256.Sum256(data)
+			hashStr = hex.EncodeToString(hash[:])
+		}
+
+		l.parsedCache[path] = &cachedConfig{
+			config:  cfg,
+			modTime: fileInfo.ModTime(),
+			size:    fileInfo.Size(),
+			hash:    hashStr,
+		}
+	}
+
 	return cfg, nil
 }
 
 // Hash computes SHA-256 hash of a config file
 func (l *Loader) Hash(path string) (string, error) {
+	// Check if we have it cached with the same modtime and size
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+
+	if cached, exists := l.parsedCache[path]; exists {
+		if !fileInfo.ModTime().After(cached.modTime) && fileInfo.Size() == cached.size && cached.hash != "" {
+			// Hash is cached and file hasn't changed
+			return cached.hash, nil
+		}
+	}
+
+	// Compute hash
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
 
 	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:]), nil
+	hashStr := hex.EncodeToString(hash[:])
+
+	// Update cache with hash
+	if cached, exists := l.parsedCache[path]; exists {
+		cached.hash = hashStr
+	} else {
+		l.parsedCache[path] = &cachedConfig{
+			hash:    hashStr,
+			modTime: fileInfo.ModTime(),
+			size:    fileInfo.Size(),
+		}
+	}
+
+	return hashStr, nil
 }
 
 // Merge merges parent and child configs, with child taking precedence

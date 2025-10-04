@@ -79,7 +79,7 @@ func GetActiveConfigChain(dir string, auth AuthChecker, configProvider ConfigPro
 
 	// Find all config files in the hierarchy
 	configDirs := configProvider.FindConfigs(dir)
-	
+
 	if len(configDirs) == 0 {
 		return []string{}
 	}

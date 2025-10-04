@@ -11,6 +11,15 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 )
 
+const (
+	testConfigA = `aliases:
+  cmd_a: echo "from A"
+`
+	testConfigB = `aliases:
+  cmd_b: echo "from B"
+`
+)
+
 // TestExport_UnauthorizedWarning tests that a warning is shown when in a directory
 // with a local config that is not authorized
 func TestExport_UnauthorizedWarning(t *testing.T) {
@@ -38,12 +47,8 @@ func TestExport_UnauthorizedWarning(t *testing.T) {
 	}
 
 	// Create config files
-	configA := `aliases:
-  cmd_a: echo "from A"
-`
-	configB := `aliases:
-  cmd_b: echo "from B"
-`
+	configA := testConfigA
+	configB := testConfigB
 
 	if err := os.WriteFile(filepath.Join(dirA, ".dirvana.yml"), []byte(configA), 0644); err != nil {
 		t.Fatal(err)

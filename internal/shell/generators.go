@@ -5,9 +5,14 @@ import (
 	"strings"
 )
 
-// ShellCodeGenerator is an interface for shell-specific completion code generation
-// This is used to generate the shell hook code that integrates with the shell's completion system
-type ShellCodeGenerator interface {
+const (
+	shellBash = "bash"
+	shellZsh  = "zsh"
+)
+
+// CodeGenerator is an interface for shell-specific completion code generation
+// Implementations generate shell code for bash, zsh, etc.
+type CodeGenerator interface {
 	// GenerateCompletionFunction generates shell-specific completion code for aliases
 	GenerateCompletionFunction(aliases []string) []string
 	// Name returns the shell name (bash, zsh, etc.)
@@ -17,10 +22,12 @@ type ShellCodeGenerator interface {
 // BashCodeGenerator generates bash-specific shell completion code
 type BashCodeGenerator struct{}
 
+// Name returns the shell name for bash
 func (b *BashCodeGenerator) Name() string {
-	return "bash"
+	return shellBash
 }
 
+// GenerateCompletionFunction generates bash-specific completion functions
 func (b *BashCodeGenerator) GenerateCompletionFunction(aliases []string) []string {
 	var lines []string
 
@@ -114,10 +121,12 @@ func (b *BashCodeGenerator) GenerateCompletionFunction(aliases []string) []strin
 // ZshCodeGenerator generates zsh-specific shell completion code
 type ZshCodeGenerator struct{}
 
+// Name returns the shell name for zsh
 func (z *ZshCodeGenerator) Name() string {
-	return "zsh"
+	return shellZsh
 }
 
+// GenerateCompletionFunction generates zsh-specific completion functions
 func (z *ZshCodeGenerator) GenerateCompletionFunction(aliases []string) []string {
 	var lines []string
 
@@ -199,13 +208,15 @@ func (z *ZshCodeGenerator) GenerateCompletionFunction(aliases []string) []string
 
 // MultiShellCodeGenerator generates completion code for multiple shells
 type MultiShellCodeGenerator struct {
-	generators []ShellCodeGenerator
+	generators []CodeGenerator
 }
 
+// Name returns the shell name for multi-shell generator
 func (m *MultiShellCodeGenerator) Name() string {
 	return "multi"
 }
 
+// GenerateCompletionFunction generates completion functions for all configured shells
 func (m *MultiShellCodeGenerator) GenerateCompletionFunction(aliases []string) []string {
 	var lines []string
 	for _, gen := range m.generators {
@@ -215,7 +226,7 @@ func (m *MultiShellCodeGenerator) GenerateCompletionFunction(aliases []string) [
 }
 
 // NewCompletionGenerator creates appropriate shell code generator for the given shell type
-func NewCompletionGenerator(shell string) ShellCodeGenerator {
+func NewCompletionGenerator(shell string) CodeGenerator {
 	switch shell {
 	case "bash":
 		return &BashCodeGenerator{}
@@ -224,7 +235,7 @@ func NewCompletionGenerator(shell string) ShellCodeGenerator {
 	default:
 		// Both shells
 		return &MultiShellCodeGenerator{
-			generators: []ShellCodeGenerator{
+			generators: []CodeGenerator{
 				&BashCodeGenerator{},
 				&ZshCodeGenerator{},
 			},

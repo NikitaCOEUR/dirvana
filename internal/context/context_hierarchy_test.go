@@ -9,12 +9,12 @@ import (
 // TestConfigChainCalculation tests the calculation of active config chains
 func TestConfigChainCalculation(t *testing.T) {
 	tests := []struct {
-		name        string
-		dir         string
-		configDirs  []string // Directories with .dirvana.yml files (from root to leaf)
-		authorized  []string // Authorized directories
-		localOnly   string   // Directory with local_only flag (empty if none)
-		expected    []string // Expected active config chain
+		name       string
+		dir        string
+		configDirs []string // Directories with .dirvana.yml files (from root to leaf)
+		authorized []string // Authorized directories
+		localOnly  string   // Directory with local_only flag (empty if none)
+		expected   []string // Expected active config chain
 	}{
 		{
 			name:       "Simple hierarchy A/B/C with all authorized",
@@ -159,8 +159,8 @@ func (m *mockAuthChecker) IsAllowed(path string) (bool, error) {
 }
 
 type mockConfigProvider struct {
-	configs   []string          // List of directories with configs
-	localOnly map[string]bool   // Directories with local_only flag
+	configs   []string        // List of directories with configs
+	localOnly map[string]bool // Directories with local_only flag
 }
 
 func (m *mockConfigProvider) FindConfigs(dir string) []string {
