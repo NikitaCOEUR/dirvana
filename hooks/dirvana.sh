@@ -28,6 +28,7 @@ __dirvana_hook() {
 
     # Export shell code from dirvana
     # Note: stderr is preserved to show warnings (like unauthorized directories)
+    # dirvana auto-detects the shell from the parent process
     local shell_code
     shell_code=$(dirvana export)
     local exit_code=$?

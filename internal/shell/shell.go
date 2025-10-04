@@ -11,14 +11,22 @@ import (
 
 // Generator generates shell code from configuration
 type Generator struct {
-	UseWrappers bool // If true, use dirvana exec wrappers instead of direct aliases
+	UseWrappers bool   // If true, use dirvana exec wrappers instead of direct aliases
+	Shell       string // Target shell: "bash", "zsh", or "" for both
 }
 
 // NewGenerator creates a new shell code generator
 func NewGenerator() *Generator {
 	return &Generator{
 		UseWrappers: true, // Enable wrappers by default for better performance
+		Shell:       "",   // Generate for both shells by default
 	}
+}
+
+// WithShell sets the target shell
+func (g *Generator) WithShell(shell string) *Generator {
+	g.Shell = shell
+	return g
 }
 
 // Generate creates shell code for aliases, functions, and environment variables
@@ -187,23 +195,37 @@ func (g *Generator) generateWithWrappers(aliases map[string]config.AliasConfig, 
 	// Collect all alias and function names for the completion function
 	var allNames []string
 
-	// Generate simple alias wrappers
+	// For zsh, we need to use functions instead of aliases for completion to work
+	// For bash, aliases work fine
+	useShellFunctions := (g.Shell == "zsh")
+
+	// Generate simple alias/function wrappers
 	if len(aliases) > 0 {
-		parts = append(parts, "\n# Aliases (using dirvana exec wrapper)")
-		keys := sortedKeysFromAliases(aliases)
-		for _, key := range keys {
-			parts = append(parts, fmt.Sprintf("alias %s='dirvana exec %s'", key, key))
-			allNames = append(allNames, key)
+		if useShellFunctions {
+			parts = append(parts, "\n# Aliases (using dirvana exec wrapper as functions)")
+			keys := sortedKeysFromAliases(aliases)
+			for _, key := range keys {
+				parts = append(parts, fmt.Sprintf("%s() { dirvana exec %s \"$@\"; }", key, key))
+				allNames = append(allNames, key)
+			}
+		} else {
+			parts = append(parts, "\n# Aliases (using dirvana exec wrapper)")
+			keys := sortedKeysFromAliases(aliases)
+			for _, key := range keys {
+				parts = append(parts, fmt.Sprintf("alias %s='dirvana exec %s'", key, key))
+				allNames = append(allNames, key)
+			}
 		}
 	}
 
-	// Generate function wrappers
+	// Generate real shell functions
+	// Functions contain actual shell code and must be defined directly (not via dirvana exec)
 	if len(functions) > 0 {
-		parts = append(parts, "\n# Functions (using dirvana exec wrapper)")
+		parts = append(parts, "\n# Functions")
 		keys := sortedKeys(functions)
 		for _, key := range keys {
-			parts = append(parts, fmt.Sprintf("alias %s='dirvana exec %s'", key, key))
-			allNames = append(allNames, key)
+			body := functions[key]
+			parts = append(parts, fmt.Sprintf("%s() {\n%s\n}", key, indent(body)))
 		}
 	}
 
@@ -217,123 +239,23 @@ func (g *Generator) generateWithWrappers(aliases map[string]config.AliasConfig, 
 		}
 	}
 
-	// Generate dynamic environment variables (unchanged)
+	// Generate dynamic environment variables (shell commands that get executed)
 	if len(shellEnv) > 0 {
 		parts = append(parts, "\n# Dynamic Environment Variables")
 		keys := sortedKeys(shellEnv)
 		for _, key := range keys {
-			value := shellEnv[key]
-			parts = append(parts, fmt.Sprintf("export %s='%s'", key, escapeValue(value)))
+			shellCmd := shellEnv[key]
+			// Use command substitution to execute shell command
+			parts = append(parts, fmt.Sprintf("export %s=\"$(%s)\"", key, shellCmd))
 		}
 	}
 
 	// Generate smart completion function for bash and zsh
 	if len(allNames) > 0 {
 		parts = append(parts, "\n# Completions (via dirvana completion)")
-		parts = append(parts, generateCompletionFunction(allNames)...)
+		completionGen := NewCompletionGenerator(g.Shell)
+		parts = append(parts, completionGen.GenerateCompletionFunction(allNames)...)
 	}
 
 	return strings.Join(parts, "\n") + "\n"
-}
-
-// generateCompletionFunction generates bash and zsh completion functions
-// that delegate to `dirvana completion`
-func generateCompletionFunction(aliases []string) []string {
-	var lines []string
-
-	// Bash completion function
-	lines = append(lines, "__dirvana_complete() {")
-	lines = append(lines, "  local cur prev words cword")
-	lines = append(lines, "  _get_comp_words_by_ref -n : cur prev words cword 2>/dev/null || {")
-	lines = append(lines, "    cur=\"${COMP_WORDS[COMP_CWORD]}\"")
-	lines = append(lines, "    prev=\"${COMP_WORDS[COMP_CWORD-1]}\"")
-	lines = append(lines, "    words=(\"${COMP_WORDS[@]}\")")
-	lines = append(lines, "    cword=$COMP_CWORD")
-	lines = append(lines, "  }")
-	lines = append(lines, "")
-	lines = append(lines, "  # Let dirvana handle ALL completion logic (fuzzy matching, filtering, etc.)")
-	lines = append(lines, "  local IFS=$'\\n'")
-	lines = append(lines, "  local suggestions")
-	lines = append(lines, "  suggestions=($(DIRVANA_COMP_CWORD=$cword dirvana completion \"${words[@]}\" 2>/dev/null))")
-	lines = append(lines, "")
-	lines = append(lines, "  if [ ${#suggestions[@]} -gt 0 ]; then")
-	lines = append(lines, "    COMPREPLY=()")
-	lines = append(lines, "    for suggestion in \"${suggestions[@]}\"; do")
-	lines = append(lines, "      COMPREPLY+=(\"$suggestion\")")
-	lines = append(lines, "    done")
-	lines = append(lines, "")
-	lines = append(lines, "    # Format descriptions like kubectl does")
-	lines = append(lines, "    __dirvana_format_descriptions")
-	lines = append(lines, "  else")
-	lines = append(lines, "    # Fallback to file completion")
-	lines = append(lines, "    COMPREPLY=($(compgen -f -- \"$cur\"))")
-	lines = append(lines, "  fi")
-	lines = append(lines, "}")
-	lines = append(lines, "")
-	lines = append(lines, "# Format completion descriptions (value\\tdesc -> value  (desc))")
-	lines = append(lines, "__dirvana_format_descriptions() {")
-	lines = append(lines, "  local tab=$'\\t'")
-	lines = append(lines, "  local comp desc maxdesclength longest=0")
-	lines = append(lines, "  local i ci")
-	lines = append(lines, "")
-	lines = append(lines, "  # Find longest completion for alignment")
-	lines = append(lines, "  for ci in \"${!COMPREPLY[@]}\"; do")
-	lines = append(lines, "    comp=\"${COMPREPLY[ci]%%$tab*}\"")
-	lines = append(lines, "    if ((${#comp} > longest)); then")
-	lines = append(lines, "      longest=${#comp}")
-	lines = append(lines, "    fi")
-	lines = append(lines, "  done")
-	lines = append(lines, "")
-	lines = append(lines, "  # Format each completion with description")
-	lines = append(lines, "  for ci in \"${!COMPREPLY[@]}\"; do")
-	lines = append(lines, "    comp=\"${COMPREPLY[ci]}\"")
-	lines = append(lines, "    if [[ \"$comp\" == *\"$tab\"* ]]; then")
-	lines = append(lines, "      desc=\"${comp#*$tab}\"")
-	lines = append(lines, "      comp=\"${comp%%$tab*}\"")
-	lines = append(lines, "")
-	lines = append(lines, "      # Calculate max description length")
-	lines = append(lines, "      maxdesclength=$((COLUMNS - longest - 4))")
-	lines = append(lines, "      if ((maxdesclength > 8)); then")
-	lines = append(lines, "        # Pad completion to align descriptions")
-	lines = append(lines, "        for ((i = ${#comp}; i < longest; i++)); do")
-	lines = append(lines, "          comp+=\" \"")
-	lines = append(lines, "        done")
-	lines = append(lines, "      else")
-	lines = append(lines, "        maxdesclength=$((COLUMNS - ${#comp} - 4))")
-	lines = append(lines, "      fi")
-	lines = append(lines, "")
-	lines = append(lines, "      # Truncate description if too long")
-	lines = append(lines, "      if ((maxdesclength > 0)); then")
-	lines = append(lines, "        if ((${#desc} > maxdesclength)); then")
-	lines = append(lines, "          desc=\"${desc:0:$((maxdesclength - 1))}…\"")
-	lines = append(lines, "        fi")
-	lines = append(lines, "        comp+=\"  ($desc)\"")
-	lines = append(lines, "      fi")
-	lines = append(lines, "")
-	lines = append(lines, "      COMPREPLY[ci]=\"$comp\"")
-	lines = append(lines, "    fi")
-	lines = append(lines, "  done")
-	lines = append(lines, "")
-	lines = append(lines, "  # If single completion, strip description for direct insertion")
-	lines = append(lines, "  if [ ${#COMPREPLY[@]} -eq 1 ]; then")
-	lines = append(lines, "    COMPREPLY[0]=\"${COMPREPLY[0]%% (*}\"")
-	lines = append(lines, "  fi")
-	lines = append(lines, "}")
-	lines = append(lines, "")
-
-	// Register bash completion for all aliases
-	// Use -o nosort to preserve dirvana's ordering (by fuzzy match quality)
-	aliasStr := strings.Join(aliases, " ")
-	lines = append(lines, fmt.Sprintf("complete -o nosort -F __dirvana_complete %s 2>/dev/null || true", aliasStr))
-	lines = append(lines, "")
-
-	// Zsh completion function (simpler - just delegate to base command completion)
-	lines = append(lines, "# Zsh completions")
-	for _, alias := range aliases {
-		// For zsh, we'll use a simple approach: try to copy completion from base command
-		// The actual smart completion happens in dirvana completion
-		lines = append(lines, fmt.Sprintf("compdef __dirvana_complete_zsh %s 2>/dev/null || true", alias))
-	}
-
-	return lines
 }

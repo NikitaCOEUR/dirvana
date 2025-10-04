@@ -15,9 +15,9 @@ eval "$(dirvana export)"
 echo "✓ Environment loaded"
 echo ""
 
-# Test 1: Simple alias
+# Test 1: Simple alias (implemented as function in zsh for completion support)
 echo "Test 1: Simple alias..."
-if (( ${+aliases[testcmd]} )); then
+if (( ${+functions[testcmd]} )); then
     OUTPUT=$(testcmd)
     if [[ "$OUTPUT" == *"Dirvana alias works in zsh"* ]]; then
         echo "✓ Simple alias works: $OUTPUT"
@@ -31,9 +31,9 @@ else
 fi
 echo ""
 
-# Test 2: Alias with options
+# Test 2: Alias with options (implemented as function in zsh for completion support)
 echo "Test 2: Alias with options (ll)..."
-if (( ${+aliases[ll]} )); then
+if (( ${+functions[ll]} )); then
     echo "✓ Complex alias 'll' is loaded"
 else
     echo "✗ Complex alias failed"

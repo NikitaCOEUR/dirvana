@@ -1,0 +1,17 @@
+aliases:
+  k: kubectl
+  tf: terraform
+  a: aqua
+  g:
+    command: git
+    completion: git
+
+functions:
+  # Simple function with parameters
+  testfunc: |
+    echo "Dirvana function works: $1"
+
+env:
+  TOTO: test
+  CURRENT_DIR:
+    sh: pwd

@@ -101,11 +101,22 @@ func Completion(params CompletionParams) error {
 	}
 
 	// Prepare arguments for completion
-	// If COMP_CWORD >= len(Words), we're completing a new empty word
-	args := params.Words[1:] // Remove the alias name
+	args := params.Words[1:] // Remove the alias name (first word)
+
+	// Cobra/kubectl and other tools expect at least one argument for completion
+	// If args is empty (only typed the command), add an empty string to get subcommand completions
+	if len(args) == 0 {
+		args = append(args, "")
+		log.Debug().Msg("Added empty arg for initial completion")
+	}
+
+	// If COMP_CWORD points beyond existing words, we're completing a new empty word
 	if params.CWord >= len(params.Words) {
-		args = append(args, "") // Add empty word for completion
-		log.Debug().Msg("Added empty word for completion")
+		// Only add if we haven't already added one above
+		if len(args) > 0 && args[len(args)-1] != "" {
+			args = append(args, "")
+			log.Debug().Int("cword", params.CWord).Int("words_len", len(params.Words)).Msg("Added empty word for completion beyond last word")
+		}
 	}
 
 	// Get current word being completed

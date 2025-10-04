@@ -24,7 +24,17 @@ func DetectShell(shellFlag string) string {
 		return shellFlag
 	}
 
-	// Detect from SHELL env var
+	// First, try DIRVANA_SHELL env var (set by hook)
+	if dirvanaShell := os.Getenv("DIRVANA_SHELL"); dirvanaShell != "" {
+		return dirvanaShell
+	}
+
+	// Second, try to detect from parent process (works on Linux/macOS)
+	if parentShell := detectShellFromParentProcess(); parentShell != "" {
+		return parentShell
+	}
+
+	// Third, try SHELL env var (usually set to login shell)
 	shell := os.Getenv("SHELL")
 	if strings.Contains(shell, "zsh") {
 		return ShellZsh
@@ -45,6 +55,28 @@ func DetectShell(shellFlag string) string {
 
 	// Default to bash
 	return ShellBash
+}
+
+// detectShellFromParentProcess tries to detect the shell by reading the parent process name
+func detectShellFromParentProcess() string {
+	// This works on Linux and macOS
+	ppid := os.Getppid()
+
+	// Try to read /proc/$PPID/cmdline (Linux)
+	cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", ppid))
+	if err == nil {
+		cmdStr := string(cmdline)
+		if strings.Contains(cmdStr, "zsh") {
+			return ShellZsh
+		}
+		if strings.Contains(cmdStr, "bash") {
+			return ShellBash
+		}
+	}
+
+	// On macOS, we could use ps, but that's more complex
+	// For now, return empty to fall back to other detection methods
+	return ""
 }
 
 // GenerateHookCode generates the shell hook code for the specified shell.

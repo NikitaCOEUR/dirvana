@@ -251,10 +251,11 @@ func main() {
 				},
 			},
 			{
-				Name:      "exec",
-				Usage:     "Execute a dirvana-managed alias or function",
-				ArgsUsage: "<alias> [args...]",
-				Hidden:    true, // Hidden from help - used internally by shell aliases
+				Name:            "exec",
+				Usage:           "Execute a dirvana-managed alias or function",
+				ArgsUsage:       "<alias> [args...]",
+				Hidden:          true, // Hidden from help - used internally by shell aliases
+				SkipFlagParsing: true, // Don't parse flags - pass them directly to the wrapped command
 				Action: func(_ context.Context, cmd *cli.Command) error {
 					if cmd.Args().Len() == 0 {
 						return fmt.Errorf("alias name required")
@@ -272,10 +273,11 @@ func main() {
 				},
 			},
 			{
-				Name:      "completion",
-				Usage:     "Generate shell completions for dirvana-managed aliases",
-				ArgsUsage: "[completion-args...]",
-				Hidden:    true, // Hidden from help - used internally by completion functions
+				Name:            "completion",
+				Usage:           "Generate shell completions for dirvana-managed aliases",
+				ArgsUsage:       "[completion-args...]",
+				Hidden:          true, // Hidden from help - used internally by completion functions
+				SkipFlagParsing: true, // Don't parse flags - pass them directly to the wrapped command
 				Action: func(_ context.Context, cmd *cli.Command) error {
 					// Bash completion provides COMP_WORDS via args
 					// and COMP_CWORD via DIRVANA_COMP_CWORD env var

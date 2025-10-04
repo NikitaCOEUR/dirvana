@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
@@ -54,6 +55,22 @@ func Export(params ExportParams) error {
 		}
 	}
 
+	// Detect current shell early (for error messages and shell-specific code generation)
+	// Use the same detection logic as setup/other commands
+	targetShell := DetectShell("auto")
+	// Note: if detection fails, targetShell will be "bash" (default),
+	// but we treat it as "" for cache key to generate code for all shells
+	if targetShell == "bash" {
+		// Check if it's a real detection or just the default fallback
+		// If no DIRVANA_SHELL, no parent process match, and no SHELL env var with "bash",
+		// then it's just a fallback - generate for all shells
+		if os.Getenv("DIRVANA_SHELL") == "" &&
+		   detectShellFromParentProcess() == "" &&
+		   !strings.Contains(os.Getenv("SHELL"), "bash") {
+			targetShell = "" // Generate for all shells
+		}
+	}
+
 	// Find config files
 	configFiles, err := config.FindConfigFiles(currentDir)
 	if err != nil {
@@ -79,9 +96,18 @@ func Export(params ExportParams) error {
 
 	if !allowed {
 		// Config exists but directory not authorized - show clear warning
+		// Build the suggestion command with shell-specific prefix if needed
+		suggestion := "dirvana allow " + currentDir
+		if targetShell != "" {
+			// If we detected a specific shell, show how to properly eval the export
+			suggestion += "\n💡 Then reload with: eval \"$(DIRVANA_SHELL=" + targetShell + " dirvana export)\""
+		} else {
+			suggestion += "\n💡 Then reload with: eval \"$(dirvana export)\""
+		}
+
 		log.Warn().
 			Str("dir", currentDir).
-			Msg("Dirvana config found but directory not authorized. Run: dirvana allow " + currentDir)
+			Msg("Dirvana config found but directory not authorized. Run: " + suggestion)
 		fmt.Print("") // Output empty string so shell hook doesn't fail
 		return nil
 	}
@@ -93,12 +119,19 @@ func Export(params ExportParams) error {
 		return fmt.Errorf("failed to compute hash: %w", err)
 	}
 
-	// Check cache
-	if comps.cache.IsValid(currentDir, hash, version.Version) {
+	// Check if cache reading is disabled via environment variable
+	// Note: we always WRITE to cache (for dirvana completion to work)
+	// but we can skip READING from cache for debugging/testing
+	cacheReadEnabled := os.Getenv("DIRVANA_CACHE_ENABLED") != "false"
+
+	// Check cache (skip if shell-specific export requested or cache reading disabled)
+	if cacheReadEnabled && targetShell == "" && comps.cache.IsValid(currentDir, hash, version.Version) {
 		entry, _ := comps.cache.Get(currentDir)
 		log.Debug().Msg("Using cached shell code")
 		fmt.Print(entry.ShellCode)
 		return nil
+	} else if !cacheReadEnabled {
+		log.Debug().Msg("Cache reading disabled via DIRVANA_CACHE_ENABLED=false")
 	}
 
 	// Load and merge configs
@@ -124,6 +157,11 @@ func Export(params ExportParams) error {
 	// Build completion map for overriding completion commands
 	completionMap := buildCompletionMap(aliases)
 
+	// Configure shell generator based on DIRVANA_SHELL environment variable
+	if targetShell != "" {
+		comps.shell.WithShell(targetShell)
+	}
+
 	// Generate shell code
 	shellCode := comps.shell.Generate(aliases, merged.Functions, staticEnv, shellEnv)
 
@@ -132,7 +170,8 @@ func Export(params ExportParams) error {
 		shellCode = cleanupCode + "\n" + shellCode
 	}
 
-	// Update cache
+	// Always update cache (even if reading is disabled)
+	// This is needed for dirvana completion to work
 	entry := &cache.Entry{
 		Path:          currentDir,
 		Hash:          hash,

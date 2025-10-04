@@ -36,16 +36,16 @@ func TestGenerator_Generate(t *testing.T) {
 	assert.Contains(t, code, "alias gs='dirvana exec gs'")
 	assert.Contains(t, code, "Using wrapper architecture")
 
-	// Functions also use dirvana exec wrapper
-	assert.Contains(t, code, "alias greet='dirvana exec greet'")
-	assert.Contains(t, code, "alias bye='dirvana exec bye'")
+	// Functions are now generated as real shell functions with their body inline
+	assert.Contains(t, code, "greet() {")
+	assert.Contains(t, code, "bye() {")
 
 	// Static env vars are still exported directly
 	assert.Contains(t, code, "export PROJECT_NAME='myproject'")
 	assert.Contains(t, code, "export DEBUG='true'")
 
-	// Shell env vars are now also exported directly (executed once during generation)
-	assert.Contains(t, code, "export GIT_BRANCH='git rev-parse --abbrev-ref HEAD'")
+	// Shell env vars use command substitution to execute commands
+	assert.Contains(t, code, "export GIT_BRANCH=\"$(git rev-parse --abbrev-ref HEAD)\"")
 }
 
 func TestGenerator_GenerateEmpty(t *testing.T) {
@@ -78,8 +78,9 @@ func TestGenerator_GenerateFunctionsOnly(t *testing.T) {
 	}
 
 	code := g.Generate(nil, functions, nil, nil)
-	// Functions now use wrapper too
-	assert.Contains(t, code, "alias greet='dirvana exec greet'")
+	// Functions are now generated as real shell functions with their body inline
+	assert.Contains(t, code, "greet() {")
+	assert.Contains(t, code, "echo \"Hello\"")
 }
 
 func TestGenerator_GenerateEnvOnly(t *testing.T) {
@@ -102,9 +103,9 @@ func TestGenerator_GenerateShellEnvOnly(t *testing.T) {
 	}
 
 	code := g.Generate(nil, nil, nil, shellEnv)
-	// Shell env vars are now static values (executed once)
-	assert.Contains(t, code, "export CURRENT_DIR='pwd'")
-	assert.Contains(t, code, "export GIT_BRANCH='git branch --show-current'")
+	// Shell env vars use command substitution to execute commands
+	assert.Contains(t, code, "export CURRENT_DIR=\"$(pwd)\"")
+	assert.Contains(t, code, "export GIT_BRANCH=\"$(git branch --show-current)\"")
 }
 
 func TestGenerator_EscapeQuotes(t *testing.T) {
@@ -133,8 +134,9 @@ func TestGenerator_MultilineFunction(t *testing.T) {
 	}
 
 	code := g.Generate(nil, functions, nil, nil)
-	// Functions now use wrapper
-	assert.Contains(t, code, "alias complex='dirvana exec complex'")
+	// Functions are now generated as real shell functions with their body inline
+	assert.Contains(t, code, "complex() {")
+	assert.Contains(t, code, "if [ -z \"$1\" ]")
 }
 
 func TestGenerator_SortedOutput(t *testing.T) {

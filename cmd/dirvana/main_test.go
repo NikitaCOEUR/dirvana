@@ -203,17 +203,15 @@ alias ll='ls -la'
 }
 
 func TestEnvVarSupport_Shell(t *testing.T) {
-	// Test that DIRVANA_SHELL env var works
+	// Test that DIRVANA_SHELL env var takes precedence
 	_ = os.Setenv("DIRVANA_SHELL", "zsh")
 	defer func() { _ = os.Unsetenv("DIRVANA_SHELL") }()
 
-	// The DetectShell function should work with "auto" when SHELL env is not set
-	// but DIRVANA_SHELL would be read by the CLI framework itself
+	// When DIRVANA_SHELL is set, DetectShell should return it
 	shell := dircli.DetectShell("auto")
-	// This will default to bash since SHELL env is not set
-	assert.Equal(t, "bash", shell)
-
-	// When explicitly set to zsh
-	shell = dircli.DetectShell("zsh")
 	assert.Equal(t, "zsh", shell)
+
+	// When explicitly set, it should override env var
+	shell = dircli.DetectShell("bash")
+	assert.Equal(t, "bash", shell)
 }
