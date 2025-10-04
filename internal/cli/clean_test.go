@@ -42,7 +42,9 @@ func TestClean_All(t *testing.T) {
 }
 
 func TestClean_Hierarchy(t *testing.T) {
-	tmpDir := t.TempDir()
+	// Resolve symlinks for macOS compatibility where /tmp -> /private/tmp
+	tmpDir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
 	cachePath := filepath.Join(tmpDir, "cache.json")
 
 	// Create test directory structure

@@ -9,6 +9,16 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 )
 
+// resolveSymlinks resolves symlinks to get the real path (needed for macOS where /tmp -> /private/tmp)
+func resolveSymlinks(t *testing.T, path string) string {
+	t.Helper()
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("Failed to resolve symlinks for %s: %v", path, err)
+	}
+	return realPath
+}
+
 // TestExport_HierarchyWithUnauthorizedMiddle tests config loading in hierarchy A/B/C
 // where B is unauthorized but has no local config, so A and C should be loaded
 //nolint:gocyclo // Test function with multiple scenarios
@@ -24,8 +34,8 @@ func TestExport_HierarchyWithUnauthorizedMiddle(t *testing.T) {
 		}
 	}()
 
-	// Setup test directories
-	tmpDir := t.TempDir()
+	// Setup test directories - resolve symlinks for macOS compatibility
+	tmpDir := resolveSymlinks(t, t.TempDir())
 	dirA := filepath.Join(tmpDir, "A")
 	dirB := filepath.Join(dirA, "B")
 	dirC := filepath.Join(dirB, "C")
@@ -201,8 +211,8 @@ func TestExport_LocalOnlyFlag(t *testing.T) {
 		}
 	}()
 
-	// Setup test directories
-	tmpDir := t.TempDir()
+	// Setup test directories - resolve symlinks for macOS compatibility
+	tmpDir := resolveSymlinks(t, t.TempDir())
 	dirA := filepath.Join(tmpDir, "A")
 	dirB := filepath.Join(dirA, "B")
 	dirC := filepath.Join(dirB, "C")

@@ -34,8 +34,8 @@ func TestExport_UnauthorizedWarning(t *testing.T) {
 		}
 	}()
 
-	// Setup test directories
-	tmpDir := t.TempDir()
+	// Setup test directories - resolve symlinks for macOS compatibility
+	tmpDir := resolveSymlinks(t, t.TempDir())
 	dirA := filepath.Join(tmpDir, "A")
 	dirB := filepath.Join(dirA, "B")
 
