@@ -20,6 +20,7 @@ env:
     sh: git rev-parse --abbrev-ref HEAD
   BUILD_DIR:
     sh: pwd
+  TEST_OVERRIDED_VAR: from-root
 
 # Set to true to ignore parent configs
 local_only: false

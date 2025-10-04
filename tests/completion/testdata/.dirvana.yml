@@ -15,3 +15,4 @@ env:
   TOTO: test
   CURRENT_DIR:
     sh: pwd
+  TEST_OVERRIDED_VAR: from-testdata

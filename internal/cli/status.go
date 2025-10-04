@@ -99,7 +99,7 @@ func displayConfigHierarchy(currentDir string) ([]string, bool, error) {
 }
 
 func displayConfigDetails(comps *components, currentDir string, configFiles []string) error {
-	merged, _, err := comps.config.LoadHierarchy(currentDir)
+	merged, _, err := comps.config.LoadHierarchyWithAuth(currentDir, comps.auth)
 	if err != nil {
 		return fmt.Errorf("failed to load config hierarchy: %w", err)
 	}
