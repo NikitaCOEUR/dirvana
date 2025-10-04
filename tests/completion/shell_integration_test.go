@@ -11,14 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var testShell = getTestShell()
+const defaultShell = "bash"
 
 func getTestShell() string {
-	if s := os.Getenv("TEST_SHELL"); s != "" {
-		return s
+	if shell := os.Getenv("TEST_SHELL"); shell != "" {
+		return shell
 	}
-	return "bash"
+	return defaultShell
 }
+
+var testShell = getTestShell()
 
 // Shell integration tests - test real completion in actual shells
 var shellIntegrationTests = []struct {
