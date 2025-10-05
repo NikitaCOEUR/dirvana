@@ -27,19 +27,16 @@ __dirvana_hook() {
     fi
 
     # Export shell code from dirvana
+    # Note: stderr is preserved to show warnings (like unauthorized directories)
+    # dirvana auto-detects the shell from the parent process
     local shell_code
-    shell_code=$(dirvana export 2>/dev/null)
+    shell_code=$(dirvana export)
     local exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
         # Evaluate the generated shell code
         if [[ -n "$shell_code" ]]; then
             eval "$shell_code" 2>/dev/null
-        fi
-    else
-        # Only show errors if log level is debug
-        if [[ "${DIRVANA_LOG_LEVEL}" == "debug" ]]; then
-            echo "$shell_code" >&2
         fi
     fi
 }

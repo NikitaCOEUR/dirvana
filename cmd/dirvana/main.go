@@ -232,6 +232,85 @@ func main() {
 					return nil
 				},
 			},
+			{
+				Name:  "clean",
+				Usage: "Clean cache entries",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "all",
+						Aliases: []string{"a"},
+						Usage:   "Clear all cache entries instead of just current directory hierarchy",
+					},
+				},
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					return dircli.Clean(dircli.CleanParams{
+						CachePath: cachePath,
+						LogLevel:  cmd.String("log-level"),
+						All:       cmd.Bool("all"),
+					})
+				},
+			},
+			{
+				Name:            "exec",
+				Usage:           "Execute a dirvana-managed alias or function",
+				ArgsUsage:       "<alias> [args...]",
+				Hidden:          true, // Hidden from help - used internally by shell aliases
+				SkipFlagParsing: true, // Don't parse flags - pass them directly to the wrapped command
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					if cmd.Args().Len() == 0 {
+						return fmt.Errorf("alias name required")
+					}
+
+					alias := cmd.Args().Get(0)
+					args := cmd.Args().Slice()[1:]
+
+					return dircli.Exec(dircli.ExecParams{
+						CachePath: cachePath,
+						LogLevel:  cmd.String("log-level"),
+						Alias:     alias,
+						Args:      args,
+					})
+				},
+			},
+			{
+				Name:            "completion",
+				Usage:           "Generate shell completions for dirvana-managed aliases",
+				ArgsUsage:       "[completion-args...]",
+				Hidden:          true, // Hidden from help - used internally by completion functions
+				SkipFlagParsing: true, // Don't parse flags - pass them directly to the wrapped command
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					// Bash completion provides COMP_WORDS via args
+					// and COMP_CWORD via DIRVANA_COMP_CWORD env var
+
+					// IMPORTANT: Use os.Args directly instead of cmd.Args()
+					// because urfave/cli treats "--" as a special separator
+					// and filters it out, but we need it for kubectl completion
+					var words []string
+					foundCompletion := false
+					for _, arg := range os.Args {
+						if arg == "completion" {
+							foundCompletion = true
+							continue
+						}
+						if foundCompletion {
+							words = append(words, arg)
+						}
+					}
+
+					// Get COMP_CWORD from environment
+					cword := len(words) - 1 // default to last word
+					if cwordStr := os.Getenv("DIRVANA_COMP_CWORD"); cwordStr != "" {
+						_, _ = fmt.Sscanf(cwordStr, "%d", &cword) // Ignore errors, keep default
+					}
+
+					return dircli.Completion(dircli.CompletionParams{
+						CachePath: cachePath,
+						LogLevel:  cmd.String("log-level"),
+						Words:     words,
+						CWord:     cword,
+					})
+				},
+			},
 		},
 	}
 

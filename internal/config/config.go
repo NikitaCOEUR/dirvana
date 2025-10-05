@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/parsers/toml"
@@ -16,12 +17,28 @@ import (
 	"github.com/knadh/koanf/v2"
 )
 
+// AuthChecker defines the interface for checking directory authorization
+type AuthChecker interface {
+	IsAllowed(path string) (bool, error)
+}
+
 // SupportedConfigNames contains supported configuration file names (in order of preference)
 var SupportedConfigNames = []string{
 	".dirvana.yml",
 	".dirvana.yaml",
 	".dirvana.toml",
 	".dirvana.json",
+}
+
+// HasLocalConfig checks if a directory has a local configuration file
+func HasLocalConfig(dir string) bool {
+	for _, name := range SupportedConfigNames {
+		path := filepath.Join(dir, name)
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 const (
@@ -129,20 +146,91 @@ func (c *Config) GetEnvVars() (map[string]string, map[string]string) {
 	return staticVars, shellVars
 }
 
+// cachedConfig stores a parsed config with its modification time and hash
+type cachedConfig struct {
+	config  *Config
+	modTime time.Time
+	size    int64
+	hash    string
+}
+
 // Loader handles loading and parsing configuration files
 type Loader struct {
 	k *koanf.Koanf
+	// Cache for loaded configs to avoid re-reading files
+	configCache map[string]*Config
+	// Cache for parsed configs with modtime validation
+	parsedCache map[string]*cachedConfig
 }
 
 // New creates a new config loader
 func New() *Loader {
 	return &Loader{
-		k: koanf.New("."),
+		k:           koanf.New("."),
+		configCache: make(map[string]*Config),
+		parsedCache: make(map[string]*cachedConfig),
 	}
+}
+
+// FindConfigs finds all config directories from root to the given directory
+// Implements ConfigProvider interface from context package
+func (l *Loader) FindConfigs(dir string) []string {
+	configFiles, _ := FindConfigFiles(dir)
+	var dirs []string
+	for _, configFile := range configFiles {
+		dirs = append(dirs, filepath.Dir(configFile))
+	}
+	return dirs
+}
+
+// IsLocalOnly checks if a directory's config has the local_only flag set
+// Implements ConfigProvider interface from context package
+func (l *Loader) IsLocalOnly(dir string) bool {
+	// Try to find config file in this directory
+	var configPath string
+	for _, name := range SupportedConfigNames {
+		path := filepath.Join(dir, name)
+		if _, err := os.Stat(path); err == nil {
+			configPath = path
+			break
+		}
+	}
+
+	if configPath == "" {
+		return false
+	}
+
+	// Check cache first
+	if cfg, exists := l.configCache[dir]; exists {
+		return cfg.LocalOnly
+	}
+
+	// Load config
+	cfg, err := l.Load(configPath)
+	if err != nil {
+		return false
+	}
+
+	// Cache it
+	l.configCache[dir] = cfg
+
+	return cfg.LocalOnly
 }
 
 // Load reads and parses a configuration file
 func (l *Loader) Load(path string) (*Config, error) {
+	// Check if we have a cached version
+	if cached, exists := l.parsedCache[path]; exists {
+		// Verify file hasn't been modified (check both modtime and size)
+		fileInfo, err := os.Stat(path)
+		if err == nil && !fileInfo.ModTime().After(cached.modTime) && fileInfo.Size() == cached.size {
+			// Cache is still valid
+			return cached.config, nil
+		}
+		// File was modified, invalidate cache
+		delete(l.parsedCache, path)
+	}
+
 	// Create a new koanf instance for isolated loading
 	k := koanf.New(".")
 
@@ -177,18 +265,64 @@ func (l *Loader) Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	// Cache the parsed config with its modtime, size and compute hash
+	fileInfo, err := os.Stat(path)
+	if err == nil {
+		// Compute hash for caching
+		data, hashErr := os.ReadFile(path)
+		var hashStr string
+		if hashErr == nil {
+			hash := sha256.Sum256(data)
+			hashStr = hex.EncodeToString(hash[:])
+		}
+
+		l.parsedCache[path] = &cachedConfig{
+			config:  cfg,
+			modTime: fileInfo.ModTime(),
+			size:    fileInfo.Size(),
+			hash:    hashStr,
+		}
+	}
+
 	return cfg, nil
 }
 
 // Hash computes SHA-256 hash of a config file
 func (l *Loader) Hash(path string) (string, error) {
+	// Check if we have it cached with the same modtime and size
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+
+	if cached, exists := l.parsedCache[path]; exists {
+		if !fileInfo.ModTime().After(cached.modTime) && fileInfo.Size() == cached.size && cached.hash != "" {
+			// Hash is cached and file hasn't changed
+			return cached.hash, nil
+		}
+	}
+
+	// Compute hash
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
 
 	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:]), nil
+	hashStr := hex.EncodeToString(hash[:])
+
+	// Update cache with hash
+	if cached, exists := l.parsedCache[path]; exists {
+		cached.hash = hashStr
+	} else {
+		l.parsedCache[path] = &cachedConfig{
+			hash:    hashStr,
+			modTime: fileInfo.ModTime(),
+			size:    fileInfo.Size(),
+		}
+	}
+
+	return hashStr, nil
 }
 
 // Merge merges parent and child configs, with child taking precedence
@@ -286,6 +420,13 @@ func FindConfigFiles(startDir string) ([]string, error) {
 // LoadHierarchy loads and merges all configs from global to current directory
 // Order: global config → root → ... → parent → current
 func (l *Loader) LoadHierarchy(dir string) (*Config, []string, error) {
+	return l.LoadHierarchyWithAuth(dir, nil)
+}
+
+// LoadHierarchyWithAuth loads and merges all configs from global to current directory
+// with authorization checks for each directory in the hierarchy
+// Order: global config → root → ... → parent → current
+func (l *Loader) LoadHierarchyWithAuth(dir string, auth AuthChecker) (*Config, []string, error) {
 	var allConfigFiles []string
 	var merged *Config
 
@@ -318,8 +459,23 @@ func (l *Loader) LoadHierarchy(dir string) (*Config, []string, error) {
 		}, nil, nil
 	}
 
-	// Merge local configs
+	// Merge local configs with authorization checks
 	for _, path := range configFiles {
+		// Extract directory from config file path
+		configDir := filepath.Dir(path)
+
+		// If auth checker is provided, verify authorization for this directory
+		if auth != nil {
+			allowed, err := auth.IsAllowed(configDir)
+			if err != nil {
+				return nil, append(allConfigFiles, configFiles...), fmt.Errorf("failed to check authorization for %s: %w", configDir, err)
+			}
+			if !allowed {
+				// Skip unauthorized config files
+				continue
+			}
+		}
+
 		cfg, err := l.Load(path)
 		if err != nil {
 			return nil, append(allConfigFiles, configFiles...), err

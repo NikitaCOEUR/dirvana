@@ -10,6 +10,9 @@ vars:
   GIT_COMMIT:
     sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
   LDFLAGS: -ldflags "-X github.com/NikitaCOEUR/dirvana/pkg/version.Version={{.VERSION}} -X github.com/NikitaCOEUR/dirvana/pkg/version.BuildTime={{.BUILD_TIME}} -X github.com/NikitaCOEUR/dirvana/pkg/version.GitCommit={{.GIT_COMMIT}}"
+  GO_VERSION: "1.25.1"
+  TEST_SHELL: "bash"
+  IMAGE_TEST_COMPLETION: "dirvana-completion-test"
 
 tasks:
   default:
@@ -134,3 +137,47 @@ tasks:
     deps: [build]
     cmds:
       - ./{{.BUILD_DIR}}/{{.BINARY_NAME}} {{.CLI_ARGS}}
+
+  # Completion testing tasks
+  build-completion-image:
+    desc: Build Docker image for completion tests
+    vars:
+      GO_VER: '{{.GO_VERSION | default "1.25.1"}}'
+    cmds:
+      - docker build
+          --build-arg GO_VERSION={{.GO_VER}}
+          -t {{.IMAGE_TEST_COMPLETION}}
+          -f tests/completion/Dockerfile .
+
+  test-completion:
+    desc: Test completion system in Docker (TEST_SHELL=bash|zsh)
+    deps: [build, build-completion-image]
+    vars:
+      SHELL_TYPE: '{{.TEST_SHELL | default "bash"}}'
+    cmds:
+      - docker run --rm
+          -v {{.ROOT_DIR}}:/app
+          -e TEST_SHELL={{.SHELL_TYPE}}
+          {{.IMAGE_TEST_COMPLETION}}
+
+  test-completion-shell:
+    desc: Open interactive shell in completion test container
+    deps: [build, build-completion-image]
+    vars:
+      SHELL_TYPE: '{{.TEST_SHELL | default "bash"}}'
+    cmds:
+      - docker run --rm -it
+          -v {{.ROOT_DIR}}:/app
+          -e TEST_SHELL={{.SHELL_TYPE}}
+          --entrypoint {{.SHELL_TYPE}}
+          {{.IMAGE_TEST_COMPLETION}}
+
+  test-completion-all:
+    desc: Test completion in all supported shells
+    cmds:
+      - echo "Testing completion in bash..."
+      - task: test-completion
+        vars: { TEST_SHELL: "bash" }
+      - echo "Testing completion in zsh..."
+      - task: test-completion
+        vars: { TEST_SHELL: "zsh" }

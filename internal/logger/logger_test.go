@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNew(t *testing.T) {
@@ -118,6 +119,37 @@ func TestLogger_Error(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "error message") {
 		t.Errorf("Expected output to contain 'error message', got: %s", output)
+	}
+}
+
+func TestEntry_Dur(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := New("info", buf)
+
+	duration := 1500 * time.Microsecond
+	logger.Info().Dur("duration", duration).Msg("test duration")
+
+	output := buf.String()
+	if !strings.Contains(output, "duration") {
+		t.Errorf("Expected output to contain 'duration' field")
+	}
+	if !strings.Contains(output, "1.5") {
+		t.Errorf("Expected output to contain '1.5' milliseconds")
+	}
+}
+
+func TestEntry_Float(t *testing.T) {
+	buf := &bytes.Buffer{}
+	logger := New("info", buf)
+
+	logger.Info().Float("value", 3.14159).Msg("test float")
+
+	output := buf.String()
+	if !strings.Contains(output, "value") {
+		t.Errorf("Expected output to contain 'value' field")
+	}
+	if !strings.Contains(output, "3.14159") {
+		t.Errorf("Expected output to contain '3.14159'")
 	}
 }
 

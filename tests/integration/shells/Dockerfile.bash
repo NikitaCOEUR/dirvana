@@ -38,10 +38,11 @@ RUN /usr/local/bin/dirvana allow /test/project
 # Install the hook
 RUN /usr/local/bin/dirvana setup --shell bash
 
-# Copy test script
+# Copy test scripts
 COPY tests/integration/shells/test-bash.sh /test-bash.sh
 RUN chmod +x /test-bash.sh
 
 WORKDIR /test/project
 
+# Default to running standard tests, but allow override via environment variable
 CMD ["/test-bash.sh"]

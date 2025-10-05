@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -88,6 +89,20 @@ func (e *Entry) Err(err error) *Entry {
 	if err != nil {
 		e.entry = e.entry.WithError(err)
 	}
+	return e
+}
+
+// Dur adds a duration field (formatted in milliseconds)
+func (e *Entry) Dur(key string, duration time.Duration) *Entry {
+	// Log duration in milliseconds for readability
+	ms := float64(duration.Microseconds()) / 1000.0
+	e.entry = e.entry.WithField(key, ms)
+	return e
+}
+
+// Float adds a float field
+func (e *Entry) Float(key string, value float64) *Entry {
+	e.entry = e.entry.WithField(key, value)
 	return e
 }
 

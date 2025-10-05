@@ -21,6 +21,11 @@ type Entry struct {
 	Aliases   []string `json:"aliases,omitempty"`
 	Functions []string `json:"functions,omitempty"`
 	EnvVars   []string `json:"env_vars,omitempty"`
+	// Map of alias/function name to actual command (for dirvana exec)
+	CommandMap map[string]string `json:"command_map,omitempty"`
+	// Map of alias name to completion command (overrides CommandMap for completion)
+	// Example: k -> kubectl (when k executes kubecolor but completes with kubectl)
+	CompletionMap map[string]string `json:"completion_map,omitempty"`
 }
 
 // Cache manages persistent and in-memory cache
@@ -85,6 +90,43 @@ func (c *Cache) Clear() error {
 
 	c.entries = make(map[string]*Entry)
 	return c.persist()
+}
+
+// ClearHierarchy removes cache entries for the given directory and its hierarchy
+func (c *Cache) ClearHierarchy(dir string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Normalize path
+	dir = filepath.Clean(dir)
+
+	// Track which entries to delete
+	toDelete := []string{}
+
+	for path := range c.entries {
+		// Delete if path is the directory or is within its hierarchy
+		cleanPath := filepath.Clean(path)
+		if cleanPath == dir || isParentOf(dir, cleanPath) || isParentOf(cleanPath, dir) {
+			toDelete = append(toDelete, path)
+		}
+	}
+
+	// Delete the entries
+	for _, path := range toDelete {
+		delete(c.entries, path)
+	}
+
+	return c.persist()
+}
+
+// isParentOf checks if parent is a parent directory of child
+func isParentOf(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	// If the relative path doesn't start with "..", child is under parent
+	return len(rel) > 0 && rel[0] != '.' && rel[:2] != ".."
 }
 
 // IsValid checks if cached entry is valid for given hash and version

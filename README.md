@@ -9,7 +9,7 @@ A lightweight, fast, and fully testable CLI tool that automatically loads shell 
 - 🌳 **Hierarchical**: Merge configurations from parent directories
 - 📝 **Flexible**: Support for YAML, TOML, and JSON formats
 - 🧪 **Testable**: Built with TDD, 90%+ test coverage
-- 🐚 **Compatible**: Works with Bash, Zsh, Fish, and PowerShell
+- 🐚 **Compatible**: Works with Bash and Zsh
 
 ## Installation
 
@@ -334,13 +334,10 @@ Print shell hook code for manual installation. The hook includes a safety check 
 ```bash
 dirvana hook --shell bash
 dirvana hook --shell zsh
-dirvana hook --shell fish
-dirvana hook --shell powershell  # Windows PowerShell
-dirvana hook --shell pwsh         # PowerShell Core
 ```
 
 Flags:
-- `--shell` : Shell type - bash, zsh, fish, powershell, pwsh, or auto (also via `DIRVANA_SHELL`, default: auto)
+- `--shell` : Shell type - bash, zsh, or auto (also via `DIRVANA_SHELL`, default: auto)
 
 ### `dirvana setup`
 Automatically install shell hook and completion to the appropriate configuration file. If the hook is already installed but outdated, it will be automatically updated.
@@ -348,9 +345,6 @@ Automatically install shell hook and completion to the appropriate configuration
 ```bash
 dirvana setup --shell bash        # Installs to ~/.bashrc
 dirvana setup --shell zsh         # Installs to ~/.zshrc
-dirvana setup --shell fish        # Installs to ~/.config/fish/config.fish
-dirvana setup --shell powershell  # Installs to ~/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1
-dirvana setup --shell pwsh        # Installs to ~/.config/powershell/Microsoft.PowerShell_profile.ps1
 ```
 
 The setup command uses markers (`# Dirvana shell hook - START/END`) to:
@@ -361,7 +355,7 @@ The setup command uses markers (`# Dirvana shell hook - START/END`) to:
 - Automatically install shell completion
 
 Flags:
-- `--shell` : Shell type - bash, zsh, fish, powershell, pwsh, or auto (also via `DIRVANA_SHELL`, default: auto)
+- `--shell` : Shell type - bash, zsh, or auto (also via `DIRVANA_SHELL`, default: auto)
 
 ### `dirvana version`
 Show version information.
@@ -372,7 +366,7 @@ dirvana version
 
 ## Shell Completion
 
-Dirvana supports auto-completion for bash, zsh, fish, and PowerShell.
+Dirvana supports auto-completion for bash and zsh.
 
 ### Installing Completion
 
@@ -396,17 +390,6 @@ source <(dirvana completion zsh)
 # Permanent (add to ~/.zshrc)
 dirvana completion zsh > "${fpath[1]}/_dirvana"
 # Then reload: compinit
-```
-
-**Fish:**
-```bash
-dirvana completion fish > ~/.config/fish/completions/dirvana.fish
-```
-
-**PowerShell:**
-```powershell
-dirvana completion powershell > dirvana.ps1
-# Add to your PowerShell profile
 ```
 
 ## Development
