@@ -107,6 +107,10 @@ func TestExec_AliasNotFound(t *testing.T) {
 	workDir := filepath.Join(tmpDir, "work")
 	require.NoError(t, os.MkdirAll(workDir, 0755))
 
+	// Resolve symlinks for macOS compatibility
+	workDir, err := filepath.EvalSymlinks(workDir)
+	require.NoError(t, err)
+
 	// Create cache with entry but different alias
 	c, err := cache.New(cachePath)
 	require.NoError(t, err)
@@ -147,6 +151,10 @@ func TestExec_EmptyCommand(t *testing.T) {
 	workDir := filepath.Join(tmpDir, "work")
 	require.NoError(t, os.MkdirAll(workDir, 0755))
 
+	// Resolve symlinks for macOS compatibility
+	workDir, err := filepath.EvalSymlinks(workDir)
+	require.NoError(t, err)
+
 	// Create cache with empty command
 	c, err := cache.New(cachePath)
 	require.NoError(t, err)
@@ -186,6 +194,10 @@ func TestExec_CommandNotFound(t *testing.T) {
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
 	require.NoError(t, os.MkdirAll(workDir, 0755))
+
+	// Resolve symlinks for macOS compatibility
+	workDir, err := filepath.EvalSymlinks(workDir)
+	require.NoError(t, err)
 
 	// Create cache with non-existent command
 	c, err := cache.New(cachePath)
