@@ -389,3 +389,45 @@ func TestStatus_InvalidAuthPath(t *testing.T) {
 	err = Status(params)
 	require.Error(t, err)
 }
+
+func TestStatus_WithMixedAuthorizations(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Create directory hierarchy: A/B/C
+	dirA := filepath.Join(tmpDir, "A")
+	dirB := filepath.Join(dirA, "B")
+	dirC := filepath.Join(dirB, "C")
+	require.NoError(t, os.MkdirAll(dirC, 0755))
+
+	// Create configs in each directory
+	configA := filepath.Join(dirA, ".dirvana.yml")
+	require.NoError(t, os.WriteFile(configA, []byte("aliases:\n  a: echo a\n"), 0644))
+
+	configB := filepath.Join(dirB, ".dirvana.yml")
+	require.NoError(t, os.WriteFile(configB, []byte("aliases:\n  b: echo b\n"), 0644))
+
+	configC := filepath.Join(dirC, ".dirvana.yml")
+	require.NoError(t, os.WriteFile(configC, []byte("aliases:\n  c: echo c\n"), 0644))
+
+	// Authorize only A and C, not B
+	require.NoError(t, Allow(authPath, dirA))
+	require.NoError(t, Allow(authPath, dirC))
+
+	// Change to dirC
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	require.NoError(t, os.Chdir(dirC))
+
+	params := StatusParams{
+		CachePath: cachePath,
+		AuthPath:  authPath,
+	}
+
+	// Should show authorization status for each config
+	err = Status(params)
+	require.NoError(t, err)
+}
+

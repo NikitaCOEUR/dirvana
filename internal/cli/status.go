@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/NikitaCOEUR/dirvana/internal/config"
@@ -34,7 +35,7 @@ func Status(params StatusParams) error {
 		return err
 	}
 
-	configFiles, hasGlobal, err := displayConfigHierarchy(currentDir)
+	configFiles, hasGlobal, err := displayConfigHierarchyWithAuth(comps, currentDir)
 	if err != nil {
 		return err
 	}
@@ -64,7 +65,8 @@ func displayAuthStatus(comps *components, currentDir string) (bool, error) {
 	return allowed, nil
 }
 
-func displayConfigHierarchy(currentDir string) ([]string, bool, error) {
+// displayConfigHierarchyWithAuth displays the configuration hierarchy with authorization status
+func displayConfigHierarchyWithAuth(comps *components, currentDir string) ([]string, bool, error) {
 	configFiles, err := config.FindConfigFiles(currentDir)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to find config files: %w", err)
@@ -79,9 +81,12 @@ func displayConfigHierarchy(currentDir string) ([]string, bool, error) {
 	}
 
 	fmt.Println("📝 Configuration hierarchy:")
+	
+	// Display global config
 	if hasGlobal {
-		fmt.Printf("   1. %s (global)\n", globalPath)
+		fmt.Printf("   1. %s (global) ✓\n", globalPath)
 	}
+	
 	if len(configFiles) == 0 && !hasGlobal {
 		fmt.Println("   No configuration files found")
 	} else {
@@ -89,8 +94,22 @@ func displayConfigHierarchy(currentDir string) ([]string, bool, error) {
 		if hasGlobal {
 			offset = 2
 		}
+		
+		// Display each config with authorization status
 		for i, path := range configFiles {
-			fmt.Printf("   %d. %s\n", i+offset, path)
+			// Extract directory from config file path
+			configDir := filepath.Dir(path)
+			
+			// Check if this directory is authorized
+			allowed, err := comps.auth.IsAllowed(configDir)
+			status := "✓"
+			statusText := ""
+			if err != nil || !allowed {
+				status = "✗"
+				statusText = " (not authorized)"
+			}
+			
+			fmt.Printf("   %d. %s %s%s\n", i+offset, path, status, statusText)
 		}
 	}
 	fmt.Println()
