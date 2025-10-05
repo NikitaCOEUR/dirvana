@@ -9,7 +9,7 @@ ARG TERRAFORM_VERSION=1.9.8
 ARG AQUA_VERSION=2.55.0
 
 # =====================
-# Dépendances système
+# System dependencies
 # =====================
 RUN apt-get update && apt-get install -y \
     bash \
