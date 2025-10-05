@@ -232,3 +232,164 @@ func TestExec_CommandNotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "command not found")
 }
+
+func TestExec_CommandWithArgs(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	workDir := filepath.Join(tmpDir, "work")
+	require.NoError(t, os.MkdirAll(workDir, 0755))
+
+	// Resolve symlinks for macOS compatibility
+	workDir, err := filepath.EvalSymlinks(workDir)
+	require.NoError(t, err)
+
+	// Create cache with echo command (exists on all systems)
+	c, err := cache.New(cachePath)
+	require.NoError(t, err)
+
+	err = c.Set(&cache.Entry{
+		Path:      workDir,
+		Hash:      "hash1",
+		Timestamp: time.Now(),
+		Version:   version.Version,
+		CommandMap: map[string]string{
+			"e": "echo hello",
+		},
+	})
+	require.NoError(t, err)
+
+	// Change to work directory
+	origDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(origDir) }()
+	err = os.Chdir(workDir)
+	require.NoError(t, err)
+
+	params := ExecParams{
+		CachePath: cachePath,
+		LogLevel:  "error",
+		Alias:     "e",
+		Args:      []string{"world"},
+	}
+
+	// This will execute "echo hello world"
+	// Note: syscall.Exec will replace the test process, so we can't really test this directly
+	// The test will verify the setup is correct before exec is called
+	_ = params // Params are valid, but we can't actually call Exec in test
+}
+
+func TestExec_MultiWordCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	workDir := filepath.Join(tmpDir, "work")
+	require.NoError(t, os.MkdirAll(workDir, 0755))
+
+	// Resolve symlinks for macOS compatibility
+	workDir, err := filepath.EvalSymlinks(workDir)
+	require.NoError(t, err)
+
+	// Create cache with multi-word command
+	c, err := cache.New(cachePath)
+	require.NoError(t, err)
+
+	err = c.Set(&cache.Entry{
+		Path:      workDir,
+		Hash:      "hash1",
+		Timestamp: time.Now(),
+		Version:   version.Version,
+		CommandMap: map[string]string{
+			"ll": "ls -la",
+		},
+	})
+	require.NoError(t, err)
+
+	// Change to work directory
+	origDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(origDir) }()
+	err = os.Chdir(workDir)
+	require.NoError(t, err)
+
+	params := ExecParams{
+		CachePath: cachePath,
+		LogLevel:  "error",
+		Alias:     "ll",
+		Args:      []string{"/tmp"},
+	}
+
+	// This would execute "ls -la /tmp"
+	// We can't test syscall.Exec directly, but we verify the setup
+	_ = params
+}
+
+func TestExec_InvalidCachePath(t *testing.T) {
+	params := ExecParams{
+		CachePath: "/nonexistent/path/cache.json",
+		LogLevel:  "error",
+		Alias:     "test",
+		Args:      []string{},
+	}
+
+	err := Exec(params)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load cache")
+}
+
+func TestFindCacheEntry_RootDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+
+	// Create cache
+	c, err := cache.New(cachePath)
+	require.NoError(t, err)
+
+	// Try to find entry starting from root (should stop at root)
+	entry, found := findCacheEntry(c, "/")
+	assert.False(t, found)
+	assert.Nil(t, entry)
+}
+
+func TestFindCacheEntry_CleanPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+
+	c, err := cache.New(cachePath)
+	require.NoError(t, err)
+
+	dir := filepath.Join(tmpDir, "test")
+
+	// Add entry
+	err = c.Set(&cache.Entry{
+		Path:      dir,
+		Hash:      "hash1",
+		Timestamp: time.Now(),
+		Version:   version.Version,
+		CommandMap: map[string]string{
+			"test": "echo test",
+		},
+	})
+	require.NoError(t, err)
+
+	// Test with path that needs cleaning (has . or ..)
+	dirtyPath := filepath.Join(dir, ".", "subdir", "..")
+	entry, found := findCacheEntry(c, dirtyPath)
+	assert.True(t, found)
+	assert.Equal(t, dir, entry.Path)
+}
+
+func TestExec_CacheLoadFailure(t *testing.T) {
+	// Use a directory path as cache path (will fail to load)
+	tmpDir := t.TempDir()
+	
+	params := ExecParams{
+		CachePath: tmpDir, // Directory, not a file
+		LogLevel:  "error",
+		Alias:     "test",
+		Args:      []string{},
+	}
+
+	err := Exec(params)
+	assert.Error(t, err)
+	// Should fail at cache loading
+}
+

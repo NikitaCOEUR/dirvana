@@ -70,25 +70,11 @@ func Exec(params ExecParams) error {
 
 	// Execute the command directly (replace current process)
 	// This is the most efficient way - no fork overhead
+	// NOTE: If this returns, it means exec failed (should never happen after LookPath succeeds)
 	err = syscall.Exec(execPath, argv, os.Environ())
-	if err != nil {
-		// If exec fails, fall back to normal command execution
-		log.Debug().Err(err).Msg("syscall.Exec failed, falling back to exec.Command")
 
-		cmd := exec.Command(cmdParts[0], allArgs...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				os.Exit(exitErr.ExitCode())
-			}
-			return err
-		}
-	}
-
-	return nil
+	// If we reach here, syscall.Exec failed (extremely rare)
+	return fmt.Errorf("failed to execute command: %w", err)
 }
 
 // findCacheEntry searches for a cache entry in the current directory or parent directories
