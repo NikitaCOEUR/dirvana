@@ -1,16 +1,16 @@
 # Dirvana
-
-**Automatically load shell aliases, functions, and environment variables per directory.**
-
+![dirvana-logo](assets/DirvanaLogo.png)
 > [!WARNING]
 > **🧪 Beta Status - We Need Your Feedback!**
-> 
+>
 > Dirvana is currently in beta and actively seeking testers to help validate its functionality across different configurations and use cases. Your feedback will help us:
 > - Identify edge cases and limitations
 > - Improve compatibility across different shell environments
 > - Shape the tool's evolution based on real-world usage
-> 
+>
 > Found a bug? Have a feature request? Please [open an issue](https://github.com/NikitaCOEUR/dirvana/issues) or share your experience!
+
+**Automatically load shell aliases, functions, and environment variables per directory.**
 
 Dirvana is a lightweight CLI tool that manages project-specific shell environments. When you enter a directory, Dirvana automatically loads the configuration defined in `.dirvana.yml`, giving you instant access to project-specific commands, environment variables, and functions.
 
