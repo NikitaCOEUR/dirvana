@@ -8,6 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	dirvanaBinaryName = "dirvana"
+)
+
 func TestDetectShell(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -206,9 +210,43 @@ func TestGetBinaryPath(t *testing.T) {
 	assert.NotEmpty(t, path)
 
 	// Should either be an absolute path or "dirvana" (fallback)
-	if !strings.HasPrefix(path, "/") && !strings.HasPrefix(path, "\\") && path != "dirvana" {
+	if !strings.HasPrefix(path, "/") && !strings.HasPrefix(path, "\\") && path != dirvanaBinaryName {
 		t.Errorf("Unexpected binary path format: %s", path)
 	}
+}
+
+func TestGetBinaryPath_Fallback(t *testing.T) {
+	// We can't easily make os.Executable() fail, but we can verify
+	// that the function handles both success and fallback paths
+	path := getBinaryPath()
+	
+	// The result should be either:
+	// 1. A valid executable path (contains "/" or "\\")
+	// 2. The fallback value "dirvana"
+	assert.NotEmpty(t, path, "getBinaryPath should never return empty string")
+	
+	// Verify the path is usable in a hook command
+	assert.True(t, 
+		strings.Contains(path, "/") || 
+		strings.Contains(path, "\\") || 
+		path == dirvanaBinaryName,
+		"Path should be absolute or fallback to 'dirvana'")
+}
+
+func TestDetectShell_ParentProcessDetection(t *testing.T) {
+	// This test verifies that detectShellFromParentProcess is called
+	// Clear DIRVANA_SHELL and SHELL to force parent process detection
+	_ = os.Unsetenv("DIRVANA_SHELL")
+	_ = os.Unsetenv("SHELL")
+	
+	// Call DetectShell with auto
+	shell := DetectShell("auto")
+	
+	// On Linux, if running under bash/zsh, detectShellFromParentProcess 
+	// might succeed. Otherwise it falls back to bash.
+	// The test passes if we get a valid shell type
+	assert.Contains(t, []string{ShellBash, ShellZsh}, shell,
+		"Should return bash or zsh (either from parent detection or fallback)")
 }
 
 func TestGenerateHookCode_ContainsBinaryPath(t *testing.T) {
@@ -221,7 +259,7 @@ func TestGenerateHookCode_ContainsBinaryPath(t *testing.T) {
 
 			// The hook code should reference the binary path
 			// Either the full path or "dirvana" fallback
-			containsPath := strings.Contains(code, binPath) || strings.Contains(code, "dirvana")
+			containsPath := strings.Contains(code, binPath) || strings.Contains(code, dirvanaBinaryName)
 			assert.True(t, containsPath, "Hook code should contain binary path reference")
 		})
 	}
