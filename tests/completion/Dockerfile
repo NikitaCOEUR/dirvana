@@ -59,7 +59,7 @@ RUN curl -fsSL \
     && chmod +x /usr/local/bin/aqua
 
 # =====================
-# Installation des completions natives
+# Installation of native completions
 # =====================
 # kubectl completion pour bash et zsh
 RUN kubectl completion bash > /etc/bash_completion.d/kubectl && \
