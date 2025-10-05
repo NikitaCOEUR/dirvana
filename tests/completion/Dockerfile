@@ -1,7 +1,7 @@
 FROM debian:bookworm-slim
 
 # =====================
-# Variables de build
+# Build variables
 # =====================
 ARG GO_VERSION=1.25.1
 ARG KUBECTL_VERSION=stable
