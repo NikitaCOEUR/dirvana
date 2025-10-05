@@ -1,23 +1,103 @@
 # Dirvana
 
-A lightweight, fast, and fully testable CLI tool that automatically loads shell aliases, functions, and environment variables per folder. Perfect for managing project-specific shell environments.
+**Automatically load shell aliases, functions, and environment variables per directory.**
 
-## Features
+Dirvana is a lightweight CLI tool that manages project-specific shell environments. When you enter a directory, Dirvana automatically loads the configuration defined in `.dirvana.yml`, giving you instant access to project-specific commands, environment variables, and functions.
 
-- 🚀 **Fast**: Minimal overhead (<10ms) with intelligent caching
-- 🔒 **Secure**: Authorization system to control which projects can execute
-- 🌳 **Hierarchical**: Merge configurations from parent directories
-- 📝 **Flexible**: Support for YAML, TOML, and JSON formats
-- 🧪 **Testable**: Built with TDD, 90%+ test coverage
-- 🐚 **Compatible**: Works with Bash and Zsh
+## 🎯 What is Dirvana?
 
-## Installation
+Dirvana solves a common problem: **managing different shell environments for different projects**. Instead of cluttering your `.bashrc` with project-specific aliases or manually sourcing environment files, Dirvana automatically loads the right configuration when you `cd` into a directory.
 
-### Using Homebrew (macOS/Linux)
+**The magic:** When you leave the directory, everything is automatically unloaded. No pollution of your global shell environment!
+
+### How it works
+
+```mermaid
+graph TD
+    A[👤 User: cd ~/projects/myapp] --> B{🔍 Dirvana Hook}
+    B --> C[📄 Read .dirvana.yml]
+    C --> D{🔒 Authorized?}
+    D -->|No| E[⚠️ Warning: Not authorized]
+    D -->|Yes| F[🌳 Merge configs<br/>global → parent → current]
+    F --> G[💾 Check cache]
+    G -->|Hit| H[⚡ Load from cache]
+    G -->|Miss| I[🔨 Generate shell code]
+    I --> J[💾 Save to cache]
+    H --> K[✅ Environment loaded]
+    J --> K
+    K --> L[✨ Aliases available<br/>🔧 Functions ready<br/>🌍 Env vars set]
+
+    M[👤 User: cd ..] --> N{🧹 Dirvana Hook}
+    N --> O[🗑️ Unload aliases]
+    O --> P[🗑️ Unload functions]
+    P --> Q[🗑️ Unset env vars]
+    Q --> R[✅ Clean environment]
+
+    style A fill:#e1f5ff
+    style K fill:#c8e6c9
+    style L fill:#c8e6c9
+    style M fill:#fff3e0
+    style R fill:#c8e6c9
+    style E fill:#ffcdd2
+```
+
+### Example
+
+**Before Dirvana:**
+```bash
+$ cd ~/projects/terraform
+$ export TF_LOG=debug
+$ alias tf="terraform"
+$ alias plan="terraform plan"
+$ alias apply="terraform apply"
+# ... and don't forget to unset everything when leaving!
+```
+
+**With Dirvana:**
+```yaml
+# .dirvana.yml
+aliases:
+  tf:
+    command: task terraform -- # a specific wrapper via taskfile exist
+    completion: terraform  # Inherits terraform's auto-completion!
+  plan: task terraform -- plan
+  apply: task terraform -- apply
+
+functions:
+  greet: |
+    echo "Hello, $1!"
+
+env:
+  GIT_REPOSITORY:
+    sh: git remote get-url origin | sed 's/.*github.com:\(.*\)\.git/\1/'
+  PROJECT_NAME: myproject
+
+```
 
 ```bash
-brew install NikitaCOEUR/tap/dirvana
+$ cd ~/projects/terraform
+# Everything loads automatically!
+$ tf <TAB>          # Auto-completion works! ✨
+  apply  console  destroy  init  plan  validate ...
+
+$ tf plan              # Runs: task terraform -- plan
+$ tf apply             # Runs: task terraform -- apply
+
+$ cd ..
+# Everything unloads automatically! 🧹
+# Your shell is clean again
 ```
+
+## ✨ Features
+
+- 🚀 **Fast**: <10ms overhead with intelligent caching
+- 🔒 **Secure**: Authorization system prevents untrusted configs
+- 🌳 **Hierarchical**: Merge configurations from parent directories
+- 📝 **Simple**: YAML configuration with JSON Schema validation
+- 🐚 **Compatible**: Works with Bash and Zsh
+- 🔄 **Auto-completion**: Inherits completion from aliased commands (git, kubectl, etc.)
+
+## 📦 Installation
 
 ### Using go install
 
@@ -27,35 +107,35 @@ go install github.com/NikitaCOEUR/dirvana/cmd/dirvana@latest
 
 ### Download Binary
 
-Download the latest release from [GitHub Releases](https://github.com/NikitaCOEUR/dirvana/releases) for your platform.
+Download the latest release for your platform:
 
-### Using Docker
-
+**Linux:**
 ```bash
-docker pull ghcr.io/nikitacoeur/dirvana:latest
-docker run --rm ghcr.io/nikitacoeur/dirvana:latest --version
+curl -L https://github.com/NikitaCOEUR/dirvana/releases/latest/download/dirvana-linux-amd64 -o /usr/local/bin/dirvana
+chmod +x /usr/local/bin/dirvana
 ```
 
-### From Source
-
+**macOS:**
 ```bash
-git clone https://github.com/NikitaCOEUR/dirvana.git
-cd dirvana
-task install
+curl -L https://github.com/NikitaCOEUR/dirvana/releases/latest/download/dirvana-darwin-amd64 -o /usr/local/bin/dirvana
+chmod +x /usr/local/bin/dirvana
 ```
+
+See all releases at [GitHub Releases](https://github.com/NikitaCOEUR/dirvana/releases).
 
 ### Setup Shell Hook
 
-Automatically install the shell hook:
+Install the shell hook (required for automatic loading):
 
 ```bash
 dirvana setup
 ```
 
-Or manually add to your `~/.bashrc` or `~/.zshrc`:
+This adds a hook to your `~/.bashrc` or `~/.zshrc` that automatically runs when you change directories.
 
+**Reload your shell:**
 ```bash
-source /path/to/dirvana/hooks/dirvana.sh
+source ~/.bashrc  # or ~/.zshrc
 ```
 
 ## Quick Start
@@ -63,7 +143,7 @@ source /path/to/dirvana/hooks/dirvana.sh
 1. **Initialize a project** (creates `.dirvana.yml` with JSON Schema validation):
 ```bash
 cd your-project
-dirvana init
+dirvana init or dirvana edit
 ```
 
 2. **Authorize the project**:
@@ -71,9 +151,9 @@ dirvana init
 dirvana allow
 ```
 
-3. **Reload your shell** or source your rc file:
+3. **Reload your configuration**:
 ```bash
-source ~/.bashrc  # or ~/.zshrc
+eval "$(dirvana export)" # or cd .. && cd -
 ```
 
 Your aliases, functions, and environment variables are now loaded!
@@ -94,30 +174,48 @@ All configuration files generated by `dirvana init` or `dirvana edit` automatica
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
 
-# Aliases - shortcuts for common commands
+# Simple aliases
 aliases:
   ll: ls -lah
   gs: git status
   build: go build -o bin/app ./cmd
 
+# Aliases with auto-completion support
+# The 'completion' field makes the alias inherit completion from the target command
+aliases:
+  tf: terraform # Now 'tf <TAB>' works like 'terraform <TAB>'!
+
+  k:
+    command: kubecolor
+    completion: kubectl    # Kubernetes resource completion! With colors!
+
+  g: git # Git branch/file completion!
+
 # Functions - reusable command sequences
 functions:
   mkcd: |
     mkdir -p "$1" && cd "$1"
-  gcm: |
-    git commit -m "$1"
+
+  deploy: |
+    echo "Deploying to $1..."
+    task deploy -- "$1"
 
 # Environment variables
 env:
   # Static values
   PROJECT_NAME: myproject
   LOG_LEVEL: debug
+  TF_LOG: info
 
   # Dynamic values from shell commands (like Taskfile)
   GIT_BRANCH:
     sh: git rev-parse --abbrev-ref HEAD
+
   PROJECT_ROOT:
     sh: pwd
+
+  CURRENT_USER:
+    sh: whoami
 
 # Prevent merging with parent configs (only use this directory's config)
 local_only: false
@@ -434,22 +532,14 @@ task test-all
 
 Integration tests validate that Dirvana works correctly in real shell environments using Docker containers:
 
-- **Bash** - Tests aliases, functions, and environment variables in Bash 5.2
-- **Zsh** - Tests hooks and features in Zsh 5.9
-- **Fish** - Tests Fish shell integration
+- **Bash** - Tests aliases, functions, and environment variables in Bash
+- **Zsh** - Tests hooks and features in Zsh
 
 Each test:
 1. Builds a Docker image with the specific shell
 2. Installs Dirvana and sets up hooks
 3. Creates a test configuration
 4. Validates that all features work correctly
-
-Run individual shell tests:
-```bash
-# Build and run specific shell test
-docker build -t dirvana-test-bash -f tests/integration/shells/Dockerfile.bash .
-docker run --rm dirvana-test-bash
-```
 
 ### Available Tasks
 
@@ -542,16 +632,11 @@ All commits must follow the [Conventional Commits](https://www.conventionalcommi
    - Run tests
    - Build binaries for multiple platforms
    - Create GitHub release with changelog
-   - Publish Docker images to GHCR
-   - Update Homebrew tap
 
 ### Release Artifacts
 
 Each release includes:
 - Pre-built binaries for Linux, macOS, Windows (amd64, arm64)
-- Docker images (multi-arch: amd64, arm64)
-- Debian/RPM/APK packages
-- Homebrew formula
 - Checksums and signatures
 
 ## Contributing
