@@ -15,9 +15,10 @@ type Engine struct {
 
 // NewEngine creates a new completion engine with all strategies
 func NewEngine(cacheDir string) *Engine {
-	urfaveCli := NewUrfaveCliCompleter()
+	flag := NewFlagCompleter()
 	cobra := NewCobraCompleter()
-	bashComplete := NewBashCompleteCompleter()
+	env := NewEnvCompleter()
+	script := NewScriptCompleter()
 
 	// Load detection cache
 	cachePath := filepath.Join(cacheDir, "completion-detection.json")
@@ -25,15 +26,17 @@ func NewEngine(cacheDir string) *Engine {
 
 	return &Engine{
 		completers: []Completer{
-			cobra,        // Try Cobra first (kubectl, helm, etc.) - most specific
-			urfaveCli,    // Then urfave/cli (dirvana, and other Go CLI tools)
-			bashComplete, // Finally bash complete (terraform, consul, vault, nomad, etc.)
+			cobra,  // Try Cobra first (kubectl, helm, etc.) - most specific
+			flag,   // Then flag-based (dirvana, and other Go CLI tools)
+			env,    // Then env-based (terraform, consul, vault, nomad, etc.)
+			script, // Finally script-based (git, docker, systemctl, etc.)
 		},
 		detectionCache: detectionCache,
 		completerByName: map[string]Completer{
-			"UrfaveCli":    urfaveCli,
-			"Cobra":        cobra,
-			"BashComplete": bashComplete,
+			"Flag":   flag,
+			"Cobra":  cobra,
+			"Env":    env,
+			"Script": script,
 		},
 	}
 }

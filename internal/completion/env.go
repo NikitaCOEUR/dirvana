@@ -9,19 +9,19 @@ import (
 	"strings"
 )
 
-// BashCompleteCompleter handles tools that use the bash "complete -C" protocol
+// EnvCompleter handles tools that use environment variable-based completion protocol
 // This protocol is used by terraform, consul, vault, nomad, and other HashiCorp tools
 // The tool is called with COMP_LINE and COMP_POINT environment variables
-type BashCompleteCompleter struct{}
+type EnvCompleter struct{}
 
-// NewBashCompleteCompleter creates a new bash complete completer
-func NewBashCompleteCompleter() *BashCompleteCompleter {
-	return &BashCompleteCompleter{}
+// NewEnvCompleter creates a new environment-based completer
+func NewEnvCompleter() *EnvCompleter {
+	return &EnvCompleter{}
 }
 
-// Supports checks if the tool supports bash complete protocol by testing it
+// Supports checks if the tool supports env-based completion protocol by testing it
 // We verify by checking that it returns actual suggestions
-func (b *BashCompleteCompleter) Supports(tool string, _ []string) bool {
+func (e *EnvCompleter) Supports(tool string, _ []string) bool {
 	// Test if the tool responds to COMP_LINE environment variable
 	cmd := exec.Command(tool)
 	cmd.Env = append(os.Environ(),
@@ -62,8 +62,8 @@ func (b *BashCompleteCompleter) Supports(tool string, _ []string) bool {
 	return validLines > 0 && invalidLines == 0
 }
 
-// Complete uses the bash complete protocol to get suggestions
-func (b *BashCompleteCompleter) Complete(tool string, args []string) ([]Suggestion, error) {
+// Complete uses the environment variable protocol to get suggestions
+func (e *EnvCompleter) Complete(tool string, args []string) ([]Suggestion, error) {
 	// Build the COMP_LINE (the full command line)
 	compLine := tool
 	if len(args) > 0 {
@@ -86,12 +86,12 @@ func (b *BashCompleteCompleter) Complete(tool string, args []string) ([]Suggesti
 		return nil, err
 	}
 
-	return parseBashCompleteOutput(output), nil
+	return parseEnvOutput(output), nil
 }
 
-// parseBashCompleteOutput parses the output from bash complete protocol
+// parseEnvOutput parses the output from environment variable-based completion
 // Format: one suggestion per line, no descriptions
-func parseBashCompleteOutput(output []byte) []Suggestion {
+func parseEnvOutput(output []byte) []Suggestion {
 	var suggestions []Suggestion
 
 	scanner := bufio.NewScanner(bytes.NewReader(output))

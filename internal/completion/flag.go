@@ -7,18 +7,18 @@ import (
 	"strings"
 )
 
-// UrfaveCliCompleter handles tools that use urfave/cli --generate-shell-completion
-// This is used by tools built with github.com/urfave/cli
-type UrfaveCliCompleter struct{}
+// FlagCompleter handles tools that use --generate-shell-completion flag
+// This is used by tools built with github.com/urfave/cli and similar frameworks
+type FlagCompleter struct{}
 
-// NewUrfaveCliCompleter creates a new urfave/cli completer
-func NewUrfaveCliCompleter() *UrfaveCliCompleter {
-	return &UrfaveCliCompleter{}
+// NewFlagCompleter creates a new flag-based completer
+func NewFlagCompleter() *FlagCompleter {
+	return &FlagCompleter{}
 }
 
 // Supports checks if the tool supports --generate-shell-completion
 // We verify by checking that it returns a simple list of words
-func (u *UrfaveCliCompleter) Supports(tool string, _ []string) bool {
+func (f *FlagCompleter) Supports(tool string, _ []string) bool {
 	// Test if tool accepts --generate-shell-completion
 	cmd := exec.Command(tool, "--generate-shell-completion")
 	output, err := cmd.Output()
@@ -51,7 +51,7 @@ func (u *UrfaveCliCompleter) Supports(tool string, _ []string) bool {
 }
 
 // Complete uses --generate-shell-completion to get suggestions
-func (u *UrfaveCliCompleter) Complete(tool string, args []string) ([]Suggestion, error) {
+func (f *FlagCompleter) Complete(tool string, args []string) ([]Suggestion, error) {
 	// Build command: tool [args...] --generate-shell-completion
 	// Note: we pass all args INCLUDING the current word being completed
 	cmdArgs := append(args, "--generate-shell-completion")
@@ -62,12 +62,12 @@ func (u *UrfaveCliCompleter) Complete(tool string, args []string) ([]Suggestion,
 		return nil, err
 	}
 
-	return parseUrfaveCliOutput(output), nil
+	return parseFlagOutput(output), nil
 }
 
-// parseUrfaveCliOutput parses urfave/cli completion output
+// parseFlagOutput parses flag-based completion output
 // Format: one suggestion per line, no descriptions (simple list)
-func parseUrfaveCliOutput(output []byte) []Suggestion {
+func parseFlagOutput(output []byte) []Suggestion {
 	var suggestions []Suggestion
 
 	scanner := bufio.NewScanner(bytes.NewReader(output))
