@@ -18,6 +18,7 @@ func NewEngine(cacheDir string) *Engine {
 	urfaveCli := NewUrfaveCliCompleter()
 	cobra := NewCobraCompleter()
 	bashComplete := NewBashCompleteCompleter()
+	bashFunction := NewBashFunctionCompleter()
 
 	// Load detection cache
 	cachePath := filepath.Join(cacheDir, "completion-detection.json")
@@ -27,13 +28,15 @@ func NewEngine(cacheDir string) *Engine {
 		completers: []Completer{
 			cobra,        // Try Cobra first (kubectl, helm, etc.) - most specific
 			urfaveCli,    // Then urfave/cli (dirvana, and other Go CLI tools)
-			bashComplete, // Finally bash complete (terraform, consul, vault, nomad, etc.)
+			bashComplete, // Then bash complete (terraform, consul, vault, nomad, etc.)
+			bashFunction, // Finally bash functions (git, docker, systemctl, etc.)
 		},
 		detectionCache: detectionCache,
 		completerByName: map[string]Completer{
 			"UrfaveCli":    urfaveCli,
 			"Cobra":        cobra,
 			"BashComplete": bashComplete,
+			"BashFunction": bashFunction,
 		},
 	}
 }

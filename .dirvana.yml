@@ -3,6 +3,9 @@
 
 # Shell aliases
 aliases:
+  g:
+    command: git
+    completion: git
   gs: git status
   gd: git diff
 

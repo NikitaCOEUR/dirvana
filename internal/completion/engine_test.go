@@ -39,9 +39,9 @@ func TestNewEngine(t *testing.T) {
 	engine := NewEngine(tmpDir)
 
 	require.NotNil(t, engine)
-	assert.Equal(t, 3, len(engine.completers)) // Cobra, UrfaveCli, BashComplete
+	assert.Equal(t, 4, len(engine.completers)) // Cobra, UrfaveCli, BashComplete, BashFunction
 	assert.NotNil(t, engine.detectionCache)
-	assert.Equal(t, 3, len(engine.completerByName))
+	assert.Equal(t, 4, len(engine.completerByName))
 }
 
 func TestEngine_Complete_NoCommand(t *testing.T) {
