@@ -33,14 +33,8 @@ func GetRCFilePath(shell string) (string, error) {
 		return filepath.Join(home, ".bashrc"), nil
 	case ShellZsh:
 		return filepath.Join(home, ".zshrc"), nil
-	case ShellPowerShell:
-		// Windows PowerShell profile
-		return filepath.Join(home, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"), nil
-	case ShellPwsh:
-		// PowerShell Core profile
-		return filepath.Join(home, ".config", "powershell", "Microsoft.PowerShell_profile.ps1"), nil
 	default:
-		return "", fmt.Errorf("unsupported shell: %s (use bash, zsh, powershell, or pwsh)", shell)
+		return "", fmt.Errorf("unsupported shell: %s (use bash or zsh)", shell)
 	}
 }
 

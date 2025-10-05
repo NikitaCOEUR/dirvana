@@ -12,10 +12,6 @@ const (
 	ShellBash = "bash"
 	// ShellZsh represents zsh shell
 	ShellZsh = "zsh"
-	// ShellPowerShell represents PowerShell
-	ShellPowerShell = "powershell"
-	// ShellPwsh represents PowerShell Core (pwsh)
-	ShellPwsh = "pwsh"
 )
 
 // DetectShell determines the shell type based on the flag or environment.
@@ -43,18 +39,20 @@ func DetectShell(shellFlag string) string {
 		return ShellBash
 	}
 
-	// Detect PowerShell on Windows
-	psModulePath := os.Getenv("PSModulePath")
-	if psModulePath != "" {
-		// Check if it's PowerShell Core (pwsh) or Windows PowerShell
-		if strings.Contains(psModulePath, "pwsh") {
-			return ShellPwsh
-		}
-		return ShellPowerShell
-	}
-
 	// Default to bash
 	return ShellBash
+}
+
+// parseShellFromCmdline parses a command line string to detect the shell type
+// This is a pure function that can be easily tested
+func parseShellFromCmdline(cmdline string) string {
+	if strings.Contains(cmdline, "zsh") {
+		return ShellZsh
+	}
+	if strings.Contains(cmdline, "bash") {
+		return ShellBash
+	}
+	return ""
 }
 
 // detectShellFromParentProcess tries to detect the shell by reading the parent process name
@@ -65,13 +63,7 @@ func detectShellFromParentProcess() string {
 	// Try to read /proc/$PPID/cmdline (Linux)
 	cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", ppid))
 	if err == nil {
-		cmdStr := string(cmdline)
-		if strings.Contains(cmdStr, "zsh") {
-			return ShellZsh
-		}
-		if strings.Contains(cmdStr, "bash") {
-			return ShellBash
-		}
+		return parseShellFromCmdline(string(cmdline))
 	}
 
 	// On macOS, we could use ps, but that's more complex
@@ -79,13 +71,18 @@ func detectShellFromParentProcess() string {
 	return ""
 }
 
-// GenerateHookCode generates the shell hook code for the specified shell.
-func GenerateHookCode(shell string) string {
-	// Get the path to the current binary
+// getBinaryPath returns the path to the dirvana binary, with fallback
+func getBinaryPath() string {
 	binPath, err := os.Executable()
 	if err != nil {
-		binPath = "dirvana" // Fallback to PATH
+		return "dirvana" // Fallback to PATH
 	}
+	return binPath
+}
+
+// GenerateHookCode generates the shell hook code for the specified shell.
+func GenerateHookCode(shell string) string {
+	binPath := getBinaryPath()
 
 	switch shell {
 	case ShellZsh:
@@ -118,40 +115,6 @@ add-zsh-hook chpwd __dirvana_hook
 
 # Run on startup only if stdin is a terminal
 [[ -t 0 ]] && __dirvana_hook`, binPath, binPath)
-
-	case ShellPowerShell, ShellPwsh:
-		return fmt.Sprintf(`function __Dirvana-Hook {
-    # Check if Dirvana is disabled
-    if ($env:DIRVANA_ENABLED -eq "false") {
-        return
-    }
-
-    # Check if dirvana command exists
-    if (-not (Get-Command %s -ErrorAction SilentlyContinue)) {
-        return
-    }
-
-    $prevDir = $env:DIRVANA_PREV_DIR
-    if (-not $prevDir) { $prevDir = "" }
-
-    $shellCode = & %s export --prev $prevDir 2>$null
-    $exitCode = $LASTEXITCODE
-    $env:DIRVANA_PREV_DIR = $PWD.Path
-
-    if ($exitCode -eq 0 -and $shellCode) {
-        Invoke-Expression $shellCode
-    }
-}
-
-# Hook into location changes
-$global:__DirvanaLocationChangedAction = {
-    __Dirvana-Hook
-}
-
-$null = Register-EngineEvent -SourceIdentifier PowerShell.OnIdle -Action $global:__DirvanaLocationChangedAction
-
-# Run hook on startup
-__Dirvana-Hook`, binPath, binPath)
 
 	default: // bash
 		return fmt.Sprintf(`__dirvana_hook() {

@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -84,4 +85,44 @@ func TestMergeTwoKeyLists_OneEmpty(t *testing.T) {
 	keys := mergeTwoKeyLists(map1, map2)
 	assert.Len(t, keys, 1)
 	assert.Contains(t, keys, "key1")
+}
+
+func TestBuildCompletionMap(t *testing.T) {
+	aliases := map[string]config.AliasConfig{
+		"kc": {
+			Command:    "kubecolor",
+			Completion: "kubectl", // String completion
+		},
+		"gs": {
+			Command:    "git status",
+			Completion: nil, // Auto-detect
+		},
+		"test": {
+			Command:    "echo test",
+			Completion: false, // Disabled
+		},
+		"empty": {
+			Command:    "echo empty",
+			Completion: "", // Empty string
+		},
+	}
+
+	completionMap := buildCompletionMap(aliases)
+
+	// Should only include "kc" with explicit string completion
+	assert.Len(t, completionMap, 1)
+	assert.Equal(t, "kubectl", completionMap["kc"])
+
+	// Others should not be in the map
+	assert.NotContains(t, completionMap, "gs")
+	assert.NotContains(t, completionMap, "test")
+	assert.NotContains(t, completionMap, "empty")
+}
+
+func TestBuildCompletionMap_Empty(t *testing.T) {
+	aliases := map[string]config.AliasConfig{}
+	completionMap := buildCompletionMap(aliases)
+
+	assert.Len(t, completionMap, 0)
+	assert.NotNil(t, completionMap)
 }

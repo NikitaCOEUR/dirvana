@@ -36,16 +36,6 @@ func TestGetRCFilePath(t *testing.T) {
 			want:  filepath.Join(home, ".zshrc"),
 		},
 		{
-			name:  "powershell",
-			shell: "powershell",
-			want:  filepath.Join(home, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"),
-		},
-		{
-			name:  "pwsh",
-			shell: "pwsh",
-			want:  filepath.Join(home, ".config", "powershell", "Microsoft.PowerShell_profile.ps1"),
-		},
-		{
 			name:    "unsupported shell",
 			shell:   "ksh",
 			wantErr: true,
