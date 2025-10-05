@@ -46,8 +46,16 @@ func GenerateCleanupCode(aliases []string, functions []string, envVars []string)
 	var lines []string
 
 	lines = append(lines, "# Dirvana cleanup")
+	lines = append(lines, generateAliasCleanup(aliases)...)
+	lines = append(lines, generateFunctionCleanup(functions)...)
+	lines = append(lines, generateEnvCleanup(envVars)...)
 
-	// Unalias and remove completions
+	return strings.Join(lines, "\n") + "\n"
+}
+
+// generateAliasCleanup generates shell commands to remove aliases and their completions
+func generateAliasCleanup(aliases []string) []string {
+	var lines []string
 	for _, alias := range aliases {
 		lines = append(lines, "unalias "+alias+" 2>/dev/null || true")
 		// Remove bash completion
@@ -55,18 +63,25 @@ func GenerateCleanupCode(aliases []string, functions []string, envVars []string)
 		// Remove zsh completion
 		lines = append(lines, "compdef -d "+alias+" 2>/dev/null || true")
 	}
+	return lines
+}
 
-	// Unset functions
+// generateFunctionCleanup generates shell commands to unset functions
+func generateFunctionCleanup(functions []string) []string {
+	var lines []string
 	for _, fn := range functions {
 		lines = append(lines, "unset -f "+fn+" 2>/dev/null || true")
 	}
+	return lines
+}
 
-	// Unset env vars
+// generateEnvCleanup generates shell commands to unset environment variables
+func generateEnvCleanup(envVars []string) []string {
+	var lines []string
 	for _, env := range envVars {
 		lines = append(lines, "unset "+env)
 	}
-
-	return strings.Join(lines, "\n") + "\n"
+	return lines
 }
 
 // GetActiveConfigChain returns the list of directories whose configs should be active
