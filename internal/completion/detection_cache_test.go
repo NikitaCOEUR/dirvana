@@ -77,3 +77,76 @@ func TestDetectionCache_EmptyFile(t *testing.T) {
 	_, err = NewDetectionCache(cachePath)
 	assert.Error(t, err) // JSON unmarshal will fail on empty file
 }
+
+func TestDetectionCache_SaveMultipleTimes(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "detection.json")
+
+	cache, err := NewDetectionCache(cachePath)
+	require.NoError(t, err)
+
+	// Save multiple times
+	cache.Set("tool1", "Cobra")
+	err = cache.Save()
+	require.NoError(t, err)
+
+	cache.Set("tool2", "UrfaveCli")
+	err = cache.Save()
+	require.NoError(t, err)
+
+	cache.Set("tool3", "BashComplete")
+	err = cache.Save()
+	require.NoError(t, err)
+
+	// Reload and verify all entries
+	cache2, err := NewDetectionCache(cachePath)
+	require.NoError(t, err)
+	assert.Equal(t, "Cobra", cache2.Get("tool1"))
+	assert.Equal(t, "UrfaveCli", cache2.Get("tool2"))
+	assert.Equal(t, "BashComplete", cache2.Get("tool3"))
+}
+
+func TestDetectionCache_OverwriteEntry(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "detection.json")
+
+	cache, err := NewDetectionCache(cachePath)
+	require.NoError(t, err)
+
+	// Set initial value
+	cache.Set("kubectl", "BashComplete")
+	assert.Equal(t, "BashComplete", cache.Get("kubectl"))
+
+	// Overwrite with new value
+	cache.Set("kubectl", "Cobra")
+	assert.Equal(t, "Cobra", cache.Get("kubectl"))
+
+	// Save and reload
+	err = cache.Save()
+	require.NoError(t, err)
+
+	cache2, err := NewDetectionCache(cachePath)
+	require.NoError(t, err)
+	assert.Equal(t, "Cobra", cache2.Get("kubectl"))
+}
+
+func TestDetectionCache_SaveToReadOnlyDir(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("Skipping test when running as root")
+	}
+
+	tmpDir := t.TempDir()
+	readOnlyDir := filepath.Join(tmpDir, "readonly")
+	err := os.Mkdir(readOnlyDir, 0555) // Read-only directory
+	require.NoError(t, err)
+	defer func() { _ = os.Chmod(readOnlyDir, 0755) }() // Restore permissions for cleanup
+
+	cachePath := filepath.Join(readOnlyDir, "cache.json")
+	cache, err := NewDetectionCache(cachePath)
+	require.NoError(t, err)
+
+	cache.Set("test", "value")
+	err = cache.Save()
+	assert.Error(t, err, "Should fail to save to read-only directory")
+}
+

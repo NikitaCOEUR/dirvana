@@ -59,3 +59,29 @@ func TestCobraCompleter_parseCobraOutput(t *testing.T) {
 		})
 	}
 }
+
+func TestCobraCompleter_Supports_NonExistentCommand(t *testing.T) {
+	c := NewCobraCompleter()
+	
+	// Test with a command that doesn't exist
+	result := c.Supports("this-command-does-not-exist-12345", []string{})
+	assert.False(t, result, "Should return false for non-existent command")
+}
+
+func TestCobraCompleter_Supports_EmptyTool(t *testing.T) {
+	c := NewCobraCompleter()
+	
+	// Test with empty tool name
+	result := c.Supports("", []string{})
+	assert.False(t, result, "Should return false for empty tool name")
+}
+
+func TestCobraCompleter_Complete_NonExistentCommand(t *testing.T) {
+	c := NewCobraCompleter()
+	
+	// Test completion with non-existent command
+	suggestions, err := c.Complete("this-command-does-not-exist-12345", []string{"__complete"})
+	assert.Error(t, err, "Should return error for non-existent command")
+	assert.Nil(t, suggestions)
+}
+
