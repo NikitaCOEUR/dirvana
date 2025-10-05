@@ -696,3 +696,141 @@ func TestHasLocalConfig(t *testing.T) {
 	require.NoError(t, os.WriteFile(configPath, []byte("{\"aliases\":{\"test\":\"echo test\"}}"), 0644))
 	assert.True(t, HasLocalConfig(tmpDir))
 }
+
+func TestLoader_FindConfigs(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a nested structure: tmpDir/level1/level2
+	level1 := filepath.Join(tmpDir, "level1")
+	level2 := filepath.Join(level1, "level2")
+	require.NoError(t, os.MkdirAll(level2, 0755))
+
+	// Add config files at different levels
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte("aliases:\n  root: echo root\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(level1, ".dirvana.yml"), []byte("aliases:\n  l1: echo l1\n"), 0644))
+
+	loader := New()
+	dirs := loader.FindConfigs(level2)
+
+	// Should find both configs
+	assert.Len(t, dirs, 2)
+	assert.Contains(t, dirs, tmpDir)
+	assert.Contains(t, dirs, level1)
+}
+
+func TestLoader_FindConfigs_NoConfigs(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	loader := New()
+	dirs := loader.FindConfigs(tmpDir)
+
+	// Should return empty slice
+	assert.Empty(t, dirs)
+}
+
+func TestLoader_IsLocalOnly_True(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a config with local_only: true
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	require.NoError(t, os.WriteFile(configPath, []byte("local_only: true\n"), 0644))
+
+	loader := New()
+	assert.True(t, loader.IsLocalOnly(tmpDir))
+
+	// Test cache by calling again
+	assert.True(t, loader.IsLocalOnly(tmpDir))
+}
+
+func TestLoader_IsLocalOnly_False(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a config with local_only: false
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	require.NoError(t, os.WriteFile(configPath, []byte("local_only: false\n"), 0644))
+
+	loader := New()
+	assert.False(t, loader.IsLocalOnly(tmpDir))
+}
+
+func TestLoader_IsLocalOnly_NoConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	loader := New()
+	assert.False(t, loader.IsLocalOnly(tmpDir))
+}
+
+func TestConfig_GetAliases_SimpleString(t *testing.T) {
+	cfg := &Config{
+		Aliases: map[string]interface{}{
+			"ll": "ls -la",
+			"gs": "git status",
+		},
+	}
+
+	aliases := cfg.GetAliases()
+
+	assert.Len(t, aliases, 2)
+	assert.Equal(t, "ls -la", aliases["ll"].Command)
+	assert.Nil(t, aliases["ll"].Completion) // Auto-detect
+	assert.Equal(t, "git status", aliases["gs"].Command)
+}
+
+func TestConfig_GetAliases_WithCompletionString(t *testing.T) {
+	cfg := &Config{
+		Aliases: map[string]interface{}{
+			"kc": map[string]interface{}{
+				"command":    "kubecolor",
+				"completion": "kubectl",
+			},
+		},
+	}
+
+	aliases := cfg.GetAliases()
+
+	assert.Len(t, aliases, 1)
+	assert.Equal(t, "kubecolor", aliases["kc"].Command)
+	assert.Equal(t, "kubectl", aliases["kc"].Completion)
+}
+
+func TestConfig_GetAliases_WithCompletionDisabled(t *testing.T) {
+	cfg := &Config{
+		Aliases: map[string]interface{}{
+			"test": map[string]interface{}{
+				"command":    "echo test",
+				"completion": false,
+			},
+		},
+	}
+
+	aliases := cfg.GetAliases()
+
+	assert.Len(t, aliases, 1)
+	assert.Equal(t, "echo test", aliases["test"].Command)
+	assert.Equal(t, false, aliases["test"].Completion)
+}
+
+func TestConfig_GetAliases_WithCustomCompletion(t *testing.T) {
+	cfg := &Config{
+		Aliases: map[string]interface{}{
+			"mt": map[string]interface{}{
+				"command": "my-tool",
+				"completion": map[string]interface{}{
+					"bash": "complete -W 'foo bar' mt",
+					"zsh":  "compdef _mt mt",
+				},
+			},
+		},
+	}
+
+	aliases := cfg.GetAliases()
+
+	assert.Len(t, aliases, 1)
+	assert.Equal(t, "my-tool", aliases["mt"].Command)
+	
+	compCfg, ok := aliases["mt"].Completion.(CompletionConfig)
+	assert.True(t, ok)
+	assert.Equal(t, "complete -W 'foo bar' mt", compCfg.Bash)
+	assert.Equal(t, "compdef _mt mt", compCfg.Zsh)
+}
+

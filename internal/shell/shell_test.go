@@ -48,6 +48,25 @@ func TestGenerator_Generate(t *testing.T) {
 	assert.Contains(t, code, "export GIT_BRANCH=\"$(git rev-parse --abbrev-ref HEAD)\"")
 }
 
+func TestGenerator_WithShell(t *testing.T) {
+	g := NewGenerator()
+
+	// Test setting shell to bash
+	g.WithShell("bash")
+	aliases := map[string]config.AliasConfig{
+		"test": {Command: "echo test", Completion: nil},
+	}
+	code := g.Generate(aliases, nil, nil, nil)
+	// Bash uses simple aliases
+	assert.Contains(t, code, "alias test='dirvana exec test'")
+
+	// Test setting shell to zsh  
+	g.WithShell("zsh")
+	code = g.Generate(aliases, nil, nil, nil)
+	// Zsh uses functions
+	assert.Contains(t, code, "test() { dirvana exec test")
+}
+
 func TestGenerator_GenerateEmpty(t *testing.T) {
 	g := NewGenerator()
 
@@ -222,6 +241,40 @@ func TestGenerator_CompletionCustom(t *testing.T) {
 	assert.Contains(t, code, "Using wrapper architecture")
 	// Custom completions are handled by dirvana completion command now
 }
+
+func TestBashCodeGenerator_Name(t *testing.T) {
+	gen := &BashCodeGenerator{}
+	assert.Equal(t, "bash", gen.Name())
+}
+
+func TestZshCodeGenerator_Name(t *testing.T) {
+	gen := &ZshCodeGenerator{}
+	assert.Equal(t, "zsh", gen.Name())
+}
+
+func TestMultiShellCodeGenerator_Name(t *testing.T) {
+	gen := &MultiShellCodeGenerator{}
+	assert.Equal(t, "multi", gen.Name())
+}
+
+func TestNewCompletionGenerator_Bash(t *testing.T) {
+	gen := NewCompletionGenerator("bash")
+	assert.NotNil(t, gen)
+	assert.IsType(t, &BashCodeGenerator{}, gen)
+}
+
+func TestNewCompletionGenerator_Zsh(t *testing.T) {
+	gen := NewCompletionGenerator("zsh")
+	assert.NotNil(t, gen)
+	assert.IsType(t, &ZshCodeGenerator{}, gen)
+}
+
+func TestNewCompletionGenerator_Empty(t *testing.T) {
+	gen := NewCompletionGenerator("")
+	assert.NotNil(t, gen)
+	assert.IsType(t, &MultiShellCodeGenerator{}, gen)
+}
+
 
 // Helper function to find index of substring
 func indexOf(s, substr string) int {

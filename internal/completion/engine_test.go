@@ -43,3 +43,22 @@ func TestNewEngine(t *testing.T) {
 	assert.NotNil(t, engine.detectionCache)
 	assert.Equal(t, 3, len(engine.completerByName))
 }
+
+func TestEngine_Complete_NoCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+	engine := NewEngine(tmpDir)
+
+	result, err := engine.Complete("nonexistent-command", []string{"test"})
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, 0, len(result.Suggestions))
+}
+
+func TestEngine_Complete_EmptyWords(t *testing.T) {
+	tmpDir := t.TempDir()
+	engine := NewEngine(tmpDir)
+
+	result, err := engine.Complete("echo", []string{})
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+}
