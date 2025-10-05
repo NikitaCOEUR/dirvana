@@ -10,15 +10,15 @@ import (
 	"strings"
 )
 
-// BashFunctionCompleter handles tools that use standard bash completion functions
+// ScriptCompleter handles tools that use standard bash completion scripts
 // This is used by git, docker, systemctl, and many other Unix tools
 // These tools have completion scripts in /usr/share/bash-completion/completions/
 // or /etc/bash_completion.d/
-type BashFunctionCompleter struct{}
+type ScriptCompleter struct{}
 
-// NewBashFunctionCompleter creates a new bash function completer
-func NewBashFunctionCompleter() *BashFunctionCompleter {
-	return &BashFunctionCompleter{}
+// NewScriptCompleter creates a new script-based completer
+func NewScriptCompleter() *ScriptCompleter {
+	return &ScriptCompleter{}
 }
 
 // completionScriptPaths returns possible locations for bash completion scripts
@@ -44,13 +44,13 @@ func findCompletionScript(tool string) string {
 }
 
 // Supports checks if the tool has a bash completion script available
-func (b *BashFunctionCompleter) Supports(tool string, _ []string) bool {
+func (s *ScriptCompleter) Supports(tool string, _ []string) bool {
 	return findCompletionScript(tool) != ""
 }
 
-// Complete uses bash completion functions to get suggestions
+// Complete uses bash completion scripts to get suggestions
 // It sources the completion script and calls the completion function
-func (b *BashFunctionCompleter) Complete(tool string, args []string) ([]Suggestion, error) {
+func (s *ScriptCompleter) Complete(tool string, args []string) ([]Suggestion, error) {
 	scriptPath := findCompletionScript(tool)
 	if scriptPath == "" {
 		return nil, fmt.Errorf("no completion script found for %s", tool)
@@ -143,7 +143,7 @@ done
 		return nil, err
 	}
 
-	return parseBashFunctionOutput(output), nil
+	return parseScriptOutput(output), nil
 }
 
 // escapeShellWords escapes words for use in bash arrays
@@ -156,9 +156,9 @@ func escapeShellWords(words []string) []string {
 	return escaped
 }
 
-// parseBashFunctionOutput parses the output from bash completion functions
+// parseScriptOutput parses the output from bash completion scripts
 // Format: one suggestion per line, may include descriptions separated by tab or space
-func parseBashFunctionOutput(output []byte) []Suggestion {
+func parseScriptOutput(output []byte) []Suggestion {
 	suggestions := []Suggestion{} // Initialize as empty slice, not nil
 
 	scanner := bufio.NewScanner(bytes.NewReader(output))

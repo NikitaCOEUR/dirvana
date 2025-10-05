@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBashCompleteCompleter_New(t *testing.T) {
-	b := NewBashCompleteCompleter()
-	assert.NotNil(t, b)
+func TestEnvCompleter_New(t *testing.T) {
+	e := NewEnvCompleter()
+	assert.NotNil(t, e)
 }
 
-func TestBashCompleteCompleter_parseBashCompleteOutput(t *testing.T) {
+func TestEnvCompleter_parseEnvOutput(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -52,7 +52,7 @@ func TestBashCompleteCompleter_parseBashCompleteOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parseBashCompleteOutput([]byte(tt.input))
+			result := parseEnvOutput([]byte(tt.input))
 			if tt.expected == nil {
 				assert.Empty(t, result)
 			} else {
@@ -62,27 +62,27 @@ func TestBashCompleteCompleter_parseBashCompleteOutput(t *testing.T) {
 	}
 }
 
-func TestBashCompleteCompleter_Supports_NonExistentCommand(t *testing.T) {
-	b := NewBashCompleteCompleter()
+func TestEnvCompleter_Supports_NonExistentCommand(t *testing.T) {
+	e := NewEnvCompleter()
 
 	// Test with a command that doesn't exist
-	result := b.Supports("this-command-does-not-exist-12345", []string{})
+	result := e.Supports("this-command-does-not-exist-12345", []string{})
 	assert.False(t, result, "Should return false for non-existent command")
 }
 
-func TestBashCompleteCompleter_Supports_EmptyTool(t *testing.T) {
-	b := NewBashCompleteCompleter()
+func TestEnvCompleter_Supports_EmptyTool(t *testing.T) {
+	e := NewEnvCompleter()
 
 	// Test with empty tool name
-	result := b.Supports("", []string{})
+	result := e.Supports("", []string{})
 	assert.False(t, result, "Should return false for empty tool name")
 }
 
-func TestBashCompleteCompleter_Complete_NonExistentCommand(t *testing.T) {
-	b := NewBashCompleteCompleter()
+func TestEnvCompleter_Complete_NonExistentCommand(t *testing.T) {
+	e := NewEnvCompleter()
 
 	// Test completion with non-existent command
-	suggestions, err := b.Complete("this-command-does-not-exist-12345", []string{"arg1"})
+	suggestions, err := e.Complete("this-command-does-not-exist-12345", []string{"arg1"})
 	assert.Error(t, err, "Should return error for non-existent command")
 	assert.Nil(t, suggestions)
 }

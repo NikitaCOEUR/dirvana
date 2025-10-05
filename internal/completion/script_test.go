@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBashFunctionCompleter_New(t *testing.T) {
-	b := NewBashFunctionCompleter()
-	assert.NotNil(t, b)
+func TestScriptCompleter_New(t *testing.T) {
+	s := NewScriptCompleter()
+	assert.NotNil(t, s)
 }
 
-func TestBashFunctionCompleter_findCompletionScript(t *testing.T) {
+func TestScriptCompleter_findCompletionScript(t *testing.T) {
 	// Test with git (should exist on most systems)
 	script := findCompletionScript("git")
 
@@ -26,8 +26,8 @@ func TestBashFunctionCompleter_findCompletionScript(t *testing.T) {
 	}
 }
 
-func TestBashFunctionCompleter_Supports(t *testing.T) {
-	b := NewBashFunctionCompleter()
+func TestScriptCompleter_Supports(t *testing.T) {
+	s := NewScriptCompleter()
 
 	tests := []struct {
 		name     string
@@ -48,19 +48,19 @@ func TestBashFunctionCompleter_Supports(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := b.Supports(tt.tool, nil)
+			result := s.Supports(tt.tool, nil)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestBashFunctionCompleter_Complete(t *testing.T) {
+func TestScriptCompleter_Complete(t *testing.T) {
 	// Skip if git completion is not available
 	if findCompletionScript("git") == "" {
 		t.Skip("Git completion script not found")
 	}
 
-	b := NewBashFunctionCompleter()
+	s := NewScriptCompleter()
 
 	tests := []struct {
 		name        string
@@ -114,7 +114,7 @@ func TestBashFunctionCompleter_Complete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			suggestions, err := b.Complete(tt.tool, tt.args)
+			suggestions, err := s.Complete(tt.tool, tt.args)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -131,7 +131,7 @@ func TestBashFunctionCompleter_Complete(t *testing.T) {
 	}
 }
 
-func TestBashFunctionCompleter_parseBashFunctionOutput(t *testing.T) {
+func TestScriptCompleter_parseScriptOutput(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -172,13 +172,13 @@ func TestBashFunctionCompleter_parseBashFunctionOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parseBashFunctionOutput([]byte(tt.input))
+			result := parseScriptOutput([]byte(tt.input))
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestBashFunctionCompleter_escapeShellWords(t *testing.T) {
+func TestScriptCompleter_escapeShellWords(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    []string
@@ -214,7 +214,7 @@ func TestBashFunctionCompleter_escapeShellWords(t *testing.T) {
 	}
 }
 
-func TestBashFunctionCompleter_Integration(t *testing.T) {
+func TestScriptCompleter_Integration(t *testing.T) {
 	// Skip if not in a git repository or git completion not available
 	if findCompletionScript("git") == "" {
 		t.Skip("Git completion script not found")
@@ -234,10 +234,10 @@ func TestBashFunctionCompleter_Integration(t *testing.T) {
 		t.Skip("Not in a git repository")
 	}
 
-	b := NewBashFunctionCompleter()
+	s := NewScriptCompleter()
 
 	t.Run("complete git subcommands", func(t *testing.T) {
-		suggestions, err := b.Complete("git", []string{""})
+		suggestions, err := s.Complete("git", []string{""})
 		if err != nil {
 			t.Logf("Completion error: %v", err)
 			t.Skip("Git completion not working in test environment")

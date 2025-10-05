@@ -39,7 +39,7 @@ func TestNewEngine(t *testing.T) {
 	engine := NewEngine(tmpDir)
 
 	require.NotNil(t, engine)
-	assert.Equal(t, 4, len(engine.completers)) // Cobra, UrfaveCli, BashComplete, BashFunction
+	assert.Equal(t, 4, len(engine.completers)) // Cobra, Flag, Env, Script
 	assert.NotNil(t, engine.detectionCache)
 	assert.Equal(t, 4, len(engine.completerByName))
 }
@@ -188,10 +188,12 @@ func TestEngine_Complete_NoSuggestions(t *testing.T) {
 
 func TestEngine_getCompleterType(t *testing.T) {
 	cobra := NewCobraCompleter()
-	urfave := NewUrfaveCliCompleter()
-	bash := NewBashCompleteCompleter()
+	flag := NewFlagCompleter()
+	env := NewEnvCompleter()
+	script := NewScriptCompleter()
 
 	assert.Equal(t, "Cobra", getCompleterType(cobra))
-	assert.Equal(t, "UrfaveCli", getCompleterType(urfave))
-	assert.Equal(t, "BashComplete", getCompleterType(bash))
+	assert.Equal(t, "Flag", getCompleterType(flag))
+	assert.Equal(t, "Env", getCompleterType(env))
+	assert.Equal(t, "Script", getCompleterType(script))
 }
