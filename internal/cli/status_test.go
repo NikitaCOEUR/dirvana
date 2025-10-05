@@ -431,3 +431,40 @@ func TestStatus_WithMixedAuthorizations(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestStatus_WithLocalOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Create directory hierarchy: parent/child
+	dirParent := filepath.Join(tmpDir, "parent")
+	dirChild := filepath.Join(dirParent, "child")
+	require.NoError(t, os.MkdirAll(dirChild, 0755))
+
+	// Create parent config
+	configParent := filepath.Join(dirParent, ".dirvana.yml")
+	require.NoError(t, os.WriteFile(configParent, []byte("aliases:\n  parent: echo parent\n"), 0644))
+
+	// Create child config with local_only
+	configChild := filepath.Join(dirChild, ".dirvana.yml")
+	require.NoError(t, os.WriteFile(configChild, []byte("local_only: true\naliases:\n  child: echo child\n"), 0644))
+
+	// Authorize both directories
+	require.NoError(t, Allow(authPath, dirParent))
+	require.NoError(t, Allow(authPath, dirChild))
+
+	// Change to dirChild
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	require.NoError(t, os.Chdir(dirChild))
+
+	params := StatusParams{
+		CachePath: cachePath,
+		AuthPath:  authPath,
+	}
+
+	// Should only show child config due to local_only
+	err = Status(params)
+	require.NoError(t, err)
+}
