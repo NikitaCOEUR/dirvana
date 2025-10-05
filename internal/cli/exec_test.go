@@ -380,7 +380,7 @@ func TestFindCacheEntry_CleanPath(t *testing.T) {
 func TestExec_CacheLoadFailure(t *testing.T) {
 	// Use a directory path as cache path (will fail to load)
 	tmpDir := t.TempDir()
-	
+
 	params := ExecParams{
 		CachePath: tmpDir, // Directory, not a file
 		LogLevel:  "error",
@@ -392,4 +392,3 @@ func TestExec_CacheLoadFailure(t *testing.T) {
 	assert.Error(t, err)
 	// Should fail at cache loading
 }
-

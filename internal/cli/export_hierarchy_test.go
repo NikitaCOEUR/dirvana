@@ -21,6 +21,7 @@ func resolveSymlinks(t *testing.T, path string) string {
 
 // TestExport_HierarchyWithUnauthorizedMiddle tests config loading in hierarchy A/B/C
 // where B is unauthorized but has no local config, so A and C should be loaded
+//
 //nolint:gocyclo // Test function with multiple scenarios
 func TestExport_HierarchyWithUnauthorizedMiddle(t *testing.T) {
 	// Save and restore current directory
@@ -198,6 +199,7 @@ func TestExport_HierarchyWithUnauthorizedMiddle(t *testing.T) {
 }
 
 // TestExport_LocalOnlyFlag tests that local_only flag prevents loading parent configs
+//
 //nolint:gocyclo // Test function with multiple scenarios
 func TestExport_LocalOnlyFlag(t *testing.T) {
 	// Save and restore current directory

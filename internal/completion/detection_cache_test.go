@@ -149,4 +149,3 @@ func TestDetectionCache_SaveToReadOnlyDir(t *testing.T) {
 	err = cache.Save()
 	assert.Error(t, err, "Should fail to save to read-only directory")
 }
-

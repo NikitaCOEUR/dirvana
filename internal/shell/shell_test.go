@@ -60,7 +60,7 @@ func TestGenerator_WithShell(t *testing.T) {
 	// Bash uses simple aliases
 	assert.Contains(t, code, "alias test='dirvana exec test'")
 
-	// Test setting shell to zsh  
+	// Test setting shell to zsh
 	g.WithShell("zsh")
 	code = g.Generate(aliases, nil, nil, nil)
 	// Zsh uses functions
@@ -274,7 +274,6 @@ func TestNewCompletionGenerator_Empty(t *testing.T) {
 	assert.NotNil(t, gen)
 	assert.IsType(t, &MultiShellCodeGenerator{}, gen)
 }
-
 
 // Helper function to find index of substring
 func indexOf(s, substr string) int {

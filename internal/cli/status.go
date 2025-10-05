@@ -10,6 +10,11 @@ import (
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
 
+const (
+	statusIconAuthorized   = "✓"
+	statusIconUnauthorized = "✗"
+)
+
 // StatusParams contains parameters for the Status command
 type StatusParams struct {
 	CachePath string
@@ -74,7 +79,7 @@ func displayAuthStatus(comps *components, currentDir string) (bool, error) {
 func displayConfigHierarchyWithAuth(comps *components, currentDir string, loadedConfigFiles []string, merged *config.Config) ([]string, bool) {
 	// Find all config files in the hierarchy (for display purposes)
 	allConfigFiles, _ := config.FindConfigFiles(currentDir)
-	
+
 	globalPath, err := config.GetGlobalConfigPath()
 	hasGlobal := false
 	globalLoaded := false
@@ -92,16 +97,16 @@ func displayConfigHierarchyWithAuth(comps *components, currentDir string, loaded
 	}
 
 	fmt.Println("📝 Configuration hierarchy:")
-	
+
 	// If local_only is set, only show the local config
 	if merged != nil && merged.LocalOnly {
 		if len(allConfigFiles) > 0 {
 			localConfigPath := allConfigFiles[len(allConfigFiles)-1]
 			configDir := filepath.Dir(localConfigPath)
 			allowed, _ := comps.auth.IsAllowed(configDir)
-			status := "✓"
+			status := statusIconAuthorized
 			if !allowed {
-				status = "✗"
+				status = statusIconUnauthorized
 			}
 			fmt.Printf("   1. %s %s (local only)\n", localConfigPath, status)
 		} else {
@@ -110,15 +115,15 @@ func displayConfigHierarchyWithAuth(comps *components, currentDir string, loaded
 	} else {
 		// Display global config if it exists
 		if hasGlobal {
-			status := "✓"
+			status := statusIconAuthorized
 			note := ""
 			if !globalLoaded {
-				status = "✗"
+				status = statusIconUnauthorized
 				note = " (ignored)"
 			}
 			fmt.Printf("   1. %s (global) %s%s\n", globalPath, status, note)
 		}
-		
+
 		if len(allConfigFiles) == 0 && !hasGlobal {
 			fmt.Println("   No configuration files found")
 		} else {
@@ -126,11 +131,11 @@ func displayConfigHierarchyWithAuth(comps *components, currentDir string, loaded
 			if hasGlobal {
 				offset = 2
 			}
-			
+
 			// Display each config with authorization status
 			for i, path := range allConfigFiles {
 				configDir := filepath.Dir(path)
-				
+
 				// Check if this config was actually loaded
 				loaded := false
 				for _, loadedPath := range loadedConfigFiles {
@@ -139,19 +144,19 @@ func displayConfigHierarchyWithAuth(comps *components, currentDir string, loaded
 						break
 					}
 				}
-				
+
 				// Check if this directory is authorized
 				allowed, _ := comps.auth.IsAllowed(configDir)
-				status := "✓"
+				status := statusIconAuthorized
 				statusText := ""
 				if !allowed {
-					status = "✗"
+					status = statusIconUnauthorized
 					statusText = " (not authorized)"
 				} else if !loaded {
-					status = "✗"
+					status = statusIconUnauthorized
 					statusText = " (not loaded)"
 				}
-				
+
 				fmt.Printf("   %d. %s %s%s\n", i+offset, path, status, statusText)
 			}
 		}

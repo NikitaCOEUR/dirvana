@@ -195,4 +195,3 @@ func TestEngine_getCompleterType(t *testing.T) {
 	assert.Equal(t, "UrfaveCli", getCompleterType(urfave))
 	assert.Equal(t, "BashComplete", getCompleterType(bash))
 }
-

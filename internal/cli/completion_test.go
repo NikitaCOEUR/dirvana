@@ -383,4 +383,3 @@ func TestCompletion_WithCurrentWord(t *testing.T) {
 	// May or may not error depending on completion engine
 	_ = err
 }
-

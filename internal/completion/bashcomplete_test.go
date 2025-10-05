@@ -64,7 +64,7 @@ func TestBashCompleteCompleter_parseBashCompleteOutput(t *testing.T) {
 
 func TestBashCompleteCompleter_Supports_NonExistentCommand(t *testing.T) {
 	b := NewBashCompleteCompleter()
-	
+
 	// Test with a command that doesn't exist
 	result := b.Supports("this-command-does-not-exist-12345", []string{})
 	assert.False(t, result, "Should return false for non-existent command")
@@ -72,7 +72,7 @@ func TestBashCompleteCompleter_Supports_NonExistentCommand(t *testing.T) {
 
 func TestBashCompleteCompleter_Supports_EmptyTool(t *testing.T) {
 	b := NewBashCompleteCompleter()
-	
+
 	// Test with empty tool name
 	result := b.Supports("", []string{})
 	assert.False(t, result, "Should return false for empty tool name")
@@ -80,10 +80,9 @@ func TestBashCompleteCompleter_Supports_EmptyTool(t *testing.T) {
 
 func TestBashCompleteCompleter_Complete_NonExistentCommand(t *testing.T) {
 	b := NewBashCompleteCompleter()
-	
+
 	// Test completion with non-existent command
 	suggestions, err := b.Complete("this-command-does-not-exist-12345", []string{"arg1"})
 	assert.Error(t, err, "Should return error for non-existent command")
 	assert.Nil(t, suggestions)
 }
-

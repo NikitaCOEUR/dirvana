@@ -219,17 +219,17 @@ func TestGetBinaryPath_Fallback(t *testing.T) {
 	// We can't easily make os.Executable() fail, but we can verify
 	// that the function handles both success and fallback paths
 	path := getBinaryPath()
-	
+
 	// The result should be either:
 	// 1. A valid executable path (contains "/" or "\\")
 	// 2. The fallback value "dirvana"
 	assert.NotEmpty(t, path, "getBinaryPath should never return empty string")
-	
+
 	// Verify the path is usable in a hook command
-	assert.True(t, 
-		strings.Contains(path, "/") || 
-		strings.Contains(path, "\\") || 
-		path == dirvanaBinaryName,
+	assert.True(t,
+		strings.Contains(path, "/") ||
+			strings.Contains(path, "\\") ||
+			path == dirvanaBinaryName,
 		"Path should be absolute or fallback to 'dirvana'")
 }
 
@@ -238,11 +238,11 @@ func TestDetectShell_ParentProcessDetection(t *testing.T) {
 	// Clear DIRVANA_SHELL and SHELL to force parent process detection
 	_ = os.Unsetenv("DIRVANA_SHELL")
 	_ = os.Unsetenv("SHELL")
-	
+
 	// Call DetectShell with auto
 	shell := DetectShell("auto")
-	
-	// On Linux, if running under bash/zsh, detectShellFromParentProcess 
+
+	// On Linux, if running under bash/zsh, detectShellFromParentProcess
 	// might succeed. Otherwise it falls back to bash.
 	// The test passes if we get a valid shell type
 	assert.Contains(t, []string{ShellBash, ShellZsh}, shell,
