@@ -302,7 +302,7 @@ func TestUninstallHook(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
-	// Create rc file with hook and completion installed
+	// Create rc file with hook installed
 	hookCode := GenerateHookCode("bash")
 	content := fmt.Sprintf(`%s
 
@@ -310,13 +310,8 @@ func TestUninstallHook(t *testing.T) {
 %s
 %s
 
-%s
-source <(dirvana completion bash)
-%s
-
 Some other content
-`, testBashrcContent, HookMarkerStart, hookCode, HookMarkerEnd,
-		CompletionMarkerStart, CompletionMarkerEnd)
+`, testBashrcContent, HookMarkerStart, hookCode, HookMarkerEnd)
 
 	require.NoError(t, os.WriteFile(rcFile, []byte(content), 0644))
 
@@ -329,15 +324,12 @@ Some other content
 	result, err := UninstallHook("bash")
 	require.NoError(t, err)
 	assert.True(t, result.Updated)
-	assert.Contains(t, result.Message, "uninstalled")
-	assert.Contains(t, result.Message, "Hook removed")
-	assert.Contains(t, result.Message, "Completion removed")
+	assert.Contains(t, result.Message, "removed")
 
-	// Verify hook and completion are removed
+	// Verify hook is removed
 	data, err := os.ReadFile(rcFile)
 	require.NoError(t, err)
 	assert.NotContains(t, string(data), HookMarkerStart)
-	assert.NotContains(t, string(data), CompletionMarkerStart)
 	assert.Contains(t, string(data), "Some other content")
 }
 
@@ -398,153 +390,11 @@ func TestInstallHook_NoDirenvWarning(t *testing.T) {
 	assert.NotContains(t, result.Message, "direnv may conflict")
 }
 
-func TestInstallCompletion_NewInstallation(t *testing.T) {
+func TestInstallHook_WithoutStaticCompletion(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
-	// Create rc file without completion
-	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0644))
-
-	// Install completion
-	changed, wasUpdate, err := InstallCompletion("bash", rcFile)
-	require.NoError(t, err)
-	assert.True(t, changed)
-	assert.False(t, wasUpdate) // New installation, not update
-
-	// Verify completion was added
-	data, err := os.ReadFile(rcFile)
-	require.NoError(t, err)
-
-	content := string(data)
-	assert.Contains(t, content, CompletionMarkerStart)
-	assert.Contains(t, content, CompletionMarkerEnd)
-	assert.Contains(t, content, "command -v")
-	assert.Contains(t, content, "completion bash")
-}
-
-func TestInstallCompletion_AlreadyUpToDate(t *testing.T) {
-	tmpDir := t.TempDir()
-	rcFile := filepath.Join(tmpDir, ".bashrc")
-
-	// Get completion code
-	binPath, _ := os.Executable()
-	completionCode := fmt.Sprintf("command -v %s &> /dev/null && source <(%s completion bash)", binPath, binPath)
-	completionBlock := fmt.Sprintf("%s\n%s\n%s", CompletionMarkerStart, completionCode, CompletionMarkerEnd)
-
-	// Create rc file with completion already installed
-	existingContent := fmt.Sprintf(`# My bashrc
-
-%s
-`, completionBlock)
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
-
-	// Try to install again
-	changed, wasUpdate, err := InstallCompletion("bash", rcFile)
-	require.NoError(t, err)
-	assert.False(t, changed) // Already up to date
-	assert.False(t, wasUpdate)
-}
-
-func TestInstallCompletion_UpdateExisting(t *testing.T) {
-	tmpDir := t.TempDir()
-	rcFile := filepath.Join(tmpDir, ".bashrc")
-
-	// Create rc file with OLD completion (different format)
-	oldCompletion := fmt.Sprintf(`%s
-source <(old-dirvana completion bash)
-%s`, CompletionMarkerStart, CompletionMarkerEnd)
-
-	existingContent := fmt.Sprintf(`# My bashrc
-
-%s
-`, oldCompletion)
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
-
-	// Install new completion
-	changed, wasUpdate, err := InstallCompletion("bash", rcFile)
-	require.NoError(t, err)
-	assert.True(t, changed)
-	assert.True(t, wasUpdate) // Was an update
-
-	// Verify completion was updated
-	data, err := os.ReadFile(rcFile)
-	require.NoError(t, err)
-
-	content := string(data)
-	assert.Contains(t, content, CompletionMarkerStart)
-	assert.Contains(t, content, CompletionMarkerEnd)
-	assert.Contains(t, content, "command -v")
-	assert.NotContains(t, content, "old-dirvana")
-}
-
-func TestInstallCompletion_Zsh(t *testing.T) {
-	tmpDir := t.TempDir()
-	rcFile := filepath.Join(tmpDir, ".zshrc")
-
-	// Create rc file
-	require.NoError(t, os.WriteFile(rcFile, []byte("# My zshrc\n"), 0644))
-
-	// Install completion for zsh
-	changed, wasUpdate, err := InstallCompletion("zsh", rcFile)
-	require.NoError(t, err)
-	assert.True(t, changed)
-	assert.False(t, wasUpdate)
-
-	// Verify zsh completion was added
-	data, err := os.ReadFile(rcFile)
-	require.NoError(t, err)
-
-	content := string(data)
-	assert.Contains(t, content, "completion zsh")
-}
-
-func TestInstallCompletion_UnsupportedShell(t *testing.T) {
-	tmpDir := t.TempDir()
-	rcFile := filepath.Join(tmpDir, ".kshrc")
-
-	// Try to install completion for unsupported shell
-	_, _, err := InstallCompletion("ksh", rcFile)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported shell")
-}
-
-func TestInstallCompletion_InvalidPath(t *testing.T) {
-	// Try to write to invalid path
-	_, _, err := InstallCompletion("bash", "/nonexistent/directory/.bashrc")
-	require.Error(t, err)
-}
-
-func TestInstallCompletion_PreservesContent(t *testing.T) {
-	tmpDir := t.TempDir()
-	rcFile := filepath.Join(tmpDir, ".bashrc")
-
-	existingContent := `# Custom config
-export EDITOR=vim
-alias ll='ls -la'
-`
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
-
-	// Install completion
-	changed, _, err := InstallCompletion("bash", rcFile)
-	require.NoError(t, err)
-	assert.True(t, changed)
-
-	// Verify existing content is preserved
-	data, err := os.ReadFile(rcFile)
-	require.NoError(t, err)
-
-	content := string(data)
-	assert.Contains(t, content, "# Custom config")
-	assert.Contains(t, content, "export EDITOR=vim")
-	assert.Contains(t, content, "alias ll='ls -la'")
-	assert.Contains(t, content, CompletionMarkerStart)
-}
-
-func TestInstallHook_WithCompletion(t *testing.T) {
-	tmpDir := t.TempDir()
-	rcFile := filepath.Join(tmpDir, ".bashrc")
-
-	// Create rc file without hook or completion
+	// Create rc file without hook
 	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0644))
 
 	// Mock home directory
@@ -556,22 +406,18 @@ func TestInstallHook_WithCompletion(t *testing.T) {
 	result, err := InstallHook("bash")
 	require.NoError(t, err)
 	assert.True(t, result.Updated)
-	assert.False(t, result.CompletionInstalled) // Static completion no longer installed
 	assert.Contains(t, result.Message, "installed")
 
-	// Verify hook was added (but not static completion)
+	// Verify hook was added
 	data, err := os.ReadFile(rcFile)
 	require.NoError(t, err)
 
 	content := string(data)
 	assert.Contains(t, content, HookMarkerStart)
 	assert.Contains(t, content, HookMarkerEnd)
-	// Static completion markers should NOT be present (completion is now dynamic)
-	assert.NotContains(t, content, CompletionMarkerStart)
-	assert.NotContains(t, content, CompletionMarkerEnd)
 }
 
-func TestInstallHook_CompletionAlreadyInstalled(t *testing.T) {
+func TestInstallHook_AlreadyUpToDate(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
@@ -595,7 +441,6 @@ func TestInstallHook_CompletionAlreadyInstalled(t *testing.T) {
 	result, err := InstallHook("bash")
 	require.NoError(t, err)
 	assert.False(t, result.Updated)
-	assert.False(t, result.CompletionInstalled)
 	assert.Contains(t, result.Message, "hook is up to date")
 }
 
