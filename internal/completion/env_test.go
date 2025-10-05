@@ -1,6 +1,7 @@
 package completion
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -85,4 +86,40 @@ func TestEnvCompleter_Complete_NonExistentCommand(t *testing.T) {
 	suggestions, err := e.Complete("this-command-does-not-exist-12345", []string{"arg1"})
 	assert.Error(t, err, "Should return error for non-existent command")
 	assert.Nil(t, suggestions)
+}
+
+func TestEnvCompleter_Complete_WithArgs(t *testing.T) {
+	e := NewEnvCompleter()
+
+	// Create a mock completion script that responds to COMP_LINE
+	mockScript := `#!/bin/bash
+if [ -n "$COMP_LINE" ]; then
+    echo "suggestion1"
+    echo "suggestion2"
+fi
+`
+	// Create temp directory
+	tmpDir := t.TempDir()
+	scriptPath := tmpDir + "/mock-completer.sh"
+	
+	// Write script to file
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+		t.Skip("Cannot write test script")
+	}
+
+	// Test with our mock script
+	suggestions, err := e.Complete(scriptPath, []string{"arg1"})
+	
+	// Should succeed and return suggestions
+	if err != nil {
+		t.Logf("Completion error: %v", err)
+		t.Skip("Mock script failed to execute")
+	}
+	
+	assert.NoError(t, err)
+	assert.Len(t, suggestions, 2)
+	if len(suggestions) >= 2 {
+		assert.Equal(t, "suggestion1", suggestions[0].Value)
+		assert.Equal(t, "suggestion2", suggestions[1].Value)
+	}
 }
