@@ -135,9 +135,9 @@ func TestDetectShell_WithDirvanaShellEnv(t *testing.T) {
 
 func TestDetectShell_FallbackOrder(t *testing.T) {
 	// Clear all env vars
-	os.Unsetenv("DIRVANA_SHELL")
-	os.Unsetenv("SHELL")
-	os.Unsetenv("PSModulePath")
+	_ = os.Unsetenv("DIRVANA_SHELL")
+	_ = os.Unsetenv("SHELL")
+	_ = os.Unsetenv("PSModulePath")
 
 	// With no environment variables, should default to bash
 	shell := DetectShell("auto")
