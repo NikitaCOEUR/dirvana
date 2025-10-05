@@ -555,31 +555,20 @@ dirvana/
 │   ├── auth/             # Authorization system
 │   ├── cache/            # Cache management
 │   ├── cli/              # CLI commands implementation
+│   ├── completion/       # Auto-completion engines (Cobra, Flag, Env, Script)
 │   ├── config/           # Configuration loading & validation
 │   ├── context/          # Directory context management
 │   ├── logger/           # Logging
-│   └── shell/            # Shell code generation
+│   ├── shell/            # Shell code generation
+│   └── timing/           # Performance timing
 ├── pkg/
 │   └── version/          # Version information
 ├── hooks/                # Shell hook scripts
 ├── schema/               # JSON Schema for config validation
 ├── examples/             # Example configurations
+├── tests/                # Integration and completion tests
 └── Taskfile.yml          # Build and test automation
 ```
-
-## How It Works
-
-1. **Shell Hook**: On every `cd` or terminal open, the shell hook first verifies the `dirvana` command exists, then calls `dirvana export`
-2. **Config Discovery**: Dirvana searches for config files:
-   - Global config at `~/.config/dirvana/global.yml`
-   - Local configs from root directory up to current directory
-3. **Authorization Check**: Ensures the directory is authorized for execution
-4. **Cache Check**: If configuration hasn't changed, uses cached shell code
-5. **Config Merge**: Merges configs in order: global → root → parent → current (child configs override parent values)
-6. **Code Generation**: Generates shell code for aliases, functions, and env vars
-7. **Evaluation**: Shell hook evaluates the generated code
-
-**Note**: The hook includes built-in safety checks to gracefully handle cases where the `dirvana` command is not available (e.g., if the binary is moved or deleted).
 
 ## Cache
 
