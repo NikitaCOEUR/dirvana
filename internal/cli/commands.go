@@ -397,49 +397,37 @@ func Init() error {
 # Dirvana configuration file
 # Documentation: https://github.com/NikitaCOEUR/dirvana
 
-# Shell aliases - Simple format (auto-detects completion)
+# Shell aliases
 aliases:
-  ll: ls -lah
-  gs: git status
-  gd: git diff
-  k: kubectl
+  # Simple string aliases (auto-detects completion)
+  # g: git
 
   # Advanced format with completion control
-  gp:
-    command: git push
-    completion: git  # Inherit git completion
+  # tf:
+  #  command: task terraform --
+  #  completion: terraform  # Inherits terraform's auto-completion
 
-  # Custom wrapper with inherited completion
-  mykubectl:
-    command: /usr/local/bin/kubectl-wrapper.sh
-    completion: kubectl
-
-  # Disable completion
-  hello:
-    command: echo "Hello World"
-    completion: false
-
-  # Custom completion (advanced)
-  deploy:
-    command: ./scripts/deploy.sh
-    completion:
-      bash: complete -W "dev staging prod" deploy
-      zsh: compdef '_arguments "1: :(dev staging prod)"' deploy
-
-# Shell functions
+# Shell functions - reusable command sequences with parameters
 functions:
-  mkcd: |
-    mkdir -p "$1" && cd "$1"
-  greet: |
-    echo "Hello, $1!"
+  # Simple greeting function
+  # greet: |
+  #   echo "Hello, $1!"
 
 # Environment variables
 env:
-  PROJECT_NAME: myproject
-  LOG_LEVEL: info
+  # Static values
+  # PROJECT_NAME: myproject
 
-# Set to true to ignore parent configs
-local_only: false
+  # Dynamic values from shell commands (evaluated on load)
+  # CURRENT_USER:
+  #	  sh: whoami
+
+# Configuration flags
+# Set to true to ignore parent configs (only use this directory's config)
+# local_only: false
+
+# Set to true to ignore global config (~/.config/dirvana/global.yml)
+# ignore_global: false
 `
 
 	if err := os.WriteFile(configPath, []byte(sampleConfig), 0644); err != nil {
