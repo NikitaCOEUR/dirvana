@@ -1,4 +1,4 @@
-# Dirvana
+# Dirvana - Reach directory nirvana
 ![dirvana-logo](assets/DirvanaLogo.png)
 > [!WARNING]
 > **🧪 Beta Status - We Need Your Feedback!**
