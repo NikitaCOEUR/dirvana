@@ -256,6 +256,7 @@ func main() {
 				ArgsUsage:       "<alias> [args...]",
 				Hidden:          true, // Hidden from help - used internally by shell aliases
 				SkipFlagParsing: true, // Don't parse flags - pass them directly to the wrapped command
+				HideHelp:        true, // Don't show help for this internal command
 				Action: func(_ context.Context, cmd *cli.Command) error {
 					if cmd.Args().Len() == 0 {
 						return fmt.Errorf("alias name required")
@@ -278,6 +279,7 @@ func main() {
 				ArgsUsage:       "[completion-args...]",
 				Hidden:          true, // Hidden from help - used internally by completion functions
 				SkipFlagParsing: true, // Don't parse flags - pass them directly to the wrapped command
+				HideHelp:        true, // Don't show help for this internal command
 				Action: func(_ context.Context, cmd *cli.Command) error {
 					// Bash completion provides COMP_WORDS via args
 					// and COMP_CWORD via DIRVANA_COMP_CWORD env var
