@@ -3,12 +3,51 @@ package auth
 import (
 	"path/filepath"
 	"testing"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-const testProjectPath = "/test/project"
+func TestShellApprovalFlow(t *testing.T) {
+	tmpDir := t.TempDir()
+	authPath := filepath.Join(tmpDir, "authorized.json")
+	a, err := New(authPath)
+	require.NoError(t, err)
+
+	dir := "/test/project"
+	shellCmds := map[string]string{
+		"GIT_BRANCH": "git rev-parse --abbrev-ref HEAD",
+		"USER": "whoami",
+	}
+
+	// Not allowed yet, should not require shell approval
+	require.False(t, a.RequiresShellApproval(dir, shellCmds))
+
+	// Allow directory
+	require.NoError(t, a.Allow(dir))
+
+	// Should require approval (never approved)
+	require.True(t, a.RequiresShellApproval(dir, shellCmds))
+
+	// Approve shell commands
+	require.NoError(t, a.ApproveShellCommands(dir, shellCmds))
+
+	// Should not require approval (already approved)
+	require.False(t, a.RequiresShellApproval(dir, shellCmds))
+
+	// Change shell commands (add new)
+	shellCmds["BUILD_TIME"] = "date +%s"
+	require.True(t, a.RequiresShellApproval(dir, shellCmds))
+
+	// Approve new set
+	require.NoError(t, a.ApproveShellCommands(dir, shellCmds))
+	require.False(t, a.RequiresShellApproval(dir, shellCmds))
+
+	// Remove a command (hash changes)
+	delete(shellCmds, "USER")
+	require.True(t, a.RequiresShellApproval(dir, shellCmds))
+	}
+
+	const testProjectPath = "/test/project"
 
 func TestNew(t *testing.T) {
 	tmpDir := t.TempDir()

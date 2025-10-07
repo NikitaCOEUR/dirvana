@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"sort"
+	"bufio"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
@@ -242,9 +244,30 @@ func Export(params ExportParams) error {
 	}
 	timer.Mark("load_configs")
 
-	// Get merged environment variables and aliases
+	// Get environment variables and aliases
 	staticEnv, shellEnv := mergedConfig.GetEnvVars()
 	aliases := mergedConfig.GetAliases()
+
+	// Shell command approval logic
+	if comps.auth.RequiresShellApproval(currentDir, shellEnv) {
+	// Show shell commands for approval
+		if err := displayShellCommandsForApproval(shellEnv); err != nil {
+			return err
+		}
+	// Prompt user for approval
+		approved, err := promptShellApproval()
+		if err != nil {
+			return err
+		}
+		if !approved {
+			return fmt.Errorf("shell commands not approved")
+		}
+	// Save approval
+		if err := comps.auth.ApproveShellCommands(currentDir, shellEnv); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "\n✓ Shell commands approved and cached\n\n")
+	}
 
 	// Configure shell generator
 	if targetShell != "" {
@@ -275,6 +298,36 @@ func Export(params ExportParams) error {
 
 	fmt.Print(shellCode)
 	return nil
+}
+
+// Display dynamic shell commands for approval
+func displayShellCommandsForApproval(shellEnv map[string]string) error {
+	if len(shellEnv) == 0 {
+		return nil
+	}
+	fmt.Fprintf(os.Stderr, "\n⚠️  This configuration contains dynamic shell commands:\n\n")
+	keys := make([]string, 0, len(shellEnv))
+	for k := range shellEnv {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		fmt.Fprintf(os.Stderr, "   • %s: %s\n", key, shellEnv[key])
+	}
+	fmt.Fprintf(os.Stderr, "\nThese commands will execute to set environment variables.\n")
+	return nil
+}
+
+// Prompt user for shell command approval
+func promptShellApproval() (bool, error) {
+	fmt.Fprintf(os.Stderr, "Approve execution? [y/N]: ")
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+	response = strings.TrimSpace(strings.ToLower(response))
+	return response == "y" || response == "yes", nil
 }
 
 // AllowParams contains parameters for the Allow command

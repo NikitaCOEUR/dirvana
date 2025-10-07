@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -379,6 +380,16 @@ env:
 		AuthPath:  authPath,
 	}
 
+	// Simulate user approval for shell commands
+	oldStdin := os.Stdin
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	_, err = w.WriteString("y\n")
+	require.NoError(t, err)
+	w.Close()
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+
 	// Should succeed and generate shell code with env vars
 	err = Export(params)
 	require.NoError(t, err)
@@ -422,4 +433,118 @@ func TestExport_WithFunctions(t *testing.T) {
 	// Should succeed and generate shell code with functions
 	err = Export(params)
 	require.NoError(t, err)
+}
+
+// TestDisplayShellCommandsForApproval tests the display of shell commands for user approval
+func TestDisplayShellCommandsForApproval(t *testing.T) {
+	t.Run("WithCommands", func(t *testing.T) {
+		// Capture stderr
+		oldStderr := os.Stderr
+		r, w, _ := os.Pipe()
+		os.Stderr = w
+
+		shellEnv := map[string]string{
+			"GIT_BRANCH": "git rev-parse --abbrev-ref HEAD",
+			"USER":       "whoami",
+		}
+
+		err := displayShellCommandsForApproval(shellEnv)
+		w.Close()
+		os.Stderr = oldStderr
+
+		require.NoError(t, err)
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(r)
+		output := buf.String()
+
+		assert.Contains(t, output, "GIT_BRANCH: git rev-parse --abbrev-ref HEAD")
+		assert.Contains(t, output, "USER: whoami")
+		assert.Contains(t, output, "This configuration contains dynamic shell commands")
+		assert.Contains(t, output, "These commands will execute to set environment variables.")
+	})
+
+	t.Run("Empty", func(t *testing.T) {
+		// Should not print anything or error
+		oldStderr := os.Stderr
+		r, w, _ := os.Pipe()
+		os.Stderr = w
+
+		err := displayShellCommandsForApproval(map[string]string{})
+		w.Close()
+		os.Stderr = oldStderr
+
+		require.NoError(t, err)
+
+		var buf bytes.Buffer
+		_, _ = buf.ReadFrom(r)
+		output := buf.String()
+		assert.Empty(t, output)
+	})
+}
+
+// TestPromptShellApproval tests the user approval prompt for shell commands
+func TestPromptShellApproval(t *testing.T) {
+	t.Run("Approved", func(t *testing.T) {
+		// Simulate user input "y\n"
+		oldStdin := os.Stdin
+		r, w, _ := os.Pipe()
+		os.Stdin = r
+		w.Write([]byte("y\n"))
+		w.Close()
+
+		oldStderr := os.Stderr
+		_, stderrW, _ := os.Pipe()
+		os.Stderr = stderrW
+
+		approved, err := promptShellApproval()
+		os.Stdin = oldStdin
+		os.Stderr = oldStderr
+		stderrW.Close()
+
+		require.NoError(t, err)
+		assert.True(t, approved)
+	})
+
+	t.Run("Denied", func(t *testing.T) {
+		// Simulate user input "n\n"
+		oldStdin := os.Stdin
+		r, w, _ := os.Pipe()
+		os.Stdin = r
+		w.Write([]byte("n\n"))
+		w.Close()
+
+		oldStderr := os.Stderr
+		_, stderrW, _ := os.Pipe()
+		os.Stderr = stderrW
+
+		approved, err := promptShellApproval()
+		os.Stdin = oldStdin
+		os.Stderr = oldStderr
+		stderrW.Close()
+
+		require.NoError(t, err)
+		assert.False(t, approved)
+	})
+
+	t.Run("YesFullWord", func(t *testing.T) {
+		// Simulate user input "yes\n"
+		oldStdin := os.Stdin
+		r, w, _ := os.Pipe()
+		os.Stdin = r
+		w.Write([]byte("yes\n"))
+		w.Close()
+
+		oldStderr := os.Stderr
+		_, stderrW, _ := os.Pipe()
+		os.Stderr = stderrW
+
+		approved, err := promptShellApproval()
+		os.Stdin = oldStdin
+		os.Stderr = oldStderr
+		stderrW.Close()
+
+		require.NoError(t, err)
+		assert.True(t, approved)
+	})
 }

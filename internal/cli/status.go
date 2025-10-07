@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
@@ -228,9 +229,26 @@ func displayEnvVars(merged *config.Config) {
 		}
 		if len(shellEnv) > 0 {
 			fmt.Println("   Dynamic (shell):")
+			// Display approval status for each shell command
+			// Auth object is assumed accessible via global context (adapt if needed)
+			authPath := os.Getenv("DIRVANA_AUTH_PATH")
+			var authMgr *auth.Auth
+			if authPath != "" {
+				authMgr, _ = auth.New(authPath)
+			}
+			currentDir, _ := os.Getwd()
+			var shellApproved bool
+			if authMgr != nil {
+				dirAuth := authMgr.GetAuth(currentDir)
+				shellApproved = dirAuth != nil && dirAuth.ShellCommandsHash != ""
+			}
 			for name, cmd := range shellEnv {
 				displayCmd := truncateString(cmd, 50)
-				fmt.Printf("      %s=$(%s)\n", name, displayCmd)
+				status := "⏳ not approved"
+				if shellApproved {
+					status = "✓ approved"
+				}
+				fmt.Printf("      %s=$(%s) [%s]\n", name, displayCmd, status)
 			}
 		}
 	}
