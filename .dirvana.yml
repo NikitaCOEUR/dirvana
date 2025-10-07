@@ -9,6 +9,13 @@ aliases:
   gs: git status
   gd: git diff
 
+  k:
+    command: kubectl
+    completion: kubectl
+  h: helm
+
+  dirvana: bin/dirvana
+
 # Shell functions
 functions:
   mkcd: |
