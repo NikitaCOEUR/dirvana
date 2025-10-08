@@ -101,7 +101,7 @@ $ cd ..
 ## ✨ Features
 
 - 🚀 **Fast**: <10ms overhead with intelligent caching
-- 🔒 **Secure**: Authorization system prevents untrusted configs
+- 🔒 **Secure**: Authorization system prevents untrusted configs + Explicit user consent for dynamic environment variables
 - 🌳 **Hierarchical**: Merge configurations from parent directories
 - 📝 **Simple**: YAML configuration with JSON Schema validation
 - 🐚 **Compatible**: Works with Bash and Zsh

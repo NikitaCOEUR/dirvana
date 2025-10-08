@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
@@ -169,7 +170,7 @@ func displayConfigHierarchyWithAuth(comps *components, currentDir string, loaded
 func displayConfigDetails(merged *config.Config, comps *components, currentDir string, configFiles []string) error {
 	displayAliases(merged.Aliases)
 	displayFunctions(merged.Functions)
-	displayEnvVars(merged)
+	displayEnvVars(merged, comps.auth, currentDir)
 	displayCacheStatus(comps, currentDir, configFiles)
 	displayFlags(merged)
 
@@ -212,7 +213,7 @@ func displayFunctions(functions map[string]string) {
 	fmt.Println()
 }
 
-func displayEnvVars(merged *config.Config) {
+func displayEnvVars(merged *config.Config, authMgr *auth.Auth, currentDir string) {
 	staticEnv, shellEnv := merged.GetEnvVars()
 	fmt.Println("🌍 Environment variables:")
 
@@ -228,9 +229,19 @@ func displayEnvVars(merged *config.Config) {
 		}
 		if len(shellEnv) > 0 {
 			fmt.Println("   Dynamic (shell):")
+			// Display approval status for each shell command
+			var shellApproved bool
+			if authMgr != nil {
+				dirAuth := authMgr.GetAuth(currentDir)
+				shellApproved = dirAuth != nil && dirAuth.ShellCommandsHash != ""
+			}
 			for name, cmd := range shellEnv {
 				displayCmd := truncateString(cmd, 50)
-				fmt.Printf("      %s=$(%s)\n", name, displayCmd)
+				status := "⏳ not approved"
+				if shellApproved {
+					status = "✓ approved"
+				}
+				fmt.Printf("      %s=$(%s) [%s]\n", name, displayCmd, status)
 			}
 		}
 	}

@@ -34,8 +34,8 @@ RUN chmod +x /usr/local/bin/dirvana
 RUN mkdir -p /test/project
 COPY tests/integration/shells/test-config-zsh.yml /test/project/.dirvana.yml
 
-# Authorize the directory
-RUN /usr/local/bin/dirvana allow /test/project
+# Authorize the directory and auto-approve shell commands
+RUN /usr/local/bin/dirvana allow --auto-approve-shell /test/project
 
 # Install the hook
 RUN /usr/local/bin/dirvana setup --shell zsh

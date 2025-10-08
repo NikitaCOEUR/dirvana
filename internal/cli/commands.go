@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -242,9 +244,30 @@ func Export(params ExportParams) error {
 	}
 	timer.Mark("load_configs")
 
-	// Get merged environment variables and aliases
+	// Get environment variables and aliases
 	staticEnv, shellEnv := mergedConfig.GetEnvVars()
 	aliases := mergedConfig.GetAliases()
+
+	// Shell command approval logic
+	if comps.auth.RequiresShellApproval(currentDir, shellEnv) {
+		// Show shell commands for approval
+		if err := displayShellCommandsForApproval(shellEnv); err != nil {
+			return err
+		}
+		// Prompt user for approval
+		approved, err := promptShellApproval()
+		if err != nil {
+			return err
+		}
+		if !approved {
+			return fmt.Errorf("shell commands not approved")
+		}
+		// Save approval
+		if err := comps.auth.ApproveShellCommands(currentDir, shellEnv); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "\n✓ Shell commands approved and cached\n\n")
+	}
 
 	// Configure shell generator
 	if targetShell != "" {
@@ -277,12 +300,43 @@ func Export(params ExportParams) error {
 	return nil
 }
 
+// Display dynamic shell commands for approval
+func displayShellCommandsForApproval(shellEnv map[string]string) error {
+	if len(shellEnv) == 0 {
+		return nil
+	}
+	fmt.Fprintf(os.Stderr, "\n⚠️  This configuration contains dynamic shell commands:\n\n")
+	keys := make([]string, 0, len(shellEnv))
+	for k := range shellEnv {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		fmt.Fprintf(os.Stderr, "   • %s: %s\n", key, shellEnv[key])
+	}
+	fmt.Fprintf(os.Stderr, "\nThese commands will execute to set environment variables.\n")
+	return nil
+}
+
+// Prompt user for shell command approval
+func promptShellApproval() (bool, error) {
+	fmt.Fprintf(os.Stderr, "Approve execution? [y/N]: ")
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+	response = strings.TrimSpace(strings.ToLower(response))
+	return response == "y" || response == "yes", nil
+}
+
 // AllowParams contains parameters for the Allow command
 type AllowParams struct {
-	AuthPath    string
-	PathToAllow string
-	CachePath   string
-	LogLevel    string
+	AuthPath         string
+	PathToAllow      string
+	CachePath        string
+	LogLevel         string
+	AutoApproveShell bool
 }
 
 // Allow authorizes a directory for Dirvana execution
@@ -306,6 +360,14 @@ func AllowWithParams(params AllowParams) error {
 	}
 
 	fmt.Printf("Authorized: %s\n", params.PathToAllow)
+
+	// If auto-approve flag is set, approve shell commands immediately
+	if params.AutoApproveShell {
+		if err := approveShellCommandsForPath(params.PathToAllow, authMgr, params.LogLevel); err != nil {
+			return fmt.Errorf("failed to auto-approve shell commands: %w", err)
+		}
+		fmt.Println("✓ Shell commands auto-approved")
+	}
 
 	// If we're in the authorized directory, suggest loading the environment
 	currentDir, err := os.Getwd()
@@ -353,6 +415,36 @@ func RevokeWithParams(params RevokeParams) error {
 	if currentDir == params.PathToRevoke {
 		fmt.Println("\n💡 Tip: Run 'cd ..' then 'cd -' to unload the Dirvana environment")
 		fmt.Println("   Or run: 'eval \"$(dirvana export)\"' to reload the environment if you have parent configs")
+	}
+
+	return nil
+}
+
+// approveShellCommandsForPath is a helper that loads config and approves shell commands
+func approveShellCommandsForPath(path string, authMgr *auth.Auth, logLevel string) error {
+	log := logger.New(logLevel, os.Stderr)
+
+	// Initialize config loader
+	configLoader := config.New()
+
+	// Load config for this directory
+	cfg, err := configLoader.Load(filepath.Join(path, ".dirvana.yml"))
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Get shell environment variables
+	_, shellEnv := cfg.GetEnvVars()
+
+	// If no shell commands, nothing to approve
+	if len(shellEnv) == 0 {
+		log.Debug().Msg("No shell commands found in config")
+		return nil
+	}
+
+	// Approve the shell commands
+	if err := authMgr.ApproveShellCommands(path, shellEnv); err != nil {
+		return fmt.Errorf("failed to approve shell commands: %w", err)
 	}
 
 	return nil
