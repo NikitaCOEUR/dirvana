@@ -20,3 +20,12 @@ packages:
 - name: kubernetes/kubernetes/kubectl@v1.34.1
   tags:
     - test
+- name: vmware/govmomi/govc@v0.52.0
+  tags:
+    - test
+- name: hashicorp/packer@v1.14.2
+  tags:
+    - test
+- name: kubecolor/kubecolor@v0.5.2
+  tags:
+    - test
