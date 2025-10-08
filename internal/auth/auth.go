@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+const currentAuthVersion = 2
+
 // GetAuth returns the DirAuth structure for a given directory path
 func (a *Auth) GetAuth(path string) *DirAuth {
 	a.mu.RLock()
@@ -44,7 +46,8 @@ func hashShellCommands(cmds map[string]string) string {
 	sort.Strings(keys)
 	h := sha256.New()
 	for _, k := range keys {
-		fmt.Fprintf(h, "%s=%s\n", k, cmds[k])
+		// Write to hash (error can be safely ignored as hash.Hash.Write never fails)
+		_, _ = fmt.Fprintf(h, "%s=%s\n", k, cmds[k])
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
@@ -71,33 +74,51 @@ type DirAuth struct {
 	ShellApprovedAt   time.Time `json:"shell_approved_at,omitempty"`
 }
 
+// File represents the v2 auth file structure with version metadata
+type File struct {
+	Version     int                 `json:"_version"`
+	Directories map[string]*DirAuth `json:"directories"`
+}
+
 // Auth manages project directory authorization and shell command approval
 type Auth struct {
-	path       string
+	pathV1     string // V1 file (read-only, never modified)
+	pathV2     string // V2 file (read/write)
 	mu         sync.RWMutex
 	authorized map[string]*DirAuth
 }
 
-// New creates a new auth manager
+// New creates or loads an Auth instance
 func New(path string) (*Auth, error) {
+	// path is the V1 path (e.g., authorized.json)
+	// V2 path is derived by adding _v2 suffix
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+	ext := filepath.Ext(base)
+	nameWithoutExt := base[:len(base)-len(ext)]
+	pathV2 := filepath.Join(dir, nameWithoutExt+"_v2"+ext)
+
 	a := &Auth{
-		path:       path,
+		pathV1:     path,
+		pathV2:     pathV2,
 		authorized: make(map[string]*DirAuth),
 	}
 
 	// Ensure directory exists
-	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
 	}
 
-	// Load existing authorized paths if file exists
+	// Try to load: V2 first (if exists), then V1 (read-only)
 	if err := a.load(); err != nil && !os.IsNotExist(err) {
-		return nil, err
+		// Start with empty state on errors
+		a.authorized = make(map[string]*DirAuth)
 	}
 
 	return a, nil
 }
+
+// GetAuth returns the DirAuth structure for a given directory path
 
 // Allow adds a directory to the authorized list
 func (a *Auth) Allow(path string) error {
@@ -161,31 +182,80 @@ func (a *Auth) Clear() error {
 
 // load reads authorized directories from disk
 func (a *Auth) load() error {
-	data, err := os.ReadFile(a.path)
+	// Try V2 first
+	if dataV2, err := os.ReadFile(a.pathV2); err == nil {
+		return a.loadV2(dataV2)
+	}
+
+	// Fallback to V1 (read-only, never modified)
+	dataV1, err := os.ReadFile(a.pathV1)
 	if err != nil {
 		return err
 	}
 
-	var auths map[string]*DirAuth
-	if err := json.Unmarshal(data, &auths); err != nil {
-		return err
+	return a.loadV1(dataV1)
+}
+
+// loadV2 parses V2 format with version field
+func (a *Auth) loadV2(data []byte) error {
+	var authFile File
+	if err := json.Unmarshal(data, &authFile); err != nil {
+		return fmt.Errorf("invalid v2 auth file: %w", err)
+	}
+
+	if authFile.Version != 2 {
+		return fmt.Errorf("unsupported auth file version: %d", authFile.Version)
 	}
 
 	a.authorized = make(map[string]*DirAuth)
-	for path, auth := range auths {
-		a.authorized[normalizePath(path)] = auth
+	for path, auth := range authFile.Directories {
+		if auth != nil {
+			a.authorized[normalizePath(path)] = auth
+		}
 	}
 
 	return nil
 }
 
-// persist writes authorized directories to disk
+// loadV1 parses V1 format ([]string) - read-only, never writes back
+func (a *Auth) loadV1(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" {
+		return nil
+	}
+
+	// V1 format: []string (array of authorized paths)
+	var paths []string
+	if err := json.Unmarshal(data, &paths); err != nil {
+		return fmt.Errorf("invalid v1 auth file: %w", err)
+	}
+
+	now := time.Now()
+	a.authorized = make(map[string]*DirAuth)
+	for _, path := range paths {
+		a.authorized[normalizePath(path)] = &DirAuth{
+			Allowed:   true,
+			AllowedAt: now,
+		}
+	}
+
+	// Don't auto-migrate - V1 stays untouched
+	return nil
+}
+
+// persist writes authorized directories to disk in V2 format
 func (a *Auth) persist() error {
-	data, err := json.MarshalIndent(a.authorized, "", "  ")
+	authFile := File{
+		Version:     currentAuthVersion,
+		Directories: a.authorized,
+	}
+
+	data, err := json.MarshalIndent(authFile, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(a.path, data, 0600)
+	// Always write to V2 file, never modify V1
+	return os.WriteFile(a.pathV2, data, 0600)
 }
 
 // normalizePath removes trailing slashes and cleans the path

@@ -386,7 +386,7 @@ env:
 	require.NoError(t, err)
 	_, err = w.WriteString("y\n")
 	require.NoError(t, err)
-	w.Close()
+	_ = w.Close()
 	os.Stdin = r
 	defer func() { os.Stdin = oldStdin }()
 
@@ -449,7 +449,7 @@ func TestDisplayShellCommandsForApproval(t *testing.T) {
 		}
 
 		err := displayShellCommandsForApproval(shellEnv)
-		w.Close()
+		_ = w.Close()
 		os.Stderr = oldStderr
 
 		require.NoError(t, err)
@@ -471,7 +471,7 @@ func TestDisplayShellCommandsForApproval(t *testing.T) {
 		os.Stderr = w
 
 		err := displayShellCommandsForApproval(map[string]string{})
-		w.Close()
+		_ = w.Close()
 		os.Stderr = oldStderr
 
 		require.NoError(t, err)
@@ -490,8 +490,8 @@ func TestPromptShellApproval(t *testing.T) {
 		oldStdin := os.Stdin
 		r, w, _ := os.Pipe()
 		os.Stdin = r
-		w.Write([]byte("y\n"))
-		w.Close()
+		_, _ = w.Write([]byte("y\n"))
+		_ = w.Close()
 
 		oldStderr := os.Stderr
 		_, stderrW, _ := os.Pipe()
@@ -500,7 +500,7 @@ func TestPromptShellApproval(t *testing.T) {
 		approved, err := promptShellApproval()
 		os.Stdin = oldStdin
 		os.Stderr = oldStderr
-		stderrW.Close()
+		_ = stderrW.Close()
 
 		require.NoError(t, err)
 		assert.True(t, approved)
@@ -511,8 +511,8 @@ func TestPromptShellApproval(t *testing.T) {
 		oldStdin := os.Stdin
 		r, w, _ := os.Pipe()
 		os.Stdin = r
-		w.Write([]byte("n\n"))
-		w.Close()
+		_, _ = w.Write([]byte("n\n"))
+		_ = w.Close()
 
 		oldStderr := os.Stderr
 		_, stderrW, _ := os.Pipe()
@@ -521,7 +521,7 @@ func TestPromptShellApproval(t *testing.T) {
 		approved, err := promptShellApproval()
 		os.Stdin = oldStdin
 		os.Stderr = oldStderr
-		stderrW.Close()
+		_ = stderrW.Close()
 
 		require.NoError(t, err)
 		assert.False(t, approved)
@@ -532,8 +532,8 @@ func TestPromptShellApproval(t *testing.T) {
 		oldStdin := os.Stdin
 		r, w, _ := os.Pipe()
 		os.Stdin = r
-		w.Write([]byte("yes\n"))
-		w.Close()
+		_, _ = w.Write([]byte("yes\n"))
+		_ = w.Close()
 
 		oldStderr := os.Stderr
 		_, stderrW, _ := os.Pipe()
@@ -542,7 +542,7 @@ func TestPromptShellApproval(t *testing.T) {
 		approved, err := promptShellApproval()
 		os.Stdin = oldStdin
 		os.Stderr = oldStderr
-		stderrW.Close()
+		_ = stderrW.Close()
 
 		require.NoError(t, err)
 		assert.True(t, approved)

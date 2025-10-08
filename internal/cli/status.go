@@ -170,7 +170,7 @@ func displayConfigHierarchyWithAuth(comps *components, currentDir string, loaded
 func displayConfigDetails(merged *config.Config, comps *components, currentDir string, configFiles []string) error {
 	displayAliases(merged.Aliases)
 	displayFunctions(merged.Functions)
-	displayEnvVars(merged)
+	displayEnvVars(merged, comps.auth, currentDir)
 	displayCacheStatus(comps, currentDir, configFiles)
 	displayFlags(merged)
 
@@ -213,7 +213,7 @@ func displayFunctions(functions map[string]string) {
 	fmt.Println()
 }
 
-func displayEnvVars(merged *config.Config) {
+func displayEnvVars(merged *config.Config, authMgr *auth.Auth, currentDir string) {
 	staticEnv, shellEnv := merged.GetEnvVars()
 	fmt.Println("🌍 Environment variables:")
 
@@ -230,13 +230,6 @@ func displayEnvVars(merged *config.Config) {
 		if len(shellEnv) > 0 {
 			fmt.Println("   Dynamic (shell):")
 			// Display approval status for each shell command
-			// Auth object is assumed accessible via global context (adapt if needed)
-			authPath := os.Getenv("DIRVANA_AUTH_PATH")
-			var authMgr *auth.Auth
-			if authPath != "" {
-				authMgr, _ = auth.New(authPath)
-			}
-			currentDir, _ := os.Getwd()
 			var shellApproved bool
 			if authMgr != nil {
 				dirAuth := authMgr.GetAuth(currentDir)
