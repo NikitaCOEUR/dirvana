@@ -700,7 +700,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
 
 		// Approve shell commands
-		err = approveShellCommandsForPath(projectPath, authMgr, "", "error")
+		err = approveShellCommandsForPath(projectPath, authMgr, "error")
 		require.NoError(t, err)
 
 		// Verify approval
@@ -722,7 +722,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		require.NoError(t, err)
 
 		// No config file - should trigger os.IsNotExist branch
-		err = approveShellCommandsForPath(projectPath, authMgr, "", "error")
+		err = approveShellCommandsForPath(projectPath, authMgr, "error")
 		require.Error(t, err)
 		// The error path goes through the general "failed to load config" path
 		assert.Contains(t, err.Error(), "failed to load config")
@@ -738,7 +738,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		require.NoError(t, err)
 
 		// This should trigger os.IsNotExist check
-		err = approveShellCommandsForPath(projectPath, authMgr, "", "error")
+		err = approveShellCommandsForPath(projectPath, authMgr, "error")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to load config")
 	})
@@ -760,7 +760,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
 
 		// Should succeed even without shell commands
-		err = approveShellCommandsForPath(projectPath, authMgr, "", "error")
+		err = approveShellCommandsForPath(projectPath, authMgr, "error")
 		require.NoError(t, err)
 	})
 
@@ -777,7 +777,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		configPath := filepath.Join(projectPath, ".dirvana.yml")
 		require.NoError(t, os.WriteFile(configPath, []byte("invalid: [yaml"), 0644))
 
-		err = approveShellCommandsForPath(projectPath, authMgr, "", "error")
+		err = approveShellCommandsForPath(projectPath, authMgr, "error")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to load config")
 	})

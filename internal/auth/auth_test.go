@@ -15,7 +15,7 @@ func TestShellApprovalFlow(t *testing.T) {
 	a, err := New(authPath)
 	require.NoError(t, err)
 
-	dir := "/test/project"
+	dir := testProjectPath
 	shellCmds := map[string]string{
 		"GIT_BRANCH": "git rev-parse --abbrev-ref HEAD",
 		"USER":       "whoami",
@@ -215,7 +215,7 @@ func TestAuth_AllowDuplicates(t *testing.T) {
 	a, err := New(authPath)
 	require.NoError(t, err)
 
-	testPath := "/test/project"
+	testPath := testProjectPath
 
 	// Allow same path multiple times
 	require.NoError(t, a.Allow(testPath))
@@ -313,7 +313,7 @@ func TestAuth_RequiresShellApproval_EdgeCases(t *testing.T) {
 	a, err := New(authPath)
 	require.NoError(t, err)
 
-	dir := "/test/project"
+	dir := testProjectPath
 
 	t.Run("EmptyShellCommands", func(t *testing.T) {
 		// Empty shell commands should not require approval

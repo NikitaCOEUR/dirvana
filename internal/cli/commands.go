@@ -363,7 +363,7 @@ func AllowWithParams(params AllowParams) error {
 
 	// If auto-approve flag is set, approve shell commands immediately
 	if params.AutoApproveShell {
-		if err := approveShellCommandsForPath(params.PathToAllow, authMgr, params.CachePath, params.LogLevel); err != nil {
+		if err := approveShellCommandsForPath(params.PathToAllow, authMgr, params.LogLevel); err != nil {
 			return fmt.Errorf("failed to auto-approve shell commands: %w", err)
 		}
 		fmt.Println("✓ Shell commands auto-approved")
@@ -421,7 +421,7 @@ func RevokeWithParams(params RevokeParams) error {
 }
 
 // approveShellCommandsForPath is a helper that loads config and approves shell commands
-func approveShellCommandsForPath(path string, authMgr *auth.Auth, cachePath, logLevel string) error {
+func approveShellCommandsForPath(path string, authMgr *auth.Auth, logLevel string) error {
 	log := logger.New(logLevel, os.Stderr)
 
 	// Initialize config loader
