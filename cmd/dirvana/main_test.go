@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	dircli "github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/setup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -102,7 +104,7 @@ func TestSetupCommand_AlreadyInstalled(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
-	// Pre-create rc file with hook already installed (with markers)
+	// Pre-create rc file with hook already installed (legacy markers)
 	hookCode := dircli.GenerateHookCode("bash")
 	existingContent := fmt.Sprintf(`# My bashrc
 export PATH=$PATH:/usr/local/bin
@@ -110,7 +112,7 @@ export PATH=$PATH:/usr/local/bin
 %s
 %s
 %s
-`, dircli.HookMarkerStart, hookCode, dircli.HookMarkerEnd)
+`, setup.HookMarkerStart, hookCode, setup.HookMarkerEnd)
 	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
 
 	// Mock home directory
@@ -118,11 +120,11 @@ export PATH=$PATH:/usr/local/bin
 	_ = os.Setenv("HOME", tmpDir)
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
-	// Setup should detect it's already installed and up to date
-	result, err := dircli.InstallHook("bash")
+	// Setup should migrate from legacy (so Updated = true)
+	result, err := setup.InstallHook("bash")
 	require.NoError(t, err)
-	assert.False(t, result.Updated)
-	assert.Contains(t, result.Message, "up to date")
+	assert.True(t, result.Updated)                 // Changed: Will migrate, so Updated = true
+	assert.Contains(t, result.Message, "Migrated") // Changed: Will show migration message
 }
 
 func TestSetupCommand_NewInstallation(t *testing.T) {
@@ -141,33 +143,40 @@ export PATH=$PATH:/usr/local/bin
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
 	// Install hook
-	result, err := dircli.InstallHook("bash")
+	result, err := setup.InstallHook("bash")
 	require.NoError(t, err)
 	assert.True(t, result.Updated)
-	assert.Contains(t, result.Message, "installed")
+	// New strategy uses "created" instead of "installed"
+	assert.True(t, strings.Contains(result.Message, "installed") || strings.Contains(result.Message, "created"))
 
-	// Verify hook was added
+	// Verify user content is preserved
 	data, err := os.ReadFile(rcFile)
 	require.NoError(t, err)
 
 	content := string(data)
 	assert.Contains(t, content, "# My bashrc")
-	assert.Contains(t, content, dircli.HookMarkerStart)
-	assert.Contains(t, content, dircli.HookMarkerEnd)
-	assert.Contains(t, content, "__dirvana_hook()")
+
+	// With new strategy, hook is external, not inline
+	// Verify external hook file was created
+	hookPath := filepath.Join(tmpDir, ".config", "dirvana", "hook-bash.sh")
+	_, err = os.Stat(hookPath)
+	assert.NoError(t, err, "External hook file should exist")
+
+	// Verify RC file contains reference to external hook
+	assert.Contains(t, content, hookPath)
 }
 
 func TestSetupCommand_UpdateExisting(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
-	// Pre-create rc file with OLD hook version
+	// Pre-create rc file with OLD hook version (legacy markers)
 	oldHook := fmt.Sprintf(`%s
 __dirvana_hook() {
   # Old version
   echo "old"
 }
-%s`, dircli.HookMarkerStart, dircli.HookMarkerEnd)
+%s`, setup.HookMarkerStart, setup.HookMarkerEnd)
 
 	existingContent := fmt.Sprintf(`# My bashrc
 export PATH=$PATH:/usr/local/bin
@@ -184,22 +193,29 @@ alias ll='ls -la'
 	_ = os.Setenv("HOME", tmpDir)
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
-	// Install should update the hook
-	result, err := dircli.InstallHook("bash")
+	// Install should migrate from legacy
+	result, err := setup.InstallHook("bash")
 	require.NoError(t, err)
 	assert.True(t, result.Updated)
-	assert.Contains(t, result.Message, "updated")
+	assert.Contains(t, result.Message, "Migrated") // Changed from "updated" to "Migrated"
 
-	// Verify hook was updated
+	// Verify hook was migrated (legacy markers removed)
 	updatedData, err := os.ReadFile(rcFile)
 	require.NoError(t, err)
 
 	updatedContent := string(updatedData)
 	assert.Contains(t, updatedContent, "# My bashrc")
 	assert.Contains(t, updatedContent, "alias ll='ls -la'")
-	assert.Contains(t, updatedContent, "__dirvana_hook()")
+	// With new strategy, hook is external, not inline
+	assert.NotContains(t, updatedContent, setup.HookMarkerStart)
+	assert.NotContains(t, updatedContent, setup.HookMarkerEnd)
 	assert.NotContains(t, updatedContent, "# Old version")
 	assert.NotContains(t, updatedContent, `echo "old"`)
+
+	// Verify external hook file was created
+	hookPath := filepath.Join(tmpDir, ".config", "dirvana", "hook-bash.sh")
+	_, err = os.Stat(hookPath)
+	assert.NoError(t, err, "External hook file should exist")
 }
 
 func TestEnvVarSupport_Shell(t *testing.T) {

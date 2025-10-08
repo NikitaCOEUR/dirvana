@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	dircli "github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/setup"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 	"github.com/urfave/cli/v3"
 )
@@ -217,13 +218,13 @@ func main() {
 				Action: func(_ context.Context, cmd *cli.Command) error {
 					shell := dircli.DetectShell(cmd.String("shell"))
 
-					var result *dircli.SetupResult
+					var result *setup.SetupResult
 					var err error
 
 					if cmd.Bool("uninstall") {
-						result, err = dircli.UninstallHook(shell)
+						result, err = setup.UninstallHook(shell)
 					} else {
-						result, err = dircli.InstallHook(shell)
+						result, err = setup.InstallHook(shell)
 					}
 
 					if err != nil {
