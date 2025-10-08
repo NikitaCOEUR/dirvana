@@ -675,6 +675,43 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 		requiresApproval := authMgr.RequiresShellApproval(projectPath, shellEnv)
 		assert.True(t, requiresApproval, "Shell commands should require approval")
 	})
+
+	t.Run("ShowTipWhenInAuthorizedDirectory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0755))
+
+		// Save original directory
+		originalDir, err := os.Getwd()
+		require.NoError(t, err)
+		defer func() {
+			err := os.Chdir(originalDir)
+			require.NoError(t, err)
+		}()
+
+		// Change to the project directory
+		err = os.Chdir(projectPath)
+		require.NoError(t, err)
+
+		// Allow the current directory
+		err = AllowWithParams(AllowParams{
+			AuthPath:         authPath,
+			PathToAllow:      projectPath,
+			AutoApproveShell: false,
+			LogLevel:         "error",
+		})
+		require.NoError(t, err)
+
+		// The tip message should be printed, but we can't easily capture stdout
+		// The important part is that the function completes without error
+		// and the directory is allowed
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+		allowed, err := authMgr.IsAllowed(projectPath)
+		require.NoError(t, err)
+		assert.True(t, allowed)
+	})
 }
 
 func TestApproveShellCommandsForPath(t *testing.T) {
@@ -780,5 +817,30 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		err = approveShellCommandsForPath(projectPath, authMgr, "error")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to load config")
+	})
+
+	t.Run("ApproveShellCommandsError", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0755))
+
+		// Create auth manager but DON'T allow the directory
+		// This should cause ApproveShellCommands to fail
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+
+		// Create a config file with shell commands
+		configContent := `env:
+  USER:
+    sh: whoami
+`
+		configPath := filepath.Join(projectPath, ".dirvana.yml")
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+
+		// Try to approve shell commands without allowing directory first
+		err = approveShellCommandsForPath(projectPath, authMgr, "error")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to approve shell commands")
 	})
 }
