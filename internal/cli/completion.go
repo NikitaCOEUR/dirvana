@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
@@ -153,6 +154,12 @@ func Completion(params CompletionParams) error {
 		Int("filtered_count", len(filtered)).
 		Str("prefix", currentWord).
 		Msg("Filtered completions")
+
+	// Sort suggestions alphabetically for stable ordering
+	// Some tools (like packer) return suggestions in random order
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].Value < filtered[j].Value
+	})
 
 	// Output suggestions in the format: value\tdescription
 	// Shell will parse this and show both value and description

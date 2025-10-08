@@ -297,12 +297,19 @@ func main() {
 					// and filters it out, but we need it for kubectl completion
 					var words []string
 					foundCompletion := false
+					skipFirstDoubleDash := true
 					for _, arg := range os.Args {
 						if arg == "completion" {
 							foundCompletion = true
 							continue
 						}
 						if foundCompletion {
+							// Skip the first "--" which is just bash's separator
+							// but keep subsequent "--" as they might be meaningful (e.g., kubectl -- ...)
+							if arg == "--" && skipFirstDoubleDash {
+								skipFirstDoubleDash = false
+								continue
+							}
 							words = append(words, arg)
 						}
 					}
