@@ -1,3 +1,4 @@
+// Package setup provides shell hook installation strategies for dirvana.
 package setup
 
 import (
@@ -64,7 +65,7 @@ func (s *DropInStrategy) Install() error {
 	}
 
 	hookCode := cli.GenerateHookCode(s.shell)
-	if err := atomicWrite(s.dropInFile, []byte(hookCode), 0644); err != nil {
+	if err := atomicWrite(s.dropInFile, []byte(hookCode)); err != nil {
 		return fmt.Errorf("failed to create drop-in file: %w", err)
 	}
 

@@ -17,8 +17,8 @@ import (
 func TestLegacyToExternalMigration(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", oldHome)
-	os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	require.NoError(t, os.Setenv("HOME", tmpDir))
 
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
@@ -107,8 +107,8 @@ export EDITOR=vim
 func TestLegacyUninstall(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", oldHome)
-	os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	require.NoError(t, os.Setenv("HOME", tmpDir))
 
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
@@ -157,8 +157,8 @@ export PATH=$PATH:/usr/local/bin
 func TestMigrationPreservesComplexContent(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", oldHome)
-	os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	require.NoError(t, os.Setenv("HOME", tmpDir))
 
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
@@ -237,8 +237,8 @@ func TestMigrationFromMultipleShells(t *testing.T) {
 		t.Run(shell, func(t *testing.T) {
 			tmpDir := t.TempDir()
 			oldHome := os.Getenv("HOME")
-			defer os.Setenv("HOME", oldHome)
-			os.Setenv("HOME", tmpDir)
+			defer func() { _ = os.Setenv("HOME", oldHome) }()
+			require.NoError(t, os.Setenv("HOME", tmpDir))
 
 			rcFile := filepath.Join(tmpDir, "."+shell+"rc")
 
@@ -282,8 +282,8 @@ export PATH=$PATH:/usr/local/bin
 func TestNoMigrationWhenNotNeeded(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", oldHome)
-	os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	require.NoError(t, os.Setenv("HOME", tmpDir))
 
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 

@@ -16,8 +16,8 @@ const (
 	HookMarkerEnd = "# Dirvana shell hook - END"
 )
 
-// SetupResult represents the result of a setup operation
-type SetupResult struct {
+// Result represents the result of a setup operation
+type Result struct {
 	RCFile  string
 	Updated bool
 	Message string
@@ -59,7 +59,7 @@ func checkDirenvConflict(rcFile string) string {
 }
 
 // InstallHook installs or updates the Dirvana hook using the best strategy
-func InstallHook(shell string) (*SetupResult, error) {
+func InstallHook(shell string) (*Result, error) {
 	// Check for legacy installation
 	if HasLegacyInstall(shell) {
 		// Migrate from legacy to new strategy
@@ -72,7 +72,7 @@ func InstallHook(shell string) (*SetupResult, error) {
 			return nil, err
 		}
 
-		return &SetupResult{
+		return &Result{
 			RCFile:  strategy.GetRCFile(),
 			Updated: true,
 			Message: "⚠️  Migrated from legacy installation\n" + strategy.GetMessage() + "\n✓ Shell completion is up to date",
@@ -87,7 +87,7 @@ func InstallHook(shell string) (*SetupResult, error) {
 
 	// Check if already installed and up to date
 	if strategy.IsInstalled() && !strategy.NeedsUpdate() {
-		return &SetupResult{
+		return &Result{
 			RCFile:  strategy.GetRCFile(),
 			Updated: false,
 			Message: strategy.GetMessage() + "\n✓ Shell completion is up to date",
@@ -99,7 +99,7 @@ func InstallHook(shell string) (*SetupResult, error) {
 		return nil, fmt.Errorf("failed to install hook: %w", err)
 	}
 
-	return &SetupResult{
+	return &Result{
 		RCFile:  strategy.GetRCFile(),
 		Updated: true,
 		Message: strategy.GetMessage() + "\n✓ Shell completion is up to date",
@@ -123,7 +123,7 @@ func IsHookInstalled(shell string) (bool, error) {
 }
 
 // UninstallHook removes the Dirvana hook (handles both legacy and new strategies)
-func UninstallHook(shell string) (*SetupResult, error) {
+func UninstallHook(shell string) (*Result, error) {
 	rcFile, err := GetRCFilePath(shell)
 	if err != nil {
 		return nil, err
@@ -141,7 +141,7 @@ func UninstallHook(shell string) (*SetupResult, error) {
 
 	// If nothing is installed, return early
 	if !legacyExists && !newStrategyInstalled {
-		return &SetupResult{
+		return &Result{
 			RCFile:  rcFile,
 			Updated: false,
 			Message: "✓ Dirvana is not installed",
@@ -172,7 +172,7 @@ func UninstallHook(shell string) (*SetupResult, error) {
 		message = strategy.GetMessage()
 	}
 
-	return &SetupResult{
+	return &Result{
 		RCFile:  rcFile,
 		Updated: true,
 		Message: message,

@@ -10,8 +10,10 @@ import (
 func TestSelectInstallStrategy_PrefersDropIn(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
 
 	// Create RC file with drop-in support
 	rcFile := filepath.Join(tmpDir, ".bashrc")
@@ -35,8 +37,10 @@ func TestSelectInstallStrategy_PrefersDropIn(t *testing.T) {
 func TestSelectInstallStrategy_FallbackToExternal(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
 
 	// Create RC file without drop-in support
 	rcFile := filepath.Join(tmpDir, ".bashrc")
@@ -93,8 +97,10 @@ func TestHasLegacyInstall(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpDir := t.TempDir()
 			originalHome := os.Getenv("HOME")
-			defer os.Setenv("HOME", originalHome)
-			os.Setenv("HOME", tmpDir)
+			defer func() { _ = os.Setenv("HOME", originalHome) }()
+			if err := os.Setenv("HOME", tmpDir); err != nil {
+				t.Fatalf("Failed to set HOME: %v", err)
+			}
 
 			rcFile := filepath.Join(tmpDir, ".bashrc")
 			err := os.WriteFile(rcFile, []byte(tt.rcContent), 0644)
@@ -113,8 +119,10 @@ func TestHasLegacyInstall(t *testing.T) {
 func TestMigrateLegacyInstall(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
 
 	// Create RC file with legacy install
 	rcFile := filepath.Join(tmpDir, ".bashrc")
@@ -187,8 +195,10 @@ func TestMigrateLegacyInstall(t *testing.T) {
 func TestMigrateLegacyInstall_NoOpWhenNotLegacy(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
 
 	// Create RC file without legacy install
 	rcFile := filepath.Join(tmpDir, ".bashrc")
@@ -294,7 +304,7 @@ func TestAtomicWrite(t *testing.T) {
 
 	// Test writing new file
 	content := []byte("test content")
-	err := atomicWrite(testFile, content, 0644)
+	err := atomicWrite(testFile, content)
 	if err != nil {
 		t.Fatalf("atomicWrite failed: %v", err)
 	}
@@ -311,7 +321,7 @@ func TestAtomicWrite(t *testing.T) {
 
 	// Test overwriting existing file
 	newContent := []byte("new test content")
-	err = atomicWrite(testFile, newContent, 0644)
+	err = atomicWrite(testFile, newContent)
 	if err != nil {
 		t.Fatalf("atomicWrite failed on overwrite: %v", err)
 	}

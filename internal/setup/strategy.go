@@ -88,11 +88,12 @@ func removeLegacyHook(rcFile string) error {
 	content := string(data)
 	newContent := removeMarkedSection(content, HookMarkerStart, HookMarkerEnd)
 
-	return atomicWrite(rcFile, []byte(newContent), 0644)
+	return atomicWrite(rcFile, []byte(newContent))
 }
 
 // atomicWrite writes data to a file atomically using a temporary file
-func atomicWrite(filename string, data []byte, perm os.FileMode) error {
+func atomicWrite(filename string, data []byte) error {
+	const perm = 0644
 	dir := filepath.Dir(filename)
 	tmpFile, err := os.CreateTemp(dir, ".dirvana-tmp-*")
 	if err != nil {
@@ -103,8 +104,8 @@ func atomicWrite(filename string, data []byte, perm os.FileMode) error {
 	// Clean up temp file if something goes wrong
 	defer func() {
 		if tmpFile != nil {
-			tmpFile.Close()
-			os.Remove(tmpName)
+			_ = tmpFile.Close()
+			_ = os.Remove(tmpName)
 		}
 	}()
 

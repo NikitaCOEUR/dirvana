@@ -51,8 +51,8 @@ func TestBashHookContent(t *testing.T) {
 func TestBothShellsUseSameStrategy(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", originalHome)
-	os.Setenv("HOME", tmpDir)
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	require.NoError(t, os.Setenv("HOME", tmpDir))
 
 	// Create RC files for both shells
 	bashRC := filepath.Join(tmpDir, ".bashrc")

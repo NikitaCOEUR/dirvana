@@ -53,7 +53,7 @@ func (s *ExternalHookStrategy) Install() error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	if err := atomicWrite(s.hookPath, []byte(hookCode), 0644); err != nil {
+	if err := atomicWrite(s.hookPath, []byte(hookCode)); err != nil {
 		return fmt.Errorf("failed to create hook file: %w", err)
 	}
 
@@ -80,7 +80,7 @@ func (s *ExternalHookStrategy) Install() error {
 	}
 	newContent += fmt.Sprintf("\n%s\n%s\n", DirvanaComment, sourceLine)
 
-	if err := atomicWrite(s.rcFile, []byte(newContent), 0644); err != nil {
+	if err := atomicWrite(s.rcFile, []byte(newContent)); err != nil {
 		return fmt.Errorf("failed to update RC file: %w", err)
 	}
 
@@ -132,7 +132,7 @@ func (s *ExternalHookStrategy) Uninstall() error {
 	}
 
 	newContent := strings.Join(newLines, "\n")
-	if err := atomicWrite(s.rcFile, []byte(newContent), 0644); err != nil {
+	if err := atomicWrite(s.rcFile, []byte(newContent)); err != nil {
 		return fmt.Errorf("failed to update RC file: %w", err)
 	}
 

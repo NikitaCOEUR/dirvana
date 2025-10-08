@@ -218,7 +218,7 @@ func main() {
 				Action: func(_ context.Context, cmd *cli.Command) error {
 					shell := dircli.DetectShell(cmd.String("shell"))
 
-					var result *setup.SetupResult
+					var result *setup.Result
 					var err error
 
 					if cmd.Bool("uninstall") {

@@ -9,6 +9,8 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/cli"
 )
 
+const testBashrcDropInContent = "if [ -d ~/.bashrc.d ]; then\n  for rc in ~/.bashrc.d/*.sh; do\n    source $rc\n  done\nfi"
+
 func TestDropInStrategy_IsSupported(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -77,7 +79,7 @@ func TestDropInStrategy_Install(t *testing.T) {
 
 	// Create RC file with drop-in support
 	rcFile := filepath.Join(home, ".bashrc")
-	rcContent := "if [ -d ~/.bashrc.d ]; then\n  for rc in ~/.bashrc.d/*.sh; do\n    source $rc\n  done\nfi"
+	rcContent := testBashrcDropInContent
 	err := os.WriteFile(rcFile, []byte(rcContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
@@ -276,7 +278,7 @@ func TestDropInStrategy_NoRCModificationDuringUpdate(t *testing.T) {
 
 	// Create RC file with drop-in support
 	rcFile := filepath.Join(home, ".bashrc")
-	rcContent := "if [ -d ~/.bashrc.d ]; then\n  for rc in ~/.bashrc.d/*.sh; do\n    source $rc\n  done\nfi"
+	rcContent := testBashrcDropInContent
 	err := os.WriteFile(rcFile, []byte(rcContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
