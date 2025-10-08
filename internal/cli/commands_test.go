@@ -548,3 +548,237 @@ func TestPromptShellApproval(t *testing.T) {
 		assert.True(t, approved)
 	})
 }
+
+func TestAllowWithParams_AutoApproveShell(t *testing.T) {
+	t.Run("AutoApproveShellCommands", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0755))
+
+		// Create a config file with shell commands
+		configContent := `env:
+  CURRENT_USER:
+    sh: whoami
+  CURRENT_DIR:
+    sh: pwd
+`
+		configPath := filepath.Join(projectPath, ".dirvana.yml")
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+
+		// Allow with auto-approve
+		err := AllowWithParams(AllowParams{
+			AuthPath:         authPath,
+			PathToAllow:      projectPath,
+			AutoApproveShell: true,
+			LogLevel:         "error",
+		})
+		require.NoError(t, err)
+
+		// Verify directory is allowed
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+		allowed, err := authMgr.IsAllowed(projectPath)
+		require.NoError(t, err)
+		assert.True(t, allowed)
+
+		// Verify shell commands are approved
+		shellEnv := map[string]string{
+			"CURRENT_USER": "whoami",
+			"CURRENT_DIR":  "pwd",
+		}
+		requiresApproval := authMgr.RequiresShellApproval(projectPath, shellEnv)
+		assert.False(t, requiresApproval, "Shell commands should be approved")
+	})
+
+	t.Run("AutoApproveWithoutShellCommands", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0755))
+
+		// Create a config file without shell commands
+		configContent := `env:
+  STATIC_VAR: "value"
+`
+		configPath := filepath.Join(projectPath, ".dirvana.yml")
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+
+		// Allow with auto-approve (should not fail even without shell commands)
+		err := AllowWithParams(AllowParams{
+			AuthPath:         authPath,
+			PathToAllow:      projectPath,
+			AutoApproveShell: true,
+			LogLevel:         "error",
+		})
+		require.NoError(t, err)
+
+		// Verify directory is allowed
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+		allowed, err := authMgr.IsAllowed(projectPath)
+		require.NoError(t, err)
+		assert.True(t, allowed)
+	})
+
+	t.Run("AutoApproveWithoutConfig", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0755))
+
+		// No config file - auto-approve should fail gracefully
+		err := AllowWithParams(AllowParams{
+			AuthPath:         authPath,
+			PathToAllow:      projectPath,
+			AutoApproveShell: true,
+			LogLevel:         "error",
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load config")
+	})
+
+	t.Run("WithoutAutoApprove", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0755))
+
+		// Create a config file with shell commands
+		configContent := `env:
+  TEST_VAR:
+    sh: echo test
+`
+		configPath := filepath.Join(projectPath, ".dirvana.yml")
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+
+		// Allow without auto-approve
+		err := AllowWithParams(AllowParams{
+			AuthPath:         authPath,
+			PathToAllow:      projectPath,
+			AutoApproveShell: false,
+			LogLevel:         "error",
+		})
+		require.NoError(t, err)
+
+		// Verify directory is allowed
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+		allowed, err := authMgr.IsAllowed(projectPath)
+		require.NoError(t, err)
+		assert.True(t, allowed)
+
+		// Verify shell commands are NOT approved
+		shellEnv := map[string]string{
+			"TEST_VAR": "echo test",
+		}
+		requiresApproval := authMgr.RequiresShellApproval(projectPath, shellEnv)
+		assert.True(t, requiresApproval, "Shell commands should require approval")
+	})
+}
+
+func TestApproveShellCommandsForPath(t *testing.T) {
+	t.Run("ApproveSuccessfully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0755))
+
+		// Create auth manager and allow directory
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+		require.NoError(t, authMgr.Allow(projectPath))
+
+		// Create a config file with shell commands
+		configContent := `env:
+  USER:
+    sh: whoami
+  PWD:
+    sh: pwd
+`
+		configPath := filepath.Join(projectPath, ".dirvana.yml")
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+
+		// Approve shell commands
+		err = approveShellCommandsForPath(projectPath, authMgr, "", "error")
+		require.NoError(t, err)
+
+		// Verify approval
+		shellEnv := map[string]string{
+			"USER": "whoami",
+			"PWD":  "pwd",
+		}
+		requiresApproval := authMgr.RequiresShellApproval(projectPath, shellEnv)
+		assert.False(t, requiresApproval)
+	})
+
+	t.Run("NoConfigFile", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0755))
+
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+
+		// No config file - should trigger os.IsNotExist branch
+		err = approveShellCommandsForPath(projectPath, authMgr, "", "error")
+		require.Error(t, err)
+		// The error path goes through the general "failed to load config" path
+		assert.Contains(t, err.Error(), "failed to load config")
+	})
+
+	t.Run("ConfigFileDoesNotExist", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		// Use a path that definitely doesn't exist
+		projectPath := filepath.Join(tmpDir, "nonexistent_directory_xyz")
+
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+
+		// This should trigger os.IsNotExist check
+		err = approveShellCommandsForPath(projectPath, authMgr, "", "error")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load config")
+	})
+
+	t.Run("NoShellCommands", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0755))
+
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+
+		// Config without shell commands
+		configContent := `env:
+  STATIC: "value"
+`
+		configPath := filepath.Join(projectPath, ".dirvana.yml")
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+
+		// Should succeed even without shell commands
+		err = approveShellCommandsForPath(projectPath, authMgr, "", "error")
+		require.NoError(t, err)
+	})
+
+	t.Run("InvalidConfigFile", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0755))
+
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+
+		// Invalid YAML
+		configPath := filepath.Join(projectPath, ".dirvana.yml")
+		require.NoError(t, os.WriteFile(configPath, []byte("invalid: [yaml"), 0644))
+
+		err = approveShellCommandsForPath(projectPath, authMgr, "", "error")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load config")
+	})
+}

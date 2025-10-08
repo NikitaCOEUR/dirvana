@@ -66,6 +66,12 @@ func main() {
 			{
 				Name:  "allow",
 				Usage: "Authorize a project for automatic execution",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "auto-approve-shell",
+						Usage: "Automatically approve shell commands in the config (useful for CI/CD)",
+					},
+				},
 				Action: func(_ context.Context, cmd *cli.Command) error {
 					currentDir, err := os.Getwd()
 					if err != nil {
@@ -78,10 +84,11 @@ func main() {
 					}
 
 					return dircli.AllowWithParams(dircli.AllowParams{
-						AuthPath:    authPath,
-						PathToAllow: pathToAllow,
-						CachePath:   cachePath,
-						LogLevel:    cmd.String("log-level"),
+						AuthPath:         authPath,
+						PathToAllow:      pathToAllow,
+						CachePath:        cachePath,
+						LogLevel:         cmd.String("log-level"),
+						AutoApproveShell: cmd.Bool("auto-approve-shell"),
 					})
 				},
 			},

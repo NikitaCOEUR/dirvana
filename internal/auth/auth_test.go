@@ -306,3 +306,107 @@ func TestAuth_MigrationFromV1Format(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, v1FormatJSON, string(v1DataAfter), "V1 file should never be modified")
 }
+
+func TestAuth_RequiresShellApproval_EdgeCases(t *testing.T) {
+	tmpDir := t.TempDir()
+	authPath := filepath.Join(tmpDir, "authorized.json")
+	a, err := New(authPath)
+	require.NoError(t, err)
+
+	dir := "/test/project"
+
+	t.Run("EmptyShellCommands", func(t *testing.T) {
+		// Empty shell commands should not require approval
+		require.False(t, a.RequiresShellApproval(dir, map[string]string{}))
+		require.False(t, a.RequiresShellApproval(dir, nil))
+	})
+
+	t.Run("DirectoryNotInAuth", func(t *testing.T) {
+		// Directory not in auth should not require approval (directory auth first)
+		shellCmds := map[string]string{"USER": "whoami"}
+		require.False(t, a.RequiresShellApproval(dir, shellCmds))
+	})
+
+	t.Run("DirectoryNotAllowed", func(t *testing.T) {
+		// Directory exists but not allowed
+		require.NoError(t, a.Revoke(dir)) // Ensure it's not allowed
+		shellCmds := map[string]string{"USER": "whoami"}
+		require.False(t, a.RequiresShellApproval(dir, shellCmds))
+	})
+}
+
+func TestAuth_ApproveShellCommands_DirectoryNotAuthorized(t *testing.T) {
+	tmpDir := t.TempDir()
+	authPath := filepath.Join(tmpDir, "authorized.json")
+	a, err := New(authPath)
+	require.NoError(t, err)
+
+	dir := "/test/unauth-project"
+	shellCmds := map[string]string{
+		"USER": "whoami",
+	}
+
+	// Try to approve shell commands for a non-authorized directory
+	err = a.ApproveShellCommands(dir, shellCmds)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "directory not authorized")
+}
+
+func TestAuth_LoadV1_EdgeCases(t *testing.T) {
+	t.Run("EmptyV1Array", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "authorized.json")
+
+		// Write empty V1 array
+		v1Data := []byte(`[]`)
+		require.NoError(t, os.WriteFile(authPath, v1Data, 0600))
+
+		a, err := New(authPath)
+		require.NoError(t, err)
+		assert.NotNil(t, a)
+		assert.Empty(t, a.List())
+	})
+
+	t.Run("InvalidV1Format", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "authorized.json")
+
+		// Write invalid JSON - New() handles this gracefully
+		v1Data := []byte(`{invalid json}`)
+		require.NoError(t, os.WriteFile(authPath, v1Data, 0600))
+
+		// New() should succeed but start with empty state
+		a, err := New(authPath)
+		require.NoError(t, err)
+		assert.NotNil(t, a)
+		assert.Empty(t, a.List())
+	})
+
+	t.Run("EmptyFile", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "authorized.json")
+
+		// Write empty file
+		require.NoError(t, os.WriteFile(authPath, []byte(""), 0600))
+
+		a, err := New(authPath)
+		require.NoError(t, err)
+		assert.NotNil(t, a)
+		assert.Empty(t, a.List())
+	})
+}
+
+func TestAuth_LoadV2_InvalidVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	authPath := filepath.Join(tmpDir, "authorized_v2.json")
+
+	// Write V2 file with invalid version - New() handles this gracefully
+	v2Data := `{"_version":99,"directories":{}}`
+	require.NoError(t, os.WriteFile(authPath, []byte(v2Data), 0600))
+
+	// New() should succeed but start with empty state
+	a, err := New(filepath.Join(tmpDir, "authorized.json"))
+	require.NoError(t, err)
+	assert.NotNil(t, a)
+	assert.Empty(t, a.List())
+}
