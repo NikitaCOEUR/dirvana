@@ -1,10 +1,8 @@
 package completion
 
 import (
-	"bufio"
-	"bytes"
+	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 )
 
@@ -19,9 +17,9 @@ func NewCobraCompleter() *CobraCompleter {
 // Supports checks if the tool supports Cobra's __complete API
 // We verify by checking for Cobra's directive format in the output
 func (c *CobraCompleter) Supports(tool string, _ []string) bool {
-	// Try calling tool __complete with empty arg
-	cmd := exec.Command(tool, "__complete", "")
-	output, err := cmd.Output()
+	// Try calling tool __complete with empty arg (with timeout)
+	ctx := context.Background()
+	output, err := execWithTimeout(ctx, tool, "__complete", "")
 
 	// If command failed or returned nothing, doesn't support
 	if err != nil || len(output) == 0 {
@@ -49,9 +47,9 @@ func (c *CobraCompleter) Complete(tool string, args []string) ([]Suggestion, err
 	// Build the __complete command
 	// tool __complete <args...>
 	completeArgs := append([]string{"__complete"}, args...)
-	cmd := exec.Command(tool, completeArgs...)
 
-	output, err := cmd.Output()
+	ctx := context.Background()
+	output, err := execWithTimeout(ctx, tool, completeArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -64,11 +62,12 @@ func (c *CobraCompleter) Complete(tool string, args []string) ([]Suggestion, err
 // - Lines starting with ":" are directives (ignore them)
 // - Empty lines are ignored
 func parseCobraOutput(output []byte) []Suggestion {
-	var suggestions []Suggestion
-	scanner := bufio.NewScanner(bytes.NewReader(output))
+	// First, filter out Cobra directives and help messages
+	var filteredLines []string
+	lines := strings.Split(string(output), "\n")
 
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
@@ -78,19 +77,10 @@ func parseCobraOutput(output []byte) []Suggestion {
 			continue
 		}
 
-		// Split by tab to separate value from description
-		parts := strings.SplitN(line, "\t", 2)
-		suggestion := Suggestion{
-			Value: parts[0],
-		}
-
-		// Add description if present
-		if len(parts) > 1 {
-			suggestion.Description = parts[1]
-		}
-
-		suggestions = append(suggestions, suggestion)
+		filteredLines = append(filteredLines, line)
 	}
 
-	return suggestions
+	// Use common parser with description support
+	filteredOutput := []byte(strings.Join(filteredLines, "\n"))
+	return parseCompletionOutput(filteredOutput, true)
 }

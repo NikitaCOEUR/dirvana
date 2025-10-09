@@ -8,11 +8,16 @@ aliases:
     completion: git
   gs: git status
   gd: git diff
-
+  gov: govc
   k:
-    command: kubectl
+    command: kubecolor
     completion: kubectl
   h: helm
+  p: packer
+  t: task
+  tf: terraform
+
+
 
 # Shell functions
 functions:

@@ -1,11 +1,9 @@
 package completion
 
 import (
-	"bufio"
-	"bytes"
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 )
 
@@ -22,13 +20,13 @@ func NewEnvCompleter() *EnvCompleter {
 // Supports checks if the tool supports env-based completion protocol by testing it
 // We verify by checking that it returns actual suggestions
 func (e *EnvCompleter) Supports(tool string, _ []string) bool {
-	// Test if the tool responds to COMP_LINE environment variable
-	cmd := exec.Command(tool)
-	cmd.Env = append(os.Environ(),
+	// Test if the tool responds to COMP_LINE environment variable (with timeout)
+	ctx := context.Background()
+	env := append(os.Environ(),
 		"COMP_LINE="+tool+" ",
 		"COMP_POINT=0",
 	)
-	output, err := cmd.Output()
+	output, err := execWithTimeoutAndEnv(ctx, env, tool)
 
 	// If command failed or returned nothing, doesn't support
 	if err != nil || len(output) == 0 {
@@ -73,15 +71,14 @@ func (e *EnvCompleter) Complete(tool string, args []string) ([]Suggestion, error
 	// COMP_POINT is the cursor position (end of line for now)
 	compPoint := len(compLine)
 
-	// Call the tool with completion environment variables
-	cmd := exec.Command(tool)
-	// Inherit current environment and add completion variables
-	cmd.Env = append(os.Environ(),
+	// Call the tool with completion environment variables (with timeout)
+	ctx := context.Background()
+	env := append(os.Environ(),
 		"COMP_LINE="+compLine,
 		fmt.Sprintf("COMP_POINT=%d", compPoint),
 	)
 
-	output, err := cmd.Output()
+	output, err := execWithTimeoutAndEnv(ctx, env, tool)
 	if err != nil {
 		return nil, err
 	}
@@ -92,20 +89,6 @@ func (e *EnvCompleter) Complete(tool string, args []string) ([]Suggestion, error
 // parseEnvOutput parses the output from environment variable-based completion
 // Format: one suggestion per line, no descriptions
 func parseEnvOutput(output []byte) []Suggestion {
-	var suggestions []Suggestion
-
-	scanner := bufio.NewScanner(bytes.NewReader(output))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-
-		suggestions = append(suggestions, Suggestion{
-			Value:       line,
-			Description: "",
-		})
-	}
-
-	return suggestions
+	// Use common parser without description support
+	return parseCompletionOutput(output, false)
 }

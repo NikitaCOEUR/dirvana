@@ -1,0 +1,33 @@
+# Dirvana Completion Scripts Registry - Version 1
+# This file can be updated independently from dirvana releases
+# Community contributions welcome!
+
+version: "1"
+description: "Registry of bash completion scripts for tools without dynamic completion"
+
+# Design Philosophy:
+# - Dirvana executes ALL completion scripts via bash, regardless of user's shell
+# - Scripts output simple text suggestions (value\tdescription format)
+# - Each shell (bash/zsh) then formats suggestions using native completion system
+# - This means: ONE bash script works for ALL shells (bash, zsh, fish)
+
+# Only include tools that:
+# - Have static bash completion scripts that can be downloaded
+# - Do NOT have built-in dynamic completion (kubectl, helm, terraform, etc. are excluded)
+# - Are commonly used and would benefit from completion support
+
+tools:
+  govc:
+    description: "VMware vSphere CLI - govmomi"
+    homepage: "https://github.com/vmware/govmomi"
+    script:
+      url: "https://raw.githubusercontent.com/vmware/govmomi/main/scripts/govc_bash_completion"
+      sha256: null  # Optional: add checksum for security verification
+
+  # Example for future additions:
+  # tool-name:
+  #   description: "Brief description of the tool"
+  #   homepage: "https://github.com/..."
+  #   script:
+  #     url: "https://..."
+  #     sha256: "abc123..."  # Optional checksum

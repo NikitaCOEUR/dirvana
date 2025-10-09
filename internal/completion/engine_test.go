@@ -190,7 +190,7 @@ func TestEngine_getCompleterType(t *testing.T) {
 	cobra := NewCobraCompleter()
 	flag := NewFlagCompleter()
 	env := NewEnvCompleter()
-	script := NewScriptCompleter()
+	script := NewScriptCompleter("")
 
 	assert.Equal(t, "Cobra", getCompleterType(cobra))
 	assert.Equal(t, "Flag", getCompleterType(flag))

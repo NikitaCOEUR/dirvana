@@ -1,11 +1,9 @@
 package completion
 
 import (
-	"bufio"
-	"bytes"
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -13,17 +11,19 @@ import (
 // ScriptCompleter handles tools that use standard bash completion scripts
 // This is used by git, docker, systemctl, and many other Unix tools
 // These tools have completion scripts in /usr/share/bash-completion/completions/
-// or /etc/bash_completion.d/
-type ScriptCompleter struct{}
+// or /etc/bash_completion.d/, or can be auto-downloaded from the registry
+type ScriptCompleter struct {
+	cacheDir string
+}
 
 // NewScriptCompleter creates a new script-based completer
-func NewScriptCompleter() *ScriptCompleter {
-	return &ScriptCompleter{}
+func NewScriptCompleter(cacheDir string) *ScriptCompleter {
+	return &ScriptCompleter{cacheDir: cacheDir}
 }
 
 // completionScriptPaths returns possible locations for bash completion scripts
-func completionScriptPaths(tool string) []string {
-	return []string{
+func (s *ScriptCompleter) completionScriptPaths(tool string) []string {
+	paths := []string{
 		filepath.Join("/usr/share/bash-completion/completions", tool),
 		filepath.Join("/usr/local/share/bash-completion/completions", tool),
 		filepath.Join("/etc/bash_completion.d", tool),
@@ -31,11 +31,21 @@ func completionScriptPaths(tool string) []string {
 		filepath.Join("/usr/local/etc/bash_completion.d", tool),
 		filepath.Join("/opt/homebrew/etc/bash_completion.d", tool),
 	}
+
+	// Add dirvana cache location (bash scripts only)
+	// Note: We only use bash scripts as they work for all shells (bash, zsh, fish)
+	if s.cacheDir != "" {
+		paths = append(paths,
+			GetCompletionScriptPath(s.cacheDir, tool, "bash"),
+		)
+	}
+
+	return paths
 }
 
 // findCompletionScript finds the bash completion script for a tool
-func findCompletionScript(tool string) string {
-	for _, path := range completionScriptPaths(tool) {
+func (s *ScriptCompleter) findCompletionScript(tool string) string {
+	for _, path := range s.completionScriptPaths(tool) {
 		if _, err := os.Stat(path); err == nil {
 			return path
 		}
@@ -44,18 +54,72 @@ func findCompletionScript(tool string) string {
 }
 
 // Supports checks if the tool has a bash completion script available
+// or can have one auto-installed
 func (s *ScriptCompleter) Supports(tool string, _ []string) bool {
-	return findCompletionScript(tool) != ""
+	// Check if script already exists
+	if s.findCompletionScript(tool) != "" {
+		return true
+	}
+
+	// Check if we can download from registry
+	if s.cacheDir != "" {
+		registry, err := LoadRegistry(s.cacheDir)
+		if err == nil {
+			if _, ok := registry.Tools[tool]; ok {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // Complete uses bash completion scripts to get suggestions
 // It sources the completion script and calls the completion function
 func (s *ScriptCompleter) Complete(tool string, args []string) ([]Suggestion, error) {
-	scriptPath := findCompletionScript(tool)
-	if scriptPath == "" {
-		return nil, fmt.Errorf("no completion script found for %s", tool)
+	// Ensure script is available (find locally or download from registry)
+	scriptPath, err := s.ensureScriptAvailable(tool)
+	if err != nil {
+		return nil, err
 	}
 
+	// Build bash completion script
+	bashScript := s.buildBashCompletionScript(scriptPath, tool, args)
+
+	// Execute the bash script
+	output, err := s.executeBashScript(bashScript, tool)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseScriptOutput(output), nil
+}
+
+// ensureScriptAvailable finds or downloads the completion script for a tool
+func (s *ScriptCompleter) ensureScriptAvailable(tool string) (string, error) {
+	scriptPath := s.findCompletionScript(tool)
+
+	// If no script found, try to download from registry
+	if scriptPath == "" && s.cacheDir != "" {
+		registry, err := LoadRegistry(s.cacheDir)
+		if err == nil {
+			// Try to download for bash (default)
+			if err := DownloadCompletionScript(s.cacheDir, tool, "bash", registry); err == nil {
+				// Retry finding the script
+				scriptPath = s.findCompletionScript(tool)
+			}
+		}
+
+		if scriptPath == "" {
+			return "", fmt.Errorf("no completion script found for %s", tool)
+		}
+	}
+
+	return scriptPath, nil
+}
+
+// buildBashCompletionScript generates the bash script that will run the completion
+func (s *ScriptCompleter) buildBashCompletionScript(scriptPath, tool string, args []string) string {
 	// Build the command line as bash would see it
 	// COMP_WORDS is an array: (tool arg1 arg2 ...)
 	// COMP_CWORD is the index of the word being completed
@@ -67,11 +131,15 @@ func (s *ScriptCompleter) Complete(tool string, args []string) ([]Suggestion, er
 		compCword = len(compWords) - 1
 	}
 
+	// Escape COMP_LINE properly to prevent injection
+	// Use single quotes and escape any single quotes inside
+	escapedCompLine := "'" + strings.ReplaceAll(strings.Join(compWords, " "), "'", "'\\''") + "'"
+
 	// Create a bash script that:
 	// 1. Sources the completion script
 	// 2. Calls the completion function
 	// 3. Outputs COMPREPLY
-	bashScript := fmt.Sprintf(`
+	return fmt.Sprintf(`
 set -e
 # Source bash_completion framework if available
 if [ -f /usr/share/bash-completion/bash_completion ]; then
@@ -86,7 +154,7 @@ source %s 2>/dev/null || exit 1
 # Set up completion variables
 COMP_WORDS=(%s)
 COMP_CWORD=%d
-COMP_LINE="%s"
+COMP_LINE=%s
 COMP_POINT=${#COMP_LINE}
 
 # Many completion scripts expect lowercase variables
@@ -122,28 +190,26 @@ done
 		scriptPath,
 		strings.Join(escapeShellWords(compWords), " "),
 		compCword,
-		strings.Join(compWords, " "),
+		escapedCompLine, // Now properly escaped
 		tool, tool, // __%s_main
 		tool, tool, // _%s
 		tool, tool, // __%s
 		tool, tool, // grep pattern
 	)
+}
 
-	// Execute the bash script
-	cmd := exec.Command("bash", "-c", bashScript)
-	cmd.Env = os.Environ()
-
+// executeBashScript executes the bash completion script with timeout
+func (s *ScriptCompleter) executeBashScript(bashScript, tool string) ([]byte, error) {
 	// Debug: uncomment to see the generated script
-	// fmt.Fprintf(os.Stderr, "=== Bash script for %s with args %v ===\n%s\n===\n", tool, args, bashScript)
+	// fmt.Fprintf(os.Stderr, "=== Bash script for %s ===\n%s\n===\n", tool, bashScript)
 
-	output, err := cmd.Output()
+	ctx := context.Background()
+	output, err := execWithTimeoutAndEnv(ctx, os.Environ(), "bash", "-c", bashScript)
 	if err != nil {
-		// If completion failed, it might be because the script doesn't support it
-		// or the tool doesn't have completion for this context
-		return nil, err
+		return nil, fmt.Errorf("completion script failed for %s: %w", tool, err)
 	}
 
-	return parseScriptOutput(output), nil
+	return output, nil
 }
 
 // escapeShellWords escapes words for use in bash arrays
@@ -159,27 +225,6 @@ func escapeShellWords(words []string) []string {
 // parseScriptOutput parses the output from bash completion scripts
 // Format: one suggestion per line, may include descriptions separated by tab or space
 func parseScriptOutput(output []byte) []Suggestion {
-	suggestions := []Suggestion{} // Initialize as empty slice, not nil
-
-	scanner := bufio.NewScanner(bytes.NewReader(output))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-
-		// Some completions include descriptions separated by tab
-		parts := strings.SplitN(line, "\t", 2)
-		suggestion := Suggestion{
-			Value: parts[0],
-		}
-
-		if len(parts) > 1 {
-			suggestion.Description = parts[1]
-		}
-
-		suggestions = append(suggestions, suggestion)
-	}
-
-	return suggestions
+	// Use common parser with description support
+	return parseCompletionOutput(output, true)
 }

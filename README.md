@@ -57,9 +57,9 @@ graph TD
 ```bash
 $ cd ~/projects/terraform
 $ export TF_LOG=debug
-$ alias tf="terraform"
-$ alias plan="terraform plan"
-$ alias apply="terraform apply"
+$ alias tf="task terraform --"
+$ alias plan="task terraform -- plan"
+$ alias apply="task terraform -- apply"
 # ... and don't forget to unset everything when leaving!
 ```
 
@@ -81,6 +81,7 @@ env:
   GIT_REPOSITORY:
     sh: git remote get-url origin | sed 's/.*github.com:\(.*\)\.git/\1/'
   PROJECT_NAME: myproject
+  TF_LOG: debug
 
 ```
 
@@ -90,8 +91,8 @@ $ cd ~/projects/terraform
 $ tf <TAB>          # Auto-completion works! ✨
   apply  console  destroy  init  plan  validate ...
 
-$ tf plan              # Runs: task terraform -- plan
-$ tf apply             # Runs: task terraform -- apply
+$ plan              # Runs: task terraform -- plan
+$ apply             # Runs: task terraform -- apply
 
 $ cd ..
 # Everything unloads automatically! 🧹
@@ -106,6 +107,7 @@ $ cd ..
 - 📝 **Simple**: YAML configuration with JSON Schema validation
 - 🐚 **Compatible**: Works with Bash and Zsh
 - 🔄 **Auto-completion**: Inherits completion from aliased commands (git, kubectl, etc.)
+  - 🛠️ **Completion Registry**: Some commands do not have built-in completion support, but we can define custom completions via [registry](./registry/README.md)
 
 ## 📦 Installation
 
@@ -117,6 +119,26 @@ go install github.com/NikitaCOEUR/dirvana/cmd/dirvana@latest
 
 ### Download Binary
 
+#### Aqua Method
+If you use [aqua](https://aquaproj.github.io/), add this to your `aqua.yaml`:
+
+# Dirvana is available starting from v4.223.0
+
+```yaml
+registries:
+- type: standard
+  ref: v4.223.0 # renovate: depName=aquaproj/aqua-registry
+packages:
+  - name: NikitaCOEUR/dirvana@vX.Y.Z # replace with latest version
+```
+
+then run:
+
+```bash
+aqua install
+```
+
+#### Go Method
 Download the latest release for your platform:
 
 **Linux:**
@@ -143,7 +165,7 @@ dirvana setup
 
 This adds a hook to your `~/.bashrc` or `~/.zshrc` that automatically runs when you change directories.
 
-**Reload your shell:**
+**Reload your shell (or restart your terminal):**
 ```bash
 source ~/.bashrc  # or ~/.zshrc
 ```
@@ -255,6 +277,8 @@ env:
 ```
 
 The shell commands are executed when the configuration is loaded, and the output becomes the environment variable value.
+
+**Security Note:** Dynamic environment variables require explicit user authorization for each project to prevent execution of untrusted code. An authorization prompt appears the first time you enter a new directory with dynamic env vars.
 
 ### Global Configuration
 

@@ -46,6 +46,24 @@ func TestCobraCompleter_parseCobraOutput(t *testing.T) {
 				{Value: "get", Description: "Get resources"},
 			},
 		},
+		{
+			name:  "empty lines are filtered",
+			input: "apply\n\n\ncreate\n\ndelete\n:4",
+			expected: []Suggestion{
+				{Value: "apply", Description: ""},
+				{Value: "create", Description: ""},
+				{Value: "delete", Description: ""},
+			},
+		},
+		{
+			name:  "whitespace-only lines are treated as empty",
+			input: "apply\n   \n\t\ncreate\n  \ndelete\n:4",
+			expected: []Suggestion{
+				{Value: "apply", Description: ""},
+				{Value: "create", Description: ""},
+				{Value: "delete", Description: ""},
+			},
+		},
 	}
 
 	for _, tt := range tests {
