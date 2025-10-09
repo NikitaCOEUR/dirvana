@@ -29,3 +29,4 @@ packages:
 - name: kubecolor/kubecolor@v0.5.2
   tags:
     - test
+- name: hashicorp/terraform@v1.13.3
