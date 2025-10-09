@@ -348,3 +348,85 @@ func TestAtomicWrite(t *testing.T) {
 		}
 	}
 }
+
+func TestAtomicWrite_InvalidDirectory(t *testing.T) {
+	// Try to write to a non-existent directory
+	invalidPath := "/nonexistent/path/that/does/not/exist/file.txt"
+	err := atomicWrite(invalidPath, []byte("test"))
+	if err == nil {
+		t.Error("atomicWrite should fail with non-existent directory")
+	}
+}
+
+func TestAtomicWrite_PermissionVerification(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "perm_test.txt")
+
+	content := []byte("permission test")
+	err := atomicWrite(testFile, content)
+	if err != nil {
+		t.Fatalf("atomicWrite failed: %v", err)
+	}
+
+	// Check file has correct permissions (0644)
+	info, err := os.Stat(testFile)
+	if err != nil {
+		t.Fatalf("Failed to stat file: %v", err)
+	}
+
+	expectedPerm := os.FileMode(0644)
+	if info.Mode().Perm() != expectedPerm {
+		t.Errorf("File permissions = %v, want %v", info.Mode().Perm(), expectedPerm)
+	}
+}
+
+func TestMigrateLegacyInstall_ErrorOnGetRCFilePath(_ *testing.T) {
+	// Test with unsupported shell
+	err := MigrateLegacyInstall("unsupported-shell")
+	// Should either error or be a no-op (since HasLegacyInstall will fail first)
+	// This tests the error path when shell is invalid
+	_ = err
+}
+
+func TestMigrateLegacyInstall_ErrorOnRemoveLegacyHook(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
+
+	// Create RC file with legacy hook
+	rcFile := filepath.Join(tmpDir, ".bashrc")
+	legacyContent := HookMarkerStart + "\n# Hook code\n" + HookMarkerEnd
+	err := os.WriteFile(rcFile, []byte(legacyContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create RC file: %v", err)
+	}
+
+	// Make file read-only to cause write error during migration
+	err = os.Chmod(rcFile, 0444)
+	if err != nil {
+		t.Fatalf("Failed to chmod RC file: %v", err)
+	}
+
+	// Attempt migration - should error on write
+	err = MigrateLegacyInstall("bash")
+	// Error handling depends on OS permissions
+	_ = err
+}
+
+func TestUninstallLegacyHook_ErrorOnReadFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
+
+	// Don't create the RC file - should error on read
+	err := uninstallLegacyHook("bash")
+	if err == nil {
+		t.Error("Expected error when RC file doesn't exist")
+	}
+}

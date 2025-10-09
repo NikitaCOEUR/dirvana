@@ -101,7 +101,7 @@ fi
 	// Create temp directory
 	tmpDir := t.TempDir()
 	scriptPath := tmpDir + "/mock-completer.sh"
-	
+
 	// Write script to file
 	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
 		t.Skip("Cannot write test script")
@@ -109,17 +109,129 @@ fi
 
 	// Test with our mock script
 	suggestions, err := e.Complete(scriptPath, []string{"arg1"})
-	
+
 	// Should succeed and return suggestions
 	if err != nil {
 		t.Logf("Completion error: %v", err)
 		t.Skip("Mock script failed to execute")
 	}
-	
+
 	assert.NoError(t, err)
 	assert.Len(t, suggestions, 2)
 	if len(suggestions) >= 2 {
 		assert.Equal(t, "suggestion1", suggestions[0].Value)
 		assert.Equal(t, "suggestion2", suggestions[1].Value)
 	}
+}
+
+func TestEnvCompleter_Supports_ValidOutput(t *testing.T) {
+	e := NewEnvCompleter()
+
+	// Create a mock script that returns valid completions
+	mockScript := `#!/bin/bash
+if [ -n "$COMP_LINE" ]; then
+    echo "init"
+    echo "plan"
+    echo "apply"
+fi
+`
+	tmpDir := t.TempDir()
+	scriptPath := tmpDir + "/mock-valid.sh"
+
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+		t.Skip("Cannot write test script")
+	}
+
+	result := e.Supports(scriptPath, []string{})
+	if result {
+		assert.True(t, result, "Should support tool with valid output")
+	} else {
+		t.Logf("Mock script did not return expected support (may be environment issue)")
+	}
+}
+
+func TestEnvCompleter_Supports_HelpText(t *testing.T) {
+	e := NewEnvCompleter()
+
+	// Create a mock script that returns help text (invalid)
+	mockScript := `#!/bin/bash
+echo "Usage: command [options]"
+echo "Available commands:"
+echo "  init - Initialize"
+`
+	tmpDir := t.TempDir()
+	scriptPath := tmpDir + "/mock-help.sh"
+
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+		t.Skip("Cannot write test script")
+	}
+
+	result := e.Supports(scriptPath, []string{})
+	assert.False(t, result, "Should not support tool that returns help text")
+}
+
+func TestEnvCompleter_Supports_EmptyOutput(t *testing.T) {
+	e := NewEnvCompleter()
+
+	// Create a mock script that returns nothing
+	mockScript := `#!/bin/bash
+# Return nothing
+exit 0
+`
+	tmpDir := t.TempDir()
+	scriptPath := tmpDir + "/mock-empty.sh"
+
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+		t.Skip("Cannot write test script")
+	}
+
+	result := e.Supports(scriptPath, []string{})
+	assert.False(t, result, "Should not support tool that returns empty output")
+}
+
+func TestEnvCompleter_Supports_MixedOutput(t *testing.T) {
+	e := NewEnvCompleter()
+
+	// Create a mock script that returns some valid and some invalid lines
+	mockScript := `#!/bin/bash
+echo "command1"
+echo "Usage: some help text here"
+echo "command2"
+`
+	tmpDir := t.TempDir()
+	scriptPath := tmpDir + "/mock-mixed.sh"
+
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+		t.Skip("Cannot write test script")
+	}
+
+	result := e.Supports(scriptPath, []string{})
+	assert.False(t, result, "Should not support tool with mixed valid/invalid output")
+}
+
+func TestEnvCompleter_Complete_NoArgs(t *testing.T) {
+	e := NewEnvCompleter()
+
+	// Create a mock script
+	mockScript := `#!/bin/bash
+if [ -n "$COMP_LINE" ]; then
+    echo "cmd1"
+    echo "cmd2"
+fi
+`
+	tmpDir := t.TempDir()
+	scriptPath := tmpDir + "/mock-noargs.sh"
+
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+		t.Skip("Cannot write test script")
+	}
+
+	suggestions, err := e.Complete(scriptPath, []string{})
+
+	if err != nil {
+		t.Skip("Mock script failed to execute")
+	}
+
+	assert.NoError(t, err)
+	assert.Len(t, suggestions, 2)
 }

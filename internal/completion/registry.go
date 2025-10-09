@@ -36,8 +36,8 @@ var httpClient = http.DefaultClient
 
 // RegistryConfig represents the external completion scripts registry
 type RegistryConfig struct {
-	Version     string                 `yaml:"version"`
-	Description string                 `yaml:"description"`
+	Version     string                  `yaml:"version"`
+	Description string                  `yaml:"description"`
 	Tools       map[string]RegistryTool `yaml:"tools"`
 }
 
@@ -53,7 +53,6 @@ type RegistryScript struct {
 	URL    string `yaml:"url"`
 	SHA256 string `yaml:"sha256,omitempty"`
 }
-
 
 // Note: We don't maintain a hardcoded list of tools anymore.
 // Instead, we auto-detect completion support using common patterns below.
@@ -351,5 +350,3 @@ func DownloadCompletionScript(cacheDir, tool, shell string, registry *RegistryCo
 
 	return nil
 }
-
-

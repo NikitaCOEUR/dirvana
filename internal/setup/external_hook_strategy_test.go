@@ -282,3 +282,123 @@ func TestExternalHookStrategy_UpdateOnlyTouchesHookFile(t *testing.T) {
 		}
 	}
 }
+
+func TestExternalHookStrategy_Install_ErrorCreatingConfigDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
+
+	// Create a file where .config should be to cause error
+	configPath := filepath.Join(tmpDir, ".config")
+	err := os.WriteFile(configPath, []byte("blocking file"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create blocking file: %v", err)
+	}
+
+	// Create RC file
+	rcFile := filepath.Join(tmpDir, ".bashrc")
+	err = os.WriteFile(rcFile, []byte("# Test"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create RC file: %v", err)
+	}
+
+	strategy, err := NewExternalHookStrategy("bash")
+	if err != nil {
+		t.Fatalf("Failed to create strategy: %v", err)
+	}
+
+	// Install should fail when config dir cannot be created
+	err = strategy.Install()
+	if err == nil {
+		t.Error("Expected error when config directory cannot be created")
+	}
+}
+
+func TestExternalHookStrategy_Install_ErrorReadingRCFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
+
+	// Create a directory where RC file should be
+	rcFile := filepath.Join(tmpDir, ".bashrc")
+	err := os.Mkdir(rcFile, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+
+	strategy, err := NewExternalHookStrategy("bash")
+	if err != nil {
+		t.Fatalf("Failed to create strategy: %v", err)
+	}
+
+	// Install should handle read error
+	err = strategy.Install()
+	if err == nil {
+		t.Error("Expected error when RC file cannot be read")
+	}
+}
+
+func TestExternalHookStrategy_Uninstall_RCFileNotExist(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
+
+	// Don't create RC file
+	strategy, err := NewExternalHookStrategy("bash")
+	if err != nil {
+		t.Fatalf("Failed to create strategy: %v", err)
+	}
+
+	// Uninstall when RC file doesn't exist
+	err = strategy.Uninstall()
+	if err != nil {
+		t.Error("Uninstall should handle missing RC file gracefully")
+	}
+}
+
+func TestExternalHookStrategy_IsInstalled_RCFileNotExist(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
+
+	strategy, err := NewExternalHookStrategy("bash")
+	if err != nil {
+		t.Fatalf("Failed to create strategy: %v", err)
+	}
+
+	// IsInstalled when RC file doesn't exist
+	if strategy.IsInstalled() {
+		t.Error("Should not be installed when RC file doesn't exist")
+	}
+}
+
+func TestExternalHookStrategy_NeedsUpdate_HookFileNotExist(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", originalHome) }()
+	if err := os.Setenv("HOME", tmpDir); err != nil {
+		t.Fatalf("Failed to set HOME: %v", err)
+	}
+
+	strategy, err := NewExternalHookStrategy("bash")
+	if err != nil {
+		t.Fatalf("Failed to create strategy: %v", err)
+	}
+
+	// NeedsUpdate when hook file doesn't exist
+	if !strategy.NeedsUpdate() {
+		t.Error("Should need update when hook file doesn't exist")
+	}
+}
