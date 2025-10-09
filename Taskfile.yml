@@ -9,7 +9,8 @@ vars:
     sh: date -u '+%Y-%m-%d_%H:%M:%S'
   GIT_COMMIT:
     sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
-  LDFLAGS: -ldflags "-X github.com/NikitaCOEUR/dirvana/pkg/version.Version={{.VERSION}} -X github.com/NikitaCOEUR/dirvana/pkg/version.BuildTime={{.BUILD_TIME}} -X github.com/NikitaCOEUR/dirvana/pkg/version.GitCommit={{.GIT_COMMIT}}"
+  LDFLAGS: -ldflags "-X github.com/NikitaCOEUR/dirvana/pkg/version.Version={{.VERSION}} -X github.com/NikitaCOEUR/dirvana/pkg/version.BuildTime={{.BUILD_TIME}} -X github.com/NikitaCOEUR/dirvana/pkg/version.GitCommit={{.GIT_COMMIT}} -X github.com/NikitaCOEUR/dirvana/internal/completion.DevMode=dev"
+  LDFLAGS_PROD: -ldflags "-X github.com/NikitaCOEUR/dirvana/pkg/version.Version={{.VERSION}} -X github.com/NikitaCOEUR/dirvana/pkg/version.BuildTime={{.BUILD_TIME}} -X github.com/NikitaCOEUR/dirvana/pkg/version.GitCommit={{.GIT_COMMIT}}"
   GO_VERSION: "1.25.1"
   TEST_SHELL: "bash"
   IMAGE_TEST_COMPLETION: "dirvana-completion-test"

@@ -13,6 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+//nolint:gocyclo // Main function complexity is acceptable
 func main() {
 	// Get XDG paths
 	cacheHome := os.Getenv("XDG_CACHE_HOME")

@@ -9,13 +9,14 @@ import (
 )
 
 func TestScriptCompleter_New(t *testing.T) {
-	s := NewScriptCompleter()
+	s := NewScriptCompleter("")
 	assert.NotNil(t, s)
 }
 
 func TestScriptCompleter_findCompletionScript(t *testing.T) {
+	s := NewScriptCompleter("")
 	// Test with git (should exist on most systems)
-	script := findCompletionScript("git")
+	script := s.findCompletionScript("git")
 
 	// On systems with bash-completion installed, git should have a script
 	if script != "" {
@@ -27,7 +28,7 @@ func TestScriptCompleter_findCompletionScript(t *testing.T) {
 }
 
 func TestScriptCompleter_Supports(t *testing.T) {
-	s := NewScriptCompleter()
+	s := NewScriptCompleter("")
 
 	tests := []struct {
 		name     string
@@ -37,7 +38,7 @@ func TestScriptCompleter_Supports(t *testing.T) {
 		{
 			name:     "git should be supported if script exists",
 			tool:     "git",
-			expected: findCompletionScript("git") != "",
+			expected: s.findCompletionScript("git") != "",
 		},
 		{
 			name:     "non-existent tool should not be supported",
@@ -55,12 +56,12 @@ func TestScriptCompleter_Supports(t *testing.T) {
 }
 
 func TestScriptCompleter_Complete(t *testing.T) {
+	s := NewScriptCompleter("")
+
 	// Skip if git completion is not available
-	if findCompletionScript("git") == "" {
+	if s.findCompletionScript("git") == "" {
 		t.Skip("Git completion script not found")
 	}
-
-	s := NewScriptCompleter()
 
 	tests := []struct {
 		name        string
@@ -215,8 +216,10 @@ func TestScriptCompleter_escapeShellWords(t *testing.T) {
 }
 
 func TestScriptCompleter_Integration(t *testing.T) {
+	s := NewScriptCompleter("")
+
 	// Skip if not in a git repository or git completion not available
-	if findCompletionScript("git") == "" {
+	if s.findCompletionScript("git") == "" {
 		t.Skip("Git completion script not found")
 	}
 
@@ -233,8 +236,6 @@ func TestScriptCompleter_Integration(t *testing.T) {
 	if !inGitRepo {
 		t.Skip("Not in a git repository")
 	}
-
-	s := NewScriptCompleter()
 
 	t.Run("complete git subcommands", func(t *testing.T) {
 		suggestions, err := s.Complete("git", []string{""})
@@ -253,5 +254,44 @@ func TestScriptCompleter_Integration(t *testing.T) {
 			}
 			t.Logf("  - %s", s.Value)
 		}
+	})
+}
+
+// TestScriptCompleter_EnsureScriptAvailable tests script availability
+func TestScriptCompleter_EnsureScriptAvailable(t *testing.T) {
+	t.Run("returns script path when script exists", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		s := NewScriptCompleter(tmpDir)
+
+		// Create a mock script
+		scriptPath := filepath.Join(tmpDir, "completion-scripts", "bash", "test-tool")
+		err := os.MkdirAll(filepath.Dir(scriptPath), 0755)
+		assert.NoError(t, err)
+		err = os.WriteFile(scriptPath, []byte("#!/bin/bash\n"), 0644)
+		assert.NoError(t, err)
+
+		path, err := s.ensureScriptAvailable("test-tool")
+		assert.NoError(t, err)
+		assert.Equal(t, scriptPath, path)
+	})
+
+	t.Run("returns error when script not found and not in registry", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		s := NewScriptCompleter(tmpDir)
+
+		_, err := s.ensureScriptAvailable("nonexistent-tool-xyz")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no completion script found")
+	})
+}
+
+// TestScriptCompleter_Complete_Errors tests error cases
+func TestScriptCompleter_Complete_Errors(t *testing.T) {
+	t.Run("returns error for nonexistent tool", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		s := NewScriptCompleter(tmpDir)
+
+		_, err := s.Complete("nonexistent-tool-xyz-123", []string{})
+		assert.Error(t, err)
 	})
 }

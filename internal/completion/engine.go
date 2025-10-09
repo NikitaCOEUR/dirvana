@@ -18,7 +18,7 @@ func NewEngine(cacheDir string) *Engine {
 	flag := NewFlagCompleter()
 	cobra := NewCobraCompleter()
 	env := NewEnvCompleter()
-	script := NewScriptCompleter()
+	script := NewScriptCompleter(cacheDir)
 
 	// Load detection cache
 	cachePath := filepath.Join(cacheDir, "completion-detection.json")
