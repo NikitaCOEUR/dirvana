@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -172,4 +173,268 @@ func TestGetFunctionsList(t *testing.T) {
 	assert.Contains(t, result, "func1")
 	assert.Contains(t, result, "func2")
 	assert.Contains(t, result, "func3")
+}
+
+// TestGetHierarchyInfo_EmptyDirectory tests with no config files
+func TestGetHierarchyInfo_EmptyDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Resolve symlinks for macOS compatibility
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	authPath := filepath.Join(tmpDir, "auth.json")
+	authMgr, err := auth.New(authPath)
+	require.NoError(t, err)
+
+	// Change to tmpDir so config search works
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	info, err := GetHierarchyInfo(tmpDir, authMgr)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+
+	// No configs should exist
+	assert.Empty(t, info.LocalConfigs)
+	// MergedConfig is not nil, but should be empty
+	require.NotNil(t, info.MergedConfig)
+	assert.Empty(t, info.MergedConfig.Aliases)
+	assert.Empty(t, info.MergedConfig.Functions)
+}
+
+// TestGetHierarchyInfo_WithLocalConfig tests with a local config file
+func TestGetHierarchyInfo_WithLocalConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Resolve symlinks for macOS compatibility
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	authPath := filepath.Join(tmpDir, "auth.json")
+	authMgr, err := auth.New(authPath)
+	require.NoError(t, err)
+
+	// Create and authorize the directory
+	err = authMgr.Allow(tmpDir)
+	require.NoError(t, err)
+
+	// Create a local config
+	configContent := `aliases:
+  test: echo test
+`
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	// Change to tmpDir
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	info, err := GetHierarchyInfo(tmpDir, authMgr)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+
+	// Should have one local config
+	require.Len(t, info.LocalConfigs, 1)
+	assert.Equal(t, configPath, info.LocalConfigs[0].Path)
+	assert.True(t, info.LocalConfigs[0].Authorized)
+	assert.True(t, info.LocalConfigs[0].Loaded)
+	assert.False(t, info.LocalConfigs[0].LocalOnly)
+
+	// MergedConfig should exist
+	require.NotNil(t, info.MergedConfig)
+	assert.Len(t, info.MergedConfig.Aliases, 1)
+}
+
+// TestGetHierarchyInfo_WithUnauthorizedConfig tests with unauthorized config
+func TestGetHierarchyInfo_WithUnauthorizedConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Resolve symlinks for macOS compatibility
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	authPath := filepath.Join(tmpDir, "auth.json")
+	authMgr, err := auth.New(authPath)
+	require.NoError(t, err)
+
+	// Don't authorize - just create config
+	configContent := `aliases:
+  test: echo test
+`
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	// Change to tmpDir
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	info, err := GetHierarchyInfo(tmpDir, authMgr)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+
+	// Should have one local config
+	require.Len(t, info.LocalConfigs, 1)
+	assert.Equal(t, configPath, info.LocalConfigs[0].Path)
+	assert.False(t, info.LocalConfigs[0].Authorized)
+	assert.False(t, info.LocalConfigs[0].Loaded)
+}
+
+// TestGetHierarchyInfo_WithLocalOnly tests local_only flag
+func TestGetHierarchyInfo_WithLocalOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Resolve symlinks for macOS compatibility
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	authPath := filepath.Join(tmpDir, "auth.json")
+	authMgr, err := auth.New(authPath)
+	require.NoError(t, err)
+
+	// Authorize
+	err = authMgr.Allow(tmpDir)
+	require.NoError(t, err)
+
+	// Create config with local_only
+	configContent := `aliases:
+  test: echo test
+local_only: true
+`
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	// Change to tmpDir
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	info, err := GetHierarchyInfo(tmpDir, authMgr)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+
+	// Should have local_only set
+	require.Len(t, info.LocalConfigs, 1)
+	assert.True(t, info.LocalConfigs[0].LocalOnly)
+}
+
+// TestGetHierarchyInfo_WithGlobalConfig tests with global configuration
+func TestGetHierarchyInfo_WithGlobalConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Resolve symlinks for macOS compatibility
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	authPath := filepath.Join(tmpDir, "auth.json")
+	authMgr, err := auth.New(authPath)
+	require.NoError(t, err)
+
+	// Create global config directory
+	globalDir := filepath.Join(tmpDir, ".config", "dirvana")
+	err = os.MkdirAll(globalDir, 0755)
+	require.NoError(t, err)
+
+	globalConfigPath := filepath.Join(globalDir, "global.yml")
+	globalContent := `aliases:
+  global_alias: echo global
+`
+	err = os.WriteFile(globalConfigPath, []byte(globalContent), 0644)
+	require.NoError(t, err)
+
+	// Set XDG_CONFIG_HOME to use our temp directory
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	defer func() { _ = os.Setenv("XDG_CONFIG_HOME", originalXDG) }()
+	err = os.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, ".config"))
+	require.NoError(t, err)
+
+	// Create local config
+	configContent := `aliases:
+  local_alias: echo local
+`
+	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	// Authorize
+	err = authMgr.Allow(tmpDir)
+	require.NoError(t, err)
+
+	// Change to tmpDir
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	info, err := GetHierarchyInfo(tmpDir, authMgr)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+
+	// Should have global config
+	require.NotNil(t, info.GlobalConfig)
+	assert.Equal(t, globalConfigPath, info.GlobalConfig.Path)
+	assert.True(t, info.GlobalConfig.Exists)
+	assert.True(t, info.GlobalConfig.Loaded)
+
+	// Should have local config
+	require.Len(t, info.LocalConfigs, 1)
+}
+
+// TestGetHierarchyInfo_WithMultipleConfigs tests hierarchical configs
+func TestGetHierarchyInfo_WithMultipleConfigs(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Resolve symlinks for macOS compatibility
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
+
+	authPath := filepath.Join(tmpDir, "auth.json")
+	authMgr, err := auth.New(authPath)
+	require.NoError(t, err)
+
+	// Create parent config
+	parentDir := filepath.Join(tmpDir, "parent")
+	err = os.MkdirAll(parentDir, 0755)
+	require.NoError(t, err)
+
+	parentConfig := filepath.Join(parentDir, ".dirvana.yml")
+	err = os.WriteFile(parentConfig, []byte("aliases:\n  parent: echo parent\n"), 0644)
+	require.NoError(t, err)
+
+	// Create child config
+	childDir := filepath.Join(parentDir, "child")
+	err = os.MkdirAll(childDir, 0755)
+	require.NoError(t, err)
+
+	childConfig := filepath.Join(childDir, ".dirvana.yml")
+	err = os.WriteFile(childConfig, []byte("aliases:\n  child: echo child\n"), 0644)
+	require.NoError(t, err)
+
+	// Authorize both directories
+	err = authMgr.Allow(parentDir)
+	require.NoError(t, err)
+	err = authMgr.Allow(childDir)
+	require.NoError(t, err)
+
+	// Change to child directory
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+	err = os.Chdir(childDir)
+	require.NoError(t, err)
+
+	info, err := GetHierarchyInfo(childDir, authMgr)
+	require.NoError(t, err)
+	require.NotNil(t, info)
+
+	// Should have both configs
+	assert.Len(t, info.LocalConfigs, 2)
+
+	// Both should be authorized and loaded
+	for _, cfg := range info.LocalConfigs {
+		assert.True(t, cfg.Authorized)
+		assert.True(t, cfg.Loaded)
+	}
 }
