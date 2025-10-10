@@ -1,4 +1,5 @@
-# Dirvana - Reach directory nirvana [![codecov](https://codecov.io/gh/NikitaCOEUR/dirvana/graph/badge.svg?token=IBRJQQQB3V)](https://codecov.io/gh/NikitaCOEUR/dirvana)
+# Dirvana - Reach directory nirvana  
+[![GitHub Release](https://img.shields.io/github/v/release/NikitaCOEUR/dirvana?sort=semver&display_name=release&style=plastic)](https://img.shields.io/github/v/release/NikitaCOEUR/dirvana?sort=semver&display_name=release&style=flat&color=%2300ADD8) [![codecov](https://codecov.io/gh/NikitaCOEUR/dirvana/graph/badge.svg?token=IBRJQQQB3V)](https://codecov.io/gh/NikitaCOEUR/dirvana)  
 ![dirvana-logo](assets/DirvanaLogo.png)
 > [!WARNING]
 > **🧪 Beta Status - We Need Your Feedback!**
