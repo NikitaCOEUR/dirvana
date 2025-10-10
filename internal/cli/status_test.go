@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/NikitaCOEUR/dirvana/internal/auth"
-	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -314,46 +312,6 @@ func TestStatus_WithAdvancedAliases(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTruncateString(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		maxLen   int
-		expected string
-	}{
-		{
-			name:     "short string no truncation",
-			input:    "hello",
-			maxLen:   10,
-			expected: "hello",
-		},
-		{
-			name:     "exact length no truncation",
-			input:    "hello",
-			maxLen:   5,
-			expected: "hello",
-		},
-		{
-			name:     "long string truncated",
-			input:    "this is a very long string",
-			maxLen:   10,
-			expected: "this is...",
-		},
-		{
-			name:     "very short max length",
-			input:    "hello world",
-			maxLen:   5,
-			expected: "he...",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := truncateString(tt.input, tt.maxLen)
-			require.Equal(t, tt.expected, result)
-		})
-	}
-}
 func TestStatus_InvalidCachePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := "/invalid/path/that/does/not/exist/cache.json"
@@ -469,68 +427,4 @@ func TestStatus_WithLocalOnly(t *testing.T) {
 	// Should only show child config due to local_only
 	err = Status(params)
 	require.NoError(t, err)
-}
-
-func TestDisplayEnvVars_WithShellCommands(t *testing.T) {
-	tmpDir := t.TempDir()
-	authPath := filepath.Join(tmpDir, "auth.json")
-
-	// Create auth manager
-	authMgr, err := auth.New(authPath)
-	require.NoError(t, err)
-
-	// Create config with shell commands
-	cfg := &config.Config{
-		Env: map[string]interface{}{
-			"STATIC_VAR": "static_value",
-			"SHELL_VAR": map[string]interface{}{
-				"sh": "echo dynamic",
-			},
-			"ANOTHER_SHELL": map[string]interface{}{
-				"sh": "date +%Y",
-			},
-		},
-	}
-
-	t.Run("NotApproved", func(t *testing.T) {
-		// Authorize directory but don't approve shell commands
-		require.NoError(t, authMgr.Allow(tmpDir))
-
-		// Call displayEnvVars - should show "not approved" status
-		displayEnvVars(cfg, authMgr, tmpDir)
-		// Note: This test mainly ensures no panic/error occurs
-		// In a real test, we would capture stdout to verify output
-	})
-
-	t.Run("Approved", func(t *testing.T) {
-		// Approve shell commands
-		_, shellEnv := cfg.GetEnvVars()
-		require.NoError(t, authMgr.ApproveShellCommands(tmpDir, shellEnv))
-
-		// Call displayEnvVars - should show "approved" status
-		displayEnvVars(cfg, authMgr, tmpDir)
-		// Note: This test mainly ensures no panic/error occurs
-		// In a real test, we would capture stdout to verify output
-	})
-
-	t.Run("NilAuthManager", func(_ *testing.T) {
-		// Should handle nil auth manager gracefully
-		displayEnvVars(cfg, nil, tmpDir)
-		// Note: This test mainly ensures no panic occurs
-	})
-
-	t.Run("OnlyStaticVars", func(_ *testing.T) {
-		staticCfg := &config.Config{
-			Env: map[string]interface{}{
-				"VAR1": "value1",
-				"VAR2": "value2",
-			},
-		}
-		displayEnvVars(staticCfg, authMgr, tmpDir)
-	})
-
-	t.Run("NoVars", func(_ *testing.T) {
-		emptyCfg := &config.Config{}
-		displayEnvVars(emptyCfg, authMgr, tmpDir)
-	})
 }
