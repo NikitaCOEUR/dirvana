@@ -15,13 +15,16 @@ import (
 func TestCollectAll_EmptyDirectory(t *testing.T) {
 	// Create temporary directory
 	tmpDir := t.TempDir()
+	// Resolve symlinks to handle macOS /var -> /private/var
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
 
 	// Change to temporary directory
 	originalDir, _ := os.Getwd()
 	defer func() { _ = os.Chdir(originalDir) }()
-	err := os.Chdir(tmpDir)
+	err = os.Chdir(tmpDir)
 	require.NoError(t, err)
 
 	// Collect status
@@ -56,6 +59,9 @@ func TestCollectAll_EmptyDirectory(t *testing.T) {
 func TestCollectAll_WithUnauthorizedConfig(t *testing.T) {
 	// Create temporary directory structure
 	tmpDir := t.TempDir()
+	// Resolve symlinks to handle macOS /var -> /private/var
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
 
@@ -64,7 +70,7 @@ func TestCollectAll_WithUnauthorizedConfig(t *testing.T) {
   gs: git status
   k: kubectl
 `
-	err := os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
+	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
 	require.NoError(t, err)
 
 	// Create empty auth file (no authorization)
@@ -101,6 +107,9 @@ func TestCollectAll_WithUnauthorizedConfig(t *testing.T) {
 func TestCollectAll_WithAuthorizedConfig(t *testing.T) {
 	// Create temporary directory structure
 	tmpDir := t.TempDir()
+	// Resolve symlinks to handle macOS /var -> /private/var
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
 
@@ -115,7 +124,7 @@ env:
   BUILD_DIR: ./build
 local_only: true
 `
-	err := os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
+	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
 	require.NoError(t, err)
 
 	// Create auth and authorize the directory using the API
@@ -165,6 +174,9 @@ local_only: true
 func TestCollectAll_WithCache(t *testing.T) {
 	// Create temporary directory structure
 	tmpDir := t.TempDir()
+	// Resolve symlinks to handle macOS /var -> /private/var
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
 
@@ -173,7 +185,7 @@ func TestCollectAll_WithCache(t *testing.T) {
   gs: git status
 `
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0644)
 	require.NoError(t, err)
 
 	// Create auth and authorize the directory using the API
@@ -222,8 +234,11 @@ func TestCollectAll_WithCache(t *testing.T) {
 func TestCollectAll_WithCompletion(t *testing.T) {
 	// Create temporary directory structure
 	tmpDir := t.TempDir()
+	// Resolve symlinks to handle macOS /var -> /private/var
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 	cacheDir := filepath.Join(tmpDir, ".cache")
-	err := os.MkdirAll(cacheDir, 0755)
+	err = os.MkdirAll(cacheDir, 0755)
 	require.NoError(t, err)
 
 	cachePath := filepath.Join(cacheDir, "cache.json")
@@ -298,6 +313,9 @@ func TestCollectAll_WithCompletion(t *testing.T) {
 func TestCollectAll_WithCompletionOverrides(t *testing.T) {
 	// Create temporary directory structure
 	tmpDir := t.TempDir()
+	// Resolve symlinks to handle macOS /var -> /private/var
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
 
@@ -309,7 +327,7 @@ func TestCollectAll_WithCompletionOverrides(t *testing.T) {
   g:
     command: git
 `
-	err := os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
+	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
 	require.NoError(t, err)
 
 	// Create auth and authorize the directory using the API
@@ -338,12 +356,15 @@ func TestCollectAll_WithCompletionOverrides(t *testing.T) {
 func TestCollectAll_WithGlobalConfig(t *testing.T) {
 	// Create temporary directory structure
 	tmpDir := t.TempDir()
+	// Resolve symlinks to handle macOS /var -> /private/var
+	tmpDir, err := filepath.EvalSymlinks(tmpDir)
+	require.NoError(t, err)
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
 
 	// Create global config directory
 	globalDir := filepath.Join(tmpDir, ".config", "dirvana")
-	err := os.MkdirAll(globalDir, 0755)
+	err = os.MkdirAll(globalDir, 0755)
 	require.NoError(t, err)
 
 	globalConfigPath := filepath.Join(globalDir, "global.yml")
