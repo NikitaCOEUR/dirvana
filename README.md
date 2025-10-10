@@ -1,4 +1,4 @@
-# Dirvana - Reach directory nirvana
+# Dirvana - Reach directory nirvana [![codecov](https://codecov.io/gh/NikitaCOEUR/dirvana/graph/badge.svg?token=IBRJQQQB3V)](https://codecov.io/gh/NikitaCOEUR/dirvana)
 ![dirvana-logo](assets/DirvanaLogo.png)
 > [!WARNING]
 > **🧪 Beta Status - We Need Your Feedback!**
