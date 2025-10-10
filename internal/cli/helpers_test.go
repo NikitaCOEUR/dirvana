@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -23,9 +24,33 @@ func TestInitializeComponents(t *testing.T) {
 }
 
 func TestInitializeComponents_InvalidAuthPath(t *testing.T) {
-	_, err := initializeComponents("/invalid/cache.json", "/root/auth.json")
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+
+	// Create a file where the auth parent directory should be (will cause MkdirAll to fail)
+	authParent := filepath.Join(tmpDir, "auth_parent_is_file")
+	err := os.WriteFile(authParent, []byte("blocking file"), 0644)
+	require.NoError(t, err)
+
+	invalidAuthPath := filepath.Join(authParent, "auth.json")
+
+	_, err = initializeComponents(cachePath, invalidAuthPath)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to initialize")
+	assert.Contains(t, err.Error(), "failed to initialize auth")
+}
+
+func TestInitializeComponents_InvalidCachePath(t *testing.T) {
+	tmpDir := t.TempDir()
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Create a directory where the cache file should be (will cause cache.New to fail)
+	invalidCachePath := filepath.Join(tmpDir, "cache_is_a_dir")
+	err := os.MkdirAll(invalidCachePath, 0755)
+	require.NoError(t, err)
+
+	_, err = initializeComponents(invalidCachePath, authPath)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to initialize cache")
 }
 
 func TestKeysFromMap(t *testing.T) {
