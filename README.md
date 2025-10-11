@@ -123,7 +123,7 @@ go install github.com/NikitaCOEUR/dirvana/cmd/dirvana@latest
 #### Aqua Method
 If you use [aqua](https://aquaproj.github.io/), add this to your `aqua.yaml`:
 
-# Dirvana is available starting from v4.223.0
+> Dirvana is available starting from v4.223.0
 
 ```yaml
 registries:
