@@ -12,7 +12,8 @@ import (
 
 const (
 	// DefaultCommandTimeout is the default timeout for completion commands
-	DefaultCommandTimeout = 3 * time.Second
+	// Keep this low for interactive responsiveness (200ms feels instant)
+	DefaultCommandTimeout = 200 * time.Millisecond
 	// MaxOutputSize is the maximum size of command output (1MB)
 	MaxOutputSize = 1024 * 1024
 )
