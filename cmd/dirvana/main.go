@@ -135,9 +135,16 @@ func main() {
 			},
 			{
 				Name:  "init",
-				Usage: "Create a sample project file in current folder",
-				Action: func(_ context.Context, _ *cli.Command) error {
-					return dircli.Init()
+				Usage: "Create a sample project file in current folder or global config",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "global",
+						Aliases: []string{"g"},
+						Usage:   "Create global config file instead of local",
+					},
+				},
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					return dircli.Init(cmd.Bool("global"))
 				},
 			},
 			{
@@ -154,9 +161,16 @@ func main() {
 			},
 			{
 				Name:  "edit",
-				Usage: "Edit or create a Dirvana configuration file in current directory",
-				Action: func(_ context.Context, _ *cli.Command) error {
-					return dircli.Edit()
+				Usage: "Edit or create a Dirvana configuration file in current directory or global config",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:    "global",
+						Aliases: []string{"g"},
+						Usage:   "Edit global config file instead of local",
+					},
+				},
+				Action: func(_ context.Context, cmd *cli.Command) error {
+					return dircli.Edit(cmd.Bool("global"))
 				},
 			},
 			{

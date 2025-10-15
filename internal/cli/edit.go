@@ -10,25 +10,50 @@ import (
 )
 
 // Edit opens the config file in the user's editor
-func Edit() error {
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
-
-	// Look for existing config file
+func Edit(global bool) error {
 	var configPath string
-	for _, name := range config.SupportedConfigNames {
-		path := filepath.Join(currentDir, name)
-		if _, err := os.Stat(path); err == nil {
-			configPath = path
-			break
+
+	if global {
+		// Edit global config
+		globalPath, err := config.GetGlobalConfigPath()
+		if err != nil {
+			return fmt.Errorf("failed to get global config path: %w", err)
+		}
+		configPath = globalPath
+
+		// If global config doesn't exist, create it
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			// Create directory if it doesn't exist
+			configDir := filepath.Dir(configPath)
+			if err := os.MkdirAll(configDir, 0755); err != nil {
+				return fmt.Errorf("failed to create config directory: %w", err)
+			}
+			// Note: Will be created with default content below
+		}
+	} else {
+		// Edit local config
+		currentDir, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to get current directory: %w", err)
+		}
+
+		// Look for existing config file
+		for _, name := range config.SupportedConfigNames {
+			path := filepath.Join(currentDir, name)
+			if _, err := os.Stat(path); err == nil {
+				configPath = path
+				break
+			}
+		}
+
+		// If no config exists, use default name
+		if configPath == "" {
+			configPath = filepath.Join(currentDir, ".dirvana.yml")
 		}
 	}
 
-	// If no config exists, create default one
-	if configPath == "" {
-		configPath = filepath.Join(currentDir, ".dirvana.yml")
+	// If config doesn't exist, create default one
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		defaultContent := `# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
 # Dirvana configuration file
 # Documentation: https://github.com/NikitaCOEUR/dirvana
@@ -68,9 +93,17 @@ env:
 		if err := os.WriteFile(configPath, []byte(defaultContent), 0644); err != nil {
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
-		fmt.Printf("Created new config: %s\n", configPath)
+		if global {
+			fmt.Printf("Created new global config: %s\n", configPath)
+		} else {
+			fmt.Printf("Created new config: %s\n", configPath)
+		}
 	} else {
-		fmt.Printf("Opening config: %s\n", configPath)
+		if global {
+			fmt.Printf("Opening global config: %s\n", configPath)
+		} else {
+			fmt.Printf("Opening config: %s\n", configPath)
+		}
 	}
 
 	// Get editor from environment or use defaults

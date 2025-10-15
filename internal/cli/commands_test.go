@@ -115,7 +115,7 @@ func TestInit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run init
-	err = Init()
+	err = Init(false)
 	require.NoError(t, err)
 
 	// Verify config file was created
@@ -148,7 +148,49 @@ func TestInit_AlreadyExists(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run init should fail
-	err = Init()
+	err = Init(false)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists")
+}
+
+func TestInit_Global(t *testing.T) {
+	// Override XDG_CONFIG_HOME to use temp dir
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	// Run init with global flag
+	err := Init(true)
+	require.NoError(t, err)
+
+	// Verify global config file was created
+	globalConfigPath := filepath.Join(tmpDir, "dirvana", "global.yml")
+	data, err := os.ReadFile(globalConfigPath)
+	require.NoError(t, err)
+
+	content := string(data)
+	assert.Contains(t, content, "yaml-language-server: $schema=")
+	assert.Contains(t, content, "aliases:")
+	assert.Contains(t, content, "functions:")
+	assert.Contains(t, content, "env:")
+	assert.Contains(t, content, "local_only:")
+}
+
+func TestInit_Global_AlreadyExists(t *testing.T) {
+	// Override XDG_CONFIG_HOME to use temp dir
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	// Create global config file first
+	globalConfigDir := filepath.Join(tmpDir, "dirvana")
+	err := os.MkdirAll(globalConfigDir, 0755)
+	require.NoError(t, err)
+
+	globalConfigPath := filepath.Join(globalConfigDir, "global.yml")
+	err = os.WriteFile(globalConfigPath, []byte("test"), 0644)
+	require.NoError(t, err)
+
+	// Run init with global flag should fail
+	err = Init(true)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 }
