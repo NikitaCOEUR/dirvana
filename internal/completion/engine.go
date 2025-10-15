@@ -114,6 +114,12 @@ func (e *Engine) Complete(tool string, args []string) (*Result, error) {
 		_ = e.detectionCache.Save()
 
 		cancel() // Stop other goroutines
+
+		// Wait for all goroutines to finish cleanup
+		// This ensures subprocesses are terminated and files are closed
+		// before we return, preventing test cleanup issues
+		wg.Wait()
+
 		return &Result{
 			Suggestions: result.suggestions,
 			Source:      source,
