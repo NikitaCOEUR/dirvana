@@ -242,39 +242,6 @@ func TestGenerator_CompletionCustom(t *testing.T) {
 	// Custom completions are handled by dirvana completion command now
 }
 
-func TestBashCodeGenerator_Name(t *testing.T) {
-	gen := &BashCodeGenerator{}
-	assert.Equal(t, "bash", gen.Name())
-}
-
-func TestZshCodeGenerator_Name(t *testing.T) {
-	gen := &ZshCodeGenerator{}
-	assert.Equal(t, "zsh", gen.Name())
-}
-
-func TestMultiShellCodeGenerator_Name(t *testing.T) {
-	gen := &MultiShellCodeGenerator{}
-	assert.Equal(t, "multi", gen.Name())
-}
-
-func TestNewCompletionGenerator_Bash(t *testing.T) {
-	gen := NewCompletionGenerator("bash")
-	assert.NotNil(t, gen)
-	assert.IsType(t, &BashCodeGenerator{}, gen)
-}
-
-func TestNewCompletionGenerator_Zsh(t *testing.T) {
-	gen := NewCompletionGenerator("zsh")
-	assert.NotNil(t, gen)
-	assert.IsType(t, &ZshCodeGenerator{}, gen)
-}
-
-func TestNewCompletionGenerator_Empty(t *testing.T) {
-	gen := NewCompletionGenerator("")
-	assert.NotNil(t, gen)
-	assert.IsType(t, &MultiShellCodeGenerator{}, gen)
-}
-
 // Helper function to find index of substring
 func indexOf(s, substr string) int {
 	for i := 0; i <= len(s)-len(substr); i++ {
