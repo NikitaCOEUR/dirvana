@@ -68,7 +68,7 @@ func TestCobraCompleter_parseCobraOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parseCobraOutput([]byte(tt.input))
+			result, _ := parseCobraOutput([]byte(tt.input))
 			if tt.expected == nil {
 				assert.Empty(t, result)
 			} else {
