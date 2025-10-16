@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseCobraOutput_WithDirectives(t *testing.T) {
@@ -83,20 +84,21 @@ func TestCobraCompleter_CompleteFilesWithExtensions(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create files
-	os.WriteFile(filepath.Join(tmpDir, "file.json"), []byte("{}"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "file.yaml"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "file.yml"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte(""), 0644)
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.json"), []byte("{}"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.yaml"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.yml"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte(""), 0644))
 
 	// Create subdirectory
 	subdir := filepath.Join(tmpDir, "subdir")
-	os.Mkdir(subdir, 0755)
+	require.NoError(t, os.Mkdir(subdir, 0755))
 
 	// Change to temp directory
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(oldWd)
+	oldWd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer func() { _ = os.Chdir(oldWd) }()
 
 	c := NewCobraCompleter()
 
@@ -133,16 +135,17 @@ func TestCobraCompleter_CompleteDirectories(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create directories
-	os.Mkdir(filepath.Join(tmpDir, "dir1"), 0755)
-	os.Mkdir(filepath.Join(tmpDir, "dir2"), 0755)
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, "dir1"), 0755))
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, "dir2"), 0755))
 
 	// Create files (should be excluded)
-	os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte(""), 0644)
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte(""), 0644))
 
 	// Change to temp directory
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(oldWd)
+	oldWd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer func() { _ = os.Chdir(oldWd) }()
 
 	c := NewCobraCompleter()
 	suggestions, err := c.completeDirectories([]string{})
@@ -165,13 +168,14 @@ func TestCobraCompleter_CompleteFilesWithPrefix(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create files with common prefix
-	os.WriteFile(filepath.Join(tmpDir, "test1.json"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "test2.json"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "other.json"), []byte(""), 0644)
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "test1.json"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "test2.json"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "other.json"), []byte(""), 0644))
 
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(oldWd)
+	oldWd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer func() { _ = os.Chdir(oldWd) }()
 
 	c := NewCobraCompleter()
 	extensionSuggestions := []Suggestion{{Value: "json", Description: ""}}
@@ -196,13 +200,14 @@ func TestCobraCompleter_SkipsHiddenFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create hidden and visible files
-	os.WriteFile(filepath.Join(tmpDir, ".hidden.json"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "visible.json"), []byte(""), 0644)
-	os.Mkdir(filepath.Join(tmpDir, ".hidden_dir"), 0755)
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".hidden.json"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "visible.json"), []byte(""), 0644))
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, ".hidden_dir"), 0755))
 
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(oldWd)
+	oldWd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer func() { _ = os.Chdir(oldWd) }()
 
 	c := NewCobraCompleter()
 	extensionSuggestions := []Suggestion{{Value: "json", Description: ""}}
@@ -248,12 +253,13 @@ func TestCobraCompleter_NavigatesSubdirectories(t *testing.T) {
 
 	// Create subdirectory with files
 	subdir := filepath.Join(tmpDir, "subdir")
-	os.Mkdir(subdir, 0755)
-	os.WriteFile(filepath.Join(subdir, "nested.json"), []byte(""), 0644)
+	require.NoError(t, os.Mkdir(subdir, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(subdir, "nested.json"), []byte(""), 0644))
 
-	oldWd, _ := os.Getwd()
-	os.Chdir(tmpDir)
-	defer os.Chdir(oldWd)
+	oldWd, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmpDir))
+	defer func() { _ = os.Chdir(oldWd) }()
 
 	c := NewCobraCompleter()
 	extensionSuggestions := []Suggestion{{Value: "json", Description: ""}}
