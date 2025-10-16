@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	shellpkg "github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 const (
@@ -73,85 +75,20 @@ func detectShellFromParentProcess() string {
 
 // getBinaryPath returns the path to the dirvana binary, with fallback
 func getBinaryPath() string {
-	binPath, err := os.Executable()
-	if err != nil {
-		return "dirvana" // Fallback to PATH
-	}
-	return binPath
+	return "dirvana" // Fallback to just "dirvana", assuming it's in PATH
 }
 
 // GenerateHookCode generates the shell hook code for the specified shell.
+// This is now a thin wrapper around shell.GenerateHookCode which uses embedded templates.
 func GenerateHookCode(shell string) string {
 	binPath := getBinaryPath()
 
-	switch shell {
-	case ShellZsh:
-		return fmt.Sprintf(`__dirvana_hook() {
-  # Check if Dirvana is disabled
-  if [[ "${DIRVANA_ENABLED:-true}" == "false" ]]; then
-    return 0
-  fi
-
-  # Check if dirvana command exists
-  if ! command -v %s &> /dev/null; then
-    return 0
-  fi
-
-  # Don't run if stdin is not the terminal (prevents TUI interference)
-  if [[ ! -t 0 ]]; then
-    return 0
-  fi
-
-  local shell_code
-  shell_code=$(%s export --prev "${DIRVANA_PREV_DIR:-}")
-  local exit_code=$?
-  export DIRVANA_PREV_DIR="$PWD"
-  [[ $exit_code -eq 0 && -n "$shell_code" ]] && eval "$shell_code" 2>/dev/null
-  return 0
-}
-
-autoload -U add-zsh-hook
-add-zsh-hook chpwd __dirvana_hook
-
-# Run on startup only if stdin is a terminal
-[[ -t 0 ]] && __dirvana_hook`, binPath, binPath)
-
-	default: // bash
-		return fmt.Sprintf(`__dirvana_hook() {
-  # Check if Dirvana is disabled
-  if [[ "${DIRVANA_ENABLED:-true}" == "false" ]]; then
-    return 0
-  fi
-
-  # Check if dirvana command exists
-  if ! command -v %s &> /dev/null; then
-    return 0
-  fi
-
-  # Don't run if stdin is not the terminal (prevents TUI interference)
-  if [[ ! -t 0 ]]; then
-    return 0
-  fi
-
-  # Only run if directory changed
-  if [[ "$PWD" != "${DIRVANA_PREV_DIR:-}" ]]; then
-    local shell_code
-    shell_code=$(%s export --prev "${DIRVANA_PREV_DIR:-}")
-    local exit_code=$?
-    export DIRVANA_PREV_DIR="$PWD"
-    [[ $exit_code -eq 0 && -n "$shell_code" ]] && eval "$shell_code" 2>/dev/null
-  fi
-  return 0
-}
-
-# Add to PROMPT_COMMAND
-if [[ -z "${PROMPT_COMMAND}" ]]; then
-  PROMPT_COMMAND="__dirvana_hook"
-elif [[ ! "${PROMPT_COMMAND}" =~ __dirvana_hook ]]; then
-  PROMPT_COMMAND="__dirvana_hook;${PROMPT_COMMAND}"
-fi
-
-# Run on startup only if stdin is a terminal
-[[ -t 0 ]] && __dirvana_hook`, binPath, binPath)
+	// Use the template-based generator from internal/shell
+	code, err := shellpkg.GenerateHookCode(shell, binPath)
+	if err != nil {
+		// Fallback to bash if there's an error
+		code, _ = shellpkg.GenerateHookCode("bash", binPath)
 	}
+
+	return code
 }

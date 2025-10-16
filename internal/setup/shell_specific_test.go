@@ -19,10 +19,12 @@ func TestZshHookContent(t *testing.T) {
 	assert.Contains(t, hookCode, "autoload -U add-zsh-hook", "Must autoload add-zsh-hook")
 	assert.Contains(t, hookCode, "add-zsh-hook chpwd __dirvana_hook", "Must register chpwd hook")
 
-	// Must have safety checks (same as bash)
-	assert.Contains(t, hookCode, "DIRVANA_ENABLED", "Must check DIRVANA_ENABLED")
-	assert.Contains(t, hookCode, "command -v", "Must check if dirvana command exists")
+	// Must have stdin terminal check (other checks are in Go now)
 	assert.Contains(t, hookCode, "[[ ! -t 0 ]]", "Must check if stdin is terminal")
+
+	// Must call dirvana export
+	assert.Contains(t, hookCode, "dirvana export", "Must call dirvana export")
+	assert.Contains(t, hookCode, "eval", "Must eval the generated code")
 
 	// Must NOT have bash-specific code
 	assert.NotContains(t, hookCode, "PROMPT_COMMAND", "Should not contain bash PROMPT_COMMAND")
@@ -36,10 +38,12 @@ func TestBashHookContent(t *testing.T) {
 	assert.Contains(t, hookCode, "__dirvana_hook()", "Must define __dirvana_hook function")
 	assert.Contains(t, hookCode, "PROMPT_COMMAND", "Must set PROMPT_COMMAND")
 
-	// Must have safety checks
-	assert.Contains(t, hookCode, "DIRVANA_ENABLED", "Must check DIRVANA_ENABLED")
-	assert.Contains(t, hookCode, "command -v", "Must check if dirvana command exists")
+	// Must have stdin terminal check (other checks are in Go now)
 	assert.Contains(t, hookCode, "[[ ! -t 0 ]]", "Must check if stdin is terminal")
+
+	// Must call dirvana export
+	assert.Contains(t, hookCode, "dirvana export", "Must call dirvana export")
+	assert.Contains(t, hookCode, "eval", "Must eval the generated code")
 
 	// Must NOT have zsh-specific code
 	assert.NotContains(t, hookCode, "add-zsh-hook", "Should not contain zsh add-zsh-hook")

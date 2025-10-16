@@ -1,8 +1,10 @@
 package shell
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
+	"text/template"
 )
 
 const (
@@ -87,4 +89,36 @@ func NewCompletionGenerator(shell string) CodeGenerator {
 			},
 		}
 	}
+}
+
+// GenerateHookCode generates shell hook code from embedded templates
+func GenerateHookCode(shell, binaryPath string) (string, error) {
+	var tmpl string
+	switch shell {
+	case shellBash:
+		tmpl = bashHookTemplate
+	case shellZsh:
+		tmpl = zshHookTemplate
+	default:
+		tmpl = bashHookTemplate // Default to bash
+	}
+
+	// Parse template
+	t, err := template.New("hook").Parse(tmpl)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse hook template: %w", err)
+	}
+
+	// Execute template with binary path
+	var buf bytes.Buffer
+	data := struct {
+		BinaryPath string
+	}{
+		BinaryPath: binaryPath,
+	}
+	if err := t.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("failed to execute hook template: %w", err)
+	}
+
+	return buf.String(), nil
 }
