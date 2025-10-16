@@ -455,3 +455,73 @@ fi
 		t.Logf("Completion output:\n%s", output)
 	}
 }
+
+func TestCompletion_OutputsDescriptions(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	workDir := filepath.Join(tmpDir, "work")
+	require.NoError(t, os.MkdirAll(workDir, 0755))
+
+	// Create a mock Cobra command that returns suggestions with descriptions
+	// This simulates kubectl or similar tools
+	mockScript := `#!/bin/bash
+# Simulate Cobra __complete command with descriptions
+echo "apply	Apply a configuration to a resource"
+echo "create	Create a resource from a file"
+echo "delete	Delete resources by filenames"
+echo ":4"
+`
+	scriptPath := filepath.Join(tmpDir, "mock-cobra")
+	require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0755))
+
+	// Create cache with mock cobra command
+	c, err := cache.New(cachePath)
+	require.NoError(t, err)
+
+	err = c.Set(&cache.Entry{
+		Path:      workDir,
+		Hash:      "hash1",
+		Timestamp: time.Now(),
+		Version:   version.Version,
+		CommandMap: map[string]string{
+			"k": scriptPath,
+		},
+	})
+	require.NoError(t, err)
+
+	// Change to work directory
+	origDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(origDir) }()
+	err = os.Chdir(workDir)
+	require.NoError(t, err)
+
+	// Capture stdout to verify description output format
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	params := CompletionParams{
+		CachePath: cachePath,
+		LogLevel:  "error",
+		Words:     []string{"k"},
+		CWord:     0,
+	}
+
+	err = Completion(params)
+
+	// Restore stdout
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	// Read captured output
+	var buf [1024]byte
+	n, _ := r.Read(buf[:])
+	output := string(buf[:n])
+
+	// Verify that descriptions are formatted correctly (value\tdescription)
+	require.NoError(t, err)
+	assert.Contains(t, output, "apply\tApply a configuration to a resource")
+	assert.Contains(t, output, "create\tCreate a resource from a file")
+	assert.Contains(t, output, "delete\tDelete resources by filenames")
+}
