@@ -235,3 +235,76 @@ func TestNewCompletionGenerator_Integration(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateHookCode_Bash(t *testing.T) {
+	code, err := GenerateHookCode("bash", "dirvana")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, code)
+
+	// Should contain bash-specific features
+	assert.Contains(t, code, "__dirvana_hook()")
+	assert.Contains(t, code, "PROMPT_COMMAND")
+	assert.Contains(t, code, "dirvana export")
+	assert.Contains(t, code, "[[ ! -t 0 ]]", "should check stdin is terminal")
+
+	// Should NOT contain zsh-specific features
+	assert.NotContains(t, code, "add-zsh-hook")
+	assert.NotContains(t, code, "autoload")
+}
+
+func TestGenerateHookCode_Zsh(t *testing.T) {
+	code, err := GenerateHookCode("zsh", "dirvana")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, code)
+
+	// Should contain zsh-specific features
+	assert.Contains(t, code, "__dirvana_hook()")
+	assert.Contains(t, code, "autoload -U add-zsh-hook")
+	assert.Contains(t, code, "add-zsh-hook chpwd")
+	assert.Contains(t, code, "dirvana export")
+	assert.Contains(t, code, "[[ ! -t 0 ]]", "should check stdin is terminal")
+
+	// Should NOT contain bash-specific features
+	assert.NotContains(t, code, "PROMPT_COMMAND")
+}
+
+func TestGenerateHookCode_DefaultToBash(t *testing.T) {
+	// Unknown shell should default to bash
+	code, err := GenerateHookCode("unknown", "dirvana")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, code)
+
+	// Should contain bash-specific features
+	assert.Contains(t, code, "PROMPT_COMMAND")
+}
+
+func TestGenerateHookCode_BinaryPath(t *testing.T) {
+	// Test with custom binary path
+	code, err := GenerateHookCode("bash", "/usr/local/bin/dirvana")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, code)
+
+	// Should use the custom binary path
+	assert.Contains(t, code, "/usr/local/bin/dirvana export")
+}
+
+func TestGenerateHookCode_MinimalDesign(t *testing.T) {
+	// Both bash and zsh should generate minimal hooks
+	for _, shell := range []string{"bash", "zsh"} {
+		t.Run(shell, func(t *testing.T) {
+			code, err := GenerateHookCode(shell, "dirvana")
+			assert.NoError(t, err)
+
+			// Should be minimal (less than 30 lines)
+			lines := strings.Split(code, "\n")
+			assert.Less(t, len(lines), 30, "hook should be minimal")
+
+			// Should delegate to 'dirvana export'
+			assert.Contains(t, code, "dirvana export")
+			assert.Contains(t, code, "eval")
+
+			// Should have stdin check (fast path for TUI apps)
+			assert.Contains(t, code, "[[ ! -t 0 ]]")
+		})
+	}
+}

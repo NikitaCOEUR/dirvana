@@ -13,6 +13,7 @@ import (
 
 const testPathConst = "/test/path"
 
+
 func TestAllow(t *testing.T) {
 	tmpDir := t.TempDir()
 	authPath := filepath.Join(tmpDir, "auth.json")
@@ -909,4 +910,39 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to approve shell commands")
 	})
+}
+
+func TestExport_DisabledViaEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Set DIRVANA_ENABLED=false
+	require.NoError(t, os.Setenv("DIRVANA_ENABLED", "false"))
+	defer func() { _ = os.Unsetenv("DIRVANA_ENABLED") }()
+
+	params := ExportParams{
+		LogLevel:  "error",
+		PrevDir:   "",
+		CachePath: cachePath,
+		AuthPath:  authPath,
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := Export(params)
+	require.NoError(t, err)
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	buf := new(bytes.Buffer)
+	_, _ = buf.ReadFrom(r)
+	output := buf.String()
+
+	// Should return empty output when disabled
+	assert.Empty(t, output)
 }
