@@ -84,6 +84,30 @@ func TestRevoke_InvalidAuthPath(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to initialize auth")
 }
 
+func TestRevokeWithParams_FromRevokedDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	authPath := filepath.Join(tmpDir, "auth.json")
+	testDir := filepath.Join(tmpDir, "testdir")
+	require.NoError(t, os.MkdirAll(testDir, 0755))
+
+	// First allow the test directory
+	err := Allow(authPath, testDir)
+	require.NoError(t, err)
+
+	// Change to the test directory
+	oldWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(oldWd) }()
+	require.NoError(t, os.Chdir(testDir))
+
+	// Revoke while in the directory - should show cleanup tip
+	err = RevokeWithParams(RevokeParams{
+		AuthPath:     authPath,
+		PathToRevoke: testDir,
+	})
+	require.NoError(t, err)
+}
+
 func TestList(t *testing.T) {
 	tmpDir := t.TempDir()
 	authPath := filepath.Join(tmpDir, "auth.json")

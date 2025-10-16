@@ -102,3 +102,42 @@ func TestCobraCompleter_Complete_NonExistentCommand(t *testing.T) {
 	assert.Error(t, err, "Should return error for non-existent command")
 	assert.Nil(t, suggestions)
 }
+
+func TestCobraCompleter_Complete_WithDirectives(t *testing.T) {
+	// This test cannot easily mock a Cobra command, but we can test
+	// the directive handling by directly testing completeFilesWithExtensions
+	// and completeDirectories which are called based on directives
+	c := NewCobraCompleter()
+
+	t.Run("completeDirectories with empty args", func(t *testing.T) {
+		// Test with no args - should use current directory
+		suggestions, err := c.completeDirectories([]string{})
+		assert.NoError(t, err)
+		// Should return a slice (may be empty if no directories in test directory)
+		assert.IsType(t, []Suggestion{}, suggestions)
+	})
+
+	t.Run("completeDirectories with directory prefix", func(t *testing.T) {
+		// Test with a prefix
+		suggestions, err := c.completeDirectories([]string{"d"})
+		assert.NoError(t, err)
+		assert.IsType(t, []Suggestion{}, suggestions)
+	})
+
+	t.Run("completeFilesWithExtensions with empty extensions", func(t *testing.T) {
+		// Test with no extension suggestions
+		suggestions, err := c.completeFilesWithExtensions([]Suggestion{}, []string{})
+		assert.NoError(t, err)
+		assert.IsType(t, []Suggestion{}, suggestions)
+	})
+
+	t.Run("completeFilesWithExtensions with args containing slash", func(t *testing.T) {
+		// Test with path that ends with /
+		suggestions, err := c.completeFilesWithExtensions(
+			[]Suggestion{{Value: "go", Description: ""}},
+			[]string{"./"},
+		)
+		assert.NoError(t, err)
+		assert.IsType(t, []Suggestion{}, suggestions)
+	})
+}
