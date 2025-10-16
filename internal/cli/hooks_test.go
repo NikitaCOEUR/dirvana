@@ -75,7 +75,8 @@ func TestGenerateHookCode(t *testing.T) {
 				"__dirvana_hook()",
 				"PROMPT_COMMAND",
 				"DIRVANA_PREV_DIR",
-				"[[ ! -t 0 ]]",
+				"dirvana export",
+				"eval",
 			},
 		},
 		{
@@ -117,7 +118,8 @@ func TestGenerateHookCode_DefaultShell(t *testing.T) {
 	assert.NotEmpty(t, code)
 	assert.Contains(t, code, "__dirvana_hook()")
 	assert.Contains(t, code, "PROMPT_COMMAND")
-	assert.Contains(t, code, "[[ ! -t 0 ]]")
+	assert.Contains(t, code, "dirvana export")
+	assert.Contains(t, code, "eval")
 }
 
 func TestDetectShellFromParentProcess(t *testing.T) {

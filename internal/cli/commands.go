@@ -58,12 +58,21 @@ func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache,
 	// Cleanup each directory individually
 	for _, dir := range cleanupDirs {
 		if entry, found := cacheStorage.Get(dir); found {
+			startTime := time.Now()
 			cleanupCode += dircontext.GenerateCleanupCode(
 				entry.Aliases,
 				entry.Functions,
 				entry.EnvVars,
 			)
-			log.Debug().Str("cleanup_dir", dir).Msg("Cleaning up config")
+			duration := time.Since(startTime)
+
+			log.Debug().
+				Str("cleanup_dir", dir).
+				Dur("cleanup_ms", duration).
+				Int("aliases", len(entry.Aliases)).
+				Int("functions", len(entry.Functions)).
+				Int("env_vars", len(entry.EnvVars)).
+				Msg("Cleaning up config")
 		}
 	}
 
@@ -188,6 +197,13 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 
 // Export generates and outputs shell code for the current directory
 func Export(params ExportParams) error {
+	// Check if Dirvana is disabled via environment variable
+	if os.Getenv("DIRVANA_ENABLED") == "false" {
+		// Return empty output (no error) so shell hook succeeds silently
+		fmt.Print("")
+		return nil
+	}
+
 	timer := timing.NewTimer()
 	log := logger.New(params.LogLevel, os.Stderr)
 
@@ -213,6 +229,7 @@ func Export(params ExportParams) error {
 	// Determine what needs cleanup
 	cleanupDirs := dircontext.CalculateCleanup(chains.prev, chains.current)
 	cleanupCode := generateCleanupCodeForDirs(cleanupDirs, comps.cache, log)
+	timer.Mark("cleanup")
 
 	// If no active configs in current directory, just output cleanup and return
 	if len(chains.current) == 0 {
