@@ -1,9 +1,12 @@
 package completion
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCobraCompleter_New(t *testing.T) {
@@ -139,5 +142,114 @@ func TestCobraCompleter_Complete_WithDirectives(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.IsType(t, []Suggestion{}, suggestions)
+	})
+}
+
+func TestCobraCompleter_Complete_DirectiveHandling(t *testing.T) {
+	tmpDir := t.TempDir()
+	c := NewCobraCompleter()
+
+	// Create a mock script that simulates Cobra __complete command
+	// This will test the directive handling logic in Complete()
+	t.Run("FilterFileExt directive (8)", func(t *testing.T) {
+		// Create a script that returns file extensions with directive 8
+		mockScript := `#!/bin/bash
+echo "json"
+echo "yaml"
+echo ":8"
+`
+		scriptPath := filepath.Join(tmpDir, "mock-cobra-ext")
+		require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0755))
+
+		// Create some test files
+		testDir := filepath.Join(tmpDir, "testfiles")
+		require.NoError(t, os.MkdirAll(testDir, 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.json"), []byte(""), 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.yaml"), []byte(""), 0644))
+		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.txt"), []byte(""), 0644))
+
+		// Change to test directory
+		oldWd, err := os.Getwd()
+		require.NoError(t, err)
+		defer func() { _ = os.Chdir(oldWd) }()
+		require.NoError(t, os.Chdir(testDir))
+
+		// Call Complete which should trigger completeFilesWithExtensions
+		// Pass empty args so it searches without prefix filter
+		suggestions, err := c.Complete(scriptPath, []string{})
+		assert.NoError(t, err)
+
+		// Should return files with matching extensions
+		values := make([]string, len(suggestions))
+		for i, s := range suggestions {
+			values[i] = s.Value
+		}
+
+		// Should include json and yaml files, not txt
+		assert.Contains(t, values, "file.json")
+		assert.Contains(t, values, "file.yaml")
+	})
+
+	t.Run("FilterDirs directive (16)", func(t *testing.T) {
+		// Create a script that returns directive 16 (directories only)
+		mockScript := `#!/bin/bash
+echo ":16"
+`
+		scriptPath := filepath.Join(tmpDir, "mock-cobra-dirs")
+		require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0755))
+
+		// Create test structure with dirs and files
+		testDir := filepath.Join(tmpDir, "testdirs")
+		require.NoError(t, os.MkdirAll(testDir, 0755))
+		require.NoError(t, os.Mkdir(filepath.Join(testDir, "dir1"), 0755))
+		require.NoError(t, os.Mkdir(filepath.Join(testDir, "dir2"), 0755))
+		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.txt"), []byte(""), 0644))
+
+		// Change to test directory
+		oldWd, err := os.Getwd()
+		require.NoError(t, err)
+		defer func() { _ = os.Chdir(oldWd) }()
+		require.NoError(t, os.Chdir(testDir))
+
+		// Call Complete which should trigger completeDirectories
+		// Pass empty args so it searches without prefix filter
+		suggestions, err := c.Complete(scriptPath, []string{})
+		assert.NoError(t, err)
+
+		// Should return only directories
+		values := make([]string, len(suggestions))
+		for i, s := range suggestions {
+			values[i] = s.Value
+		}
+		assert.Contains(t, values, "dir1/")
+		assert.Contains(t, values, "dir2/")
+		// Should NOT contain the file
+		assert.NotContains(t, values, "file.txt")
+	})
+
+	t.Run("No directive (0) - returns suggestions as-is", func(t *testing.T) {
+		// Create a script that returns regular suggestions without special directives
+		mockScript := `#!/bin/bash
+echo "apply"
+echo "create"
+echo "delete"
+echo ":0"
+`
+		scriptPath := filepath.Join(tmpDir, "mock-cobra-normal")
+		require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0755))
+
+		// Call Complete which should return suggestions as-is
+		suggestions, err := c.Complete(scriptPath, []string{})
+		assert.NoError(t, err)
+
+		// Should return the suggestions without modification
+		assert.Len(t, suggestions, 3)
+		values := make([]string, len(suggestions))
+		for i, s := range suggestions {
+			values[i] = s.Value
+		}
+		assert.Contains(t, values, "apply")
+		assert.Contains(t, values, "create")
+		assert.Contains(t, values, "delete")
 	})
 }
