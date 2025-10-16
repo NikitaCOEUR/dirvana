@@ -53,16 +53,21 @@ func GenerateCleanupCode(aliases []string, functions []string, envVars []string)
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// generateAliasCleanup generates shell commands to remove aliases and their completions
+// generateAliasCleanup generates shell commands to remove aliases
+// Note: We intentionally don't remove completions (complete -r / compdef -d) because:
+// - complete -r is very slow in bash (~200ms per call), causing noticeable delay
+// - Once the alias is removed, its completion is harmless (never called)
+// - This is a performance optimization: instant cleanup vs negligible memory leak
 func generateAliasCleanup(aliases []string) []string {
+	if len(aliases) == 0 {
+		return nil
+	}
+
 	var lines []string
 	for _, alias := range aliases {
 		lines = append(lines, "unalias "+alias+" 2>/dev/null || true")
-		// Remove bash completion
-		lines = append(lines, "complete -r "+alias+" 2>/dev/null || true")
-		// Remove zsh completion
-		lines = append(lines, "compdef -d "+alias+" 2>/dev/null || true")
 	}
+
 	return lines
 }
 
