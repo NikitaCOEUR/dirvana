@@ -429,3 +429,106 @@ func TestCollectAll_WithGlobalConfig(t *testing.T) {
 	assert.Equal(t, "ls -la", data.Aliases["ll"])
 	assert.Equal(t, "git status", data.Aliases["gs"])
 }
+
+// TestCheckRCFileForHook tests the RC file hook detection function
+func TestCheckRCFileForHook(t *testing.T) {
+	t.Run("detects Dirvana comment", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		rcFile := filepath.Join(tmpDir, ".bashrc")
+
+		content := `# Some initial content
+export PATH=$PATH:/usr/local/bin
+
+# Dirvana hook
+eval "$(dirvana export)"
+
+# More content below
+`
+		err := os.WriteFile(rcFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		result := checkRCFileForHook(rcFile)
+		assert.True(t, result)
+	})
+
+	t.Run("detects hook-bash.sh", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		rcFile := filepath.Join(tmpDir, ".bashrc")
+
+		content := `export PATH=$PATH:/usr/local/bin
+source ~/.dirvana/hook-bash.sh
+alias ll='ls -la'
+`
+		err := os.WriteFile(rcFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		result := checkRCFileForHook(rcFile)
+		assert.True(t, result)
+	})
+
+	t.Run("detects hook-zsh.sh", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		rcFile := filepath.Join(tmpDir, ".zshrc")
+
+		content := `# ZSH config
+source ~/.dirvana/hook-zsh.sh
+`
+		err := os.WriteFile(rcFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		result := checkRCFileForHook(rcFile)
+		assert.True(t, result)
+	})
+
+	t.Run("detects dirvana export", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		rcFile := filepath.Join(tmpDir, ".bashrc")
+
+		content := `eval "$(dirvana export)"`
+		err := os.WriteFile(rcFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		result := checkRCFileForHook(rcFile)
+		assert.True(t, result)
+	})
+
+	t.Run("returns false when no hook found", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		rcFile := filepath.Join(tmpDir, ".bashrc")
+
+		content := `export PATH=$PATH:/usr/local/bin
+alias ll='ls -la'
+# Just regular bashrc content
+`
+		err := os.WriteFile(rcFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		result := checkRCFileForHook(rcFile)
+		assert.False(t, result)
+	})
+
+	t.Run("returns false when file does not exist", func(t *testing.T) {
+		result := checkRCFileForHook("/nonexistent/file")
+		assert.False(t, result)
+	})
+
+	t.Run("handles large files efficiently", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		rcFile := filepath.Join(tmpDir, ".bashrc")
+
+		// Create a large file with hook at the end
+		var content string
+		for i := 0; i < 1000; i++ {
+			content += "# Comment line\n"
+			content += "export VAR" + string(rune(i)) + "=value\n"
+		}
+		content += "# Dirvana hook at the end\n"
+
+		err := os.WriteFile(rcFile, []byte(content), 0644)
+		require.NoError(t, err)
+
+		// Should still find it (proves line-by-line scanning works)
+		result := checkRCFileForHook(rcFile)
+		assert.True(t, result)
+	})
+}
