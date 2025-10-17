@@ -138,13 +138,14 @@ func GetActiveConfigChain(dir string, auth AuthChecker, configProvider ConfigPro
 // but are not in currentChain.
 func CalculateCleanup(prevChain, currentChain []string) []string {
 	// Convert currentChain to a set for O(1) lookup
-	currentSet := make(map[string]bool)
+	currentSet := make(map[string]bool, len(currentChain))
 	for _, dir := range currentChain {
 		currentSet[dir] = true
 	}
 
 	// Find directories that need cleanup
-	cleanup := []string{} // Initialize as empty slice, not nil
+	// Pre-allocate with prevChain length capacity (worst case: all need cleanup)
+	cleanup := make([]string, 0, len(prevChain))
 	for _, dir := range prevChain {
 		if !currentSet[dir] {
 			cleanup = append(cleanup, dir)

@@ -382,6 +382,7 @@ func TestTryLoadExpiredCache(t *testing.T) {
 // TestLoadRegistry tests registry loading with various scenarios
 func TestLoadRegistry(t *testing.T) {
 	t.Run("loads from cache when valid", func(t *testing.T) {
+		clearRegistryCache() // Clear memory cache before test
 		tmpDir := t.TempDir()
 
 		// Create a valid cached registry
@@ -415,6 +416,96 @@ func TestLoadRegistry(t *testing.T) {
 		assert.Equal(t, "v1", config.Version)
 		assert.Equal(t, "Test registry", config.Description)
 		assert.Contains(t, config.Tools, "test-tool")
+	})
+
+	t.Run("uses memory cache on repeated calls", func(t *testing.T) {
+		clearRegistryCache() // Clear memory cache before test
+		tmpDir := t.TempDir()
+
+		// Create a valid cached registry
+		registryData := RegistryConfig{
+			Version:     "v1",
+			Description: "Memory cache test",
+			Tools: map[string]RegistryTool{
+				"cache-tool": {
+					Description: "Cache test tool",
+					Homepage:    "https://example.com",
+					Script: RegistryScript{
+						URL:    "https://example.com/script.sh",
+						SHA256: "def456",
+					},
+				},
+			},
+		}
+
+		data, err := yaml.Marshal(registryData)
+		require.NoError(t, err)
+
+		registryPath := getRegistryPath(tmpDir, "v1")
+		err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+		require.NoError(t, err)
+		err = os.WriteFile(registryPath, data, 0644)
+		require.NoError(t, err)
+
+		// First call - loads from file and populates memory cache
+		config1, err := LoadRegistry(tmpDir)
+		require.NoError(t, err)
+		assert.Equal(t, "Memory cache test", config1.Description)
+
+		// Delete the file to verify second call uses memory cache
+		err = os.Remove(registryPath)
+		require.NoError(t, err)
+
+		// Second call - should use memory cache (file is gone)
+		config2, err := LoadRegistry(tmpDir)
+		require.NoError(t, err)
+		assert.Equal(t, "Memory cache test", config2.Description)
+		assert.Contains(t, config2.Tools, "cache-tool")
+
+		// Verify it's the same instance from cache
+		assert.Equal(t, config1, config2)
+	})
+
+	t.Run("memory cache expires after TTL", func(t *testing.T) {
+		clearRegistryCache()
+		tmpDir := t.TempDir()
+
+		// Create registry
+		registryData := RegistryConfig{
+			Version:     "v1",
+			Description: "TTL test",
+			Tools:       map[string]RegistryTool{},
+		}
+
+		data, err := yaml.Marshal(registryData)
+		require.NoError(t, err)
+
+		registryPath := getRegistryPath(tmpDir, "v1")
+		err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+		require.NoError(t, err)
+		err = os.WriteFile(registryPath, data, 0644)
+		require.NoError(t, err)
+
+		// Load registry into memory cache
+		_, err = LoadRegistry(tmpDir)
+		require.NoError(t, err)
+
+		// Manually expire the cache
+		registryMemCache.mu.Lock()
+		registryMemCache.expiresAt = time.Now().Add(-1 * time.Hour)
+		registryMemCache.mu.Unlock()
+
+		// Update the file with different content
+		registryData.Description = "TTL expired - reloaded"
+		data, err = yaml.Marshal(registryData)
+		require.NoError(t, err)
+		err = os.WriteFile(registryPath, data, 0644)
+		require.NoError(t, err)
+
+		// Should reload from file since cache expired
+		config, err := LoadRegistry(tmpDir)
+		require.NoError(t, err)
+		assert.Equal(t, "TTL expired - reloaded", config.Description)
 	})
 
 	t.Run("downloads when cache doesn't exist", func(t *testing.T) {

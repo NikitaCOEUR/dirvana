@@ -8,12 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/parsers/yaml"
-	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/knadh/koanf/v2"
 )
 
@@ -161,6 +162,8 @@ type Loader struct {
 	configCache map[string]*Config
 	// Cache for parsed configs with modtime validation
 	parsedCache map[string]*cachedConfig
+	// Mutex to protect cache access for thread safety
+	mu sync.RWMutex
 }
 
 // New creates a new config loader
@@ -200,10 +203,13 @@ func (l *Loader) IsLocalOnly(dir string) bool {
 		return false
 	}
 
-	// Check cache first
+	// Check cache first with read lock
+	l.mu.RLock()
 	if cfg, exists := l.configCache[dir]; exists {
+		l.mu.RUnlock()
 		return cfg.LocalOnly
 	}
+	l.mu.RUnlock()
 
 	// Load config
 	cfg, err := l.Load(configPath)
@@ -211,25 +217,44 @@ func (l *Loader) IsLocalOnly(dir string) bool {
 		return false
 	}
 
-	// Cache it
+	// Cache it with write lock
+	l.mu.Lock()
 	l.configCache[dir] = cfg
+	l.mu.Unlock()
 
 	return cfg.LocalOnly
 }
 
 // Load reads and parses a configuration file
 func (l *Loader) Load(path string) (*Config, error) {
-	// Check if we have a cached version
+	// Get file info first (single stat call)
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stat config file: %w", err)
+	}
+
+	// Check cache with read lock
+	l.mu.RLock()
 	if cached, exists := l.parsedCache[path]; exists {
 		// Verify file hasn't been modified (check both modtime and size)
-		fileInfo, err := os.Stat(path)
-		if err == nil && !fileInfo.ModTime().After(cached.modTime) && fileInfo.Size() == cached.size {
+		if !fileInfo.ModTime().After(cached.modTime) && fileInfo.Size() == cached.size {
 			// Cache is still valid
+			l.mu.RUnlock()
 			return cached.config, nil
 		}
-		// File was modified, invalidate cache
-		delete(l.parsedCache, path)
 	}
+	l.mu.RUnlock()
+
+	// File was modified or not cached, need to load it
+	// Read file once for both parsing and hashing
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// Compute hash from already-read data
+	hash := sha256.Sum256(data)
+	hashStr := hex.EncodeToString(hash[:])
 
 	// Create a new koanf instance for isolated loading
 	k := koanf.New(".")
@@ -249,8 +274,8 @@ func (l *Loader) Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("unsupported config format: %s", ext)
 	}
 
-	// Load the file
-	if err := k.Load(file.Provider(path), parser); err != nil {
+	// Load from already-read data instead of reading file again
+	if err := k.Load(rawbytes.Provider(data), parser); err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
@@ -265,24 +290,15 @@ func (l *Loader) Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	// Cache the parsed config with its modtime, size and compute hash
-	fileInfo, err := os.Stat(path)
-	if err == nil {
-		// Compute hash for caching
-		data, hashErr := os.ReadFile(path)
-		var hashStr string
-		if hashErr == nil {
-			hash := sha256.Sum256(data)
-			hashStr = hex.EncodeToString(hash[:])
-		}
-
-		l.parsedCache[path] = &cachedConfig{
-			config:  cfg,
-			modTime: fileInfo.ModTime(),
-			size:    fileInfo.Size(),
-			hash:    hashStr,
-		}
+	// Cache the parsed config with write lock
+	l.mu.Lock()
+	l.parsedCache[path] = &cachedConfig{
+		config:  cfg,
+		modTime: fileInfo.ModTime(),
+		size:    fileInfo.Size(),
+		hash:    hashStr,
 	}
+	l.mu.Unlock()
 
 	return cfg, nil
 }
@@ -295,12 +311,17 @@ func (l *Loader) Hash(path string) (string, error) {
 		return "", err
 	}
 
+	// Check cache with read lock
+	l.mu.RLock()
 	if cached, exists := l.parsedCache[path]; exists {
 		if !fileInfo.ModTime().After(cached.modTime) && fileInfo.Size() == cached.size && cached.hash != "" {
 			// Hash is cached and file hasn't changed
-			return cached.hash, nil
+			hashStr := cached.hash
+			l.mu.RUnlock()
+			return hashStr, nil
 		}
 	}
+	l.mu.RUnlock()
 
 	// Compute hash
 	data, err := os.ReadFile(path)
@@ -311,7 +332,8 @@ func (l *Loader) Hash(path string) (string, error) {
 	hash := sha256.Sum256(data)
 	hashStr := hex.EncodeToString(hash[:])
 
-	// Update cache with hash
+	// Update cache with write lock
+	l.mu.Lock()
 	if cached, exists := l.parsedCache[path]; exists {
 		cached.hash = hashStr
 	} else {
@@ -321,6 +343,7 @@ func (l *Loader) Hash(path string) (string, error) {
 			size:    fileInfo.Size(),
 		}
 	}
+	l.mu.Unlock()
 
 	return hashStr, nil
 }

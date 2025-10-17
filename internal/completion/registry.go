@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -21,6 +22,8 @@ const (
 	RegistryBaseURL = "https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/registry"
 	// RegistryTTL is how long to cache the registry before re-downloading
 	RegistryTTL = 7 * 24 * time.Hour // 7 days
+	// RegistryCacheTTL is how long to keep registry in memory cache
+	RegistryCacheTTL = 5 * time.Minute // 5 minutes
 	// MaxRegistrySize is the maximum size for downloaded registry (1MB)
 	MaxRegistrySize = 1 * 1024 * 1024
 	// MaxScriptSize is the maximum size for downloaded completion script (5MB)
@@ -33,6 +36,23 @@ var DevMode = ""
 
 // httpClient is the HTTP client used for downloads (can be overridden in tests)
 var httpClient = http.DefaultClient
+
+// registryMemCache holds in-memory cache for registry to avoid repeated file I/O
+var registryMemCache struct {
+	mu        sync.RWMutex
+	config    *RegistryConfig
+	cacheDir  string
+	expiresAt time.Time
+}
+
+// clearRegistryCache clears the in-memory registry cache (used for testing)
+func clearRegistryCache() {
+	registryMemCache.mu.Lock()
+	defer registryMemCache.mu.Unlock()
+	registryMemCache.config = nil
+	registryMemCache.cacheDir = ""
+	registryMemCache.expiresAt = time.Time{}
+}
 
 // RegistryConfig represents the external completion scripts registry
 type RegistryConfig struct {
@@ -169,16 +189,31 @@ func getLocalRegistryPath(version string) string {
 // Dev builds: Use local registry/ by default (override with DIRVANA_REGISTRY_MODE=remote)
 // Prod builds: Always use remote registry (no local fallback)
 func LoadRegistry(cacheDir string) (*RegistryConfig, error) {
+	// Check in-memory cache first
+	registryMemCache.mu.RLock()
+	if registryMemCache.config != nil &&
+		registryMemCache.cacheDir == cacheDir &&
+		time.Now().Before(registryMemCache.expiresAt) {
+		config := registryMemCache.config
+		registryMemCache.mu.RUnlock()
+		return config, nil
+	}
+	registryMemCache.mu.RUnlock()
+
 	version := DefaultRegistryVersion
 
 	// Try to load from local registry (dev mode)
 	if config, ok := tryLoadLocalRegistry(version); ok {
+		// Update memory cache
+		updateMemoryCache(cacheDir, config)
 		return config, nil
 	}
 
 	// Try to load from cache
 	registryPath := getRegistryPath(cacheDir, version)
 	if config, ok := tryLoadCachedRegistry(registryPath); ok {
+		// Update memory cache
+		updateMemoryCache(cacheDir, config)
 		return config, nil
 	}
 
@@ -187,13 +222,29 @@ func LoadRegistry(cacheDir string) (*RegistryConfig, error) {
 	if err != nil {
 		// If download fails, try to use expired cache
 		if config, ok := tryLoadExpiredCache(registryPath); ok {
+			// Update memory cache
+			updateMemoryCache(cacheDir, config)
 			return config, nil
 		}
 		return nil, err
 	}
 
 	// Save to cache and parse
-	return saveCachedRegistry(cacheDir, version, data)
+	config, err := saveCachedRegistry(cacheDir, version, data)
+	if err == nil {
+		// Update memory cache
+		updateMemoryCache(cacheDir, config)
+	}
+	return config, err
+}
+
+// updateMemoryCache updates the in-memory registry cache
+func updateMemoryCache(cacheDir string, config *RegistryConfig) {
+	registryMemCache.mu.Lock()
+	defer registryMemCache.mu.Unlock()
+	registryMemCache.config = config
+	registryMemCache.cacheDir = cacheDir
+	registryMemCache.expiresAt = time.Now().Add(RegistryCacheTTL)
 }
 
 // tryLoadLocalRegistry attempts to load registry from local filesystem (dev mode)
