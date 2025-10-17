@@ -18,6 +18,17 @@ func TestCollectAll_EmptyDirectory(t *testing.T) {
 	// Resolve symlinks to handle macOS /var -> /private/var
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
+
+	// Isolate from user's global config
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	defer func() {
+		if originalXDG != "" {
+			_ = os.Setenv("XDG_CONFIG_HOME", originalXDG)
+		} else {
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
+		}
+	}()
+	_ = os.Setenv("XDG_CONFIG_HOME", tmpDir)
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
 

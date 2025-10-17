@@ -183,7 +183,8 @@ func TestEngine_Complete_NoSuggestions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, 0, len(result.Suggestions))
-	assert.Equal(t, "none", result.Source)
+	// Now we cache and return the completer even with no suggestions
+	assert.Equal(t, "mock", result.Source)
 }
 
 func TestEngine_getCompleterType(t *testing.T) {

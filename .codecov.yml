@@ -29,9 +29,142 @@ flag_management:
         target: auto
         threshold: 1%
   individual_flags:
-    - name: unittests
+    - name: completion
       paths:
-        - "**/*.go"
+        - "internal/completion/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    - name: config
+      paths:
+        - "internal/config/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    - name: shell
+      paths:
+        - "internal/shell/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    - name: setup
+      paths:
+        - "internal/setup/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    - name: cli
+      paths:
+        - "internal/cli/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    - name: cache
+      paths:
+        - "internal/cache/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    - name: status
+      paths:
+        - "internal/status/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    - name: context
+      paths:
+        - "internal/context/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    - name: auth
+      paths:
+        - "internal/auth/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    - name: logger
+      paths:
+        - "internal/logger/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    - name: timing
+      paths:
+        - "internal/timing/**/*.go"
+      carryforward: true
+      statuses:
+        - type: project
+          target: auto
+          threshold: 1%
+        - type: patch
+          target: auto
+          threshold: 1%
+
+    # Entry point
+    - name: cmd
+      paths:
+        - "cmd/**/*.go"
       carryforward: true
       statuses:
         - type: project

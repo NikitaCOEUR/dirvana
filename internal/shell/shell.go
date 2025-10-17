@@ -91,6 +91,9 @@ func (g *Generator) generateWithWrappers(aliases map[string]config.AliasConfig, 
 			parts = append(parts, "\n# Aliases (using dirvana exec wrapper as functions)")
 			keys := sortedKeysFromAliases(aliases)
 			for _, key := range keys {
+				// Clean up any existing completion before defining function
+				// This prevents completion conflicts when reusing alias names
+				parts = append(parts, fmt.Sprintf("complete -r %s 2>/dev/null || true", key))
 				parts = append(parts, fmt.Sprintf("%s() { dirvana exec %s \"$@\"; }", key, key))
 				allNames = append(allNames, key)
 			}
@@ -98,6 +101,9 @@ func (g *Generator) generateWithWrappers(aliases map[string]config.AliasConfig, 
 			parts = append(parts, "\n# Aliases (using dirvana exec wrapper)")
 			keys := sortedKeysFromAliases(aliases)
 			for _, key := range keys {
+				// Clean up any existing completion before defining alias
+				// This prevents completion conflicts when reusing alias names
+				parts = append(parts, fmt.Sprintf("complete -r %s 2>/dev/null || true", key))
 				parts = append(parts, fmt.Sprintf("alias %s='dirvana exec %s'", key, key))
 				allNames = append(allNames, key)
 			}

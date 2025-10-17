@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2207  # COMPREPLY must be an array from command substitution
+
+__dirvana_complete() {
+  local cur prev words cword
+  _get_comp_words_by_ref -n : cur prev words cword 2>/dev/null || {
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    words=("${COMP_WORDS[@]}")
+    cword=$COMP_CWORD
+  }
+
+  # Let dirvana handle ALL completion logic (fuzzy matching, filtering, etc.)
+  local IFS=$'\n'
+  local suggestions
+  suggestions=($(DIRVANA_COMP_CWORD=$cword dirvana completion -- "${words[@]}" 2>/dev/null))
+
+  if [ ${#suggestions[@]} -gt 0 ]; then
+    COMPREPLY=("${suggestions[@]}")
+
+    # Format descriptions like kubectl does (only if multiple suggestions)
+    if [ ${#COMPREPLY[@]} -gt 1 ]; then
+      __dirvana_format_descriptions
+    else
+      # Single suggestion: strip description directly without formatting overhead
+      local result="${COMPREPLY[0]}"
+      result="${result%%$'\t'*}"  # Remove tab and description
+      COMPREPLY[0]="$result"
+    fi
+
+    # If any suggestion ends with /, disable space after completion
+    # Check after formatting to handle both raw and formatted completions
+    case "${COMPREPLY[*]}" in
+      */) compopt -o nospace 2>/dev/null ;;
+    esac
+  else
+    # Fallback to file completion
+    # Use -o filenames with compgen to add / to directories
+    compopt -o filenames 2>/dev/null
+    COMPREPLY=($(compgen -f -- "$cur"))
+  fi
+}
+
+# Format completion descriptions (value\tdesc -> value  (desc))
+__dirvana_format_descriptions() {
+  local tab=$'\t'
+  local comp desc maxdesclength longest=0
+  local i ci
+
+  # Find longest completion for alignment
+  for ci in "${!COMPREPLY[@]}"; do
+    comp="${COMPREPLY[ci]%%$tab*}"
+    if ((${#comp} > longest)); then
+      longest=${#comp}
+    fi
+  done
+
+  # Format each completion with description
+  for ci in "${!COMPREPLY[@]}"; do
+    comp="${COMPREPLY[ci]}"
+    if [[ "$comp" == *"$tab"* ]]; then
+      desc="${comp#*$tab}"
+      comp="${comp%%$tab*}"
+
+      # Calculate max description length
+      maxdesclength=$((COLUMNS - longest - 4))
+      if ((maxdesclength > 8)); then
+        # Pad completion to align descriptions
+        for ((i = ${#comp}; i < longest; i++)); do
+          comp+=" "
+        done
+      else
+        maxdesclength=$((COLUMNS - ${#comp} - 4))
+      fi
+
+      # Truncate description if too long
+      if ((maxdesclength > 0)); then
+        if ((${#desc} > maxdesclength)); then
+          desc="${desc:0:$((maxdesclength - 1))}…"
+        fi
+        comp+="  ($desc)"
+      fi
+
+      COMPREPLY[ci]="$comp"
+    fi
+  done
+}
+
+complete -o nosort -F __dirvana_complete %s 2>/dev/null || true

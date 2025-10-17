@@ -30,3 +30,4 @@ packages:
   tags:
     - test
 - name: hashicorp/terraform@v1.13.3
+- name: koalaman/shellcheck@v0.11.0

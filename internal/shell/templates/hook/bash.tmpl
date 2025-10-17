@@ -1,0 +1,25 @@
+__dirvana_hook() {
+  # Don't run if stdin is not a terminal (prevents TUI interference)
+  [[ ! -t 0 ]] && return 0
+
+  # Minimal hook: all logic is in 'dirvana export' for auto-updates
+  # Only run if directory changed (bash-specific optimization)
+  if [[ "$PWD" != "${DIRVANA_PREV_DIR:-}" ]]; then
+    # Capture output and fail silently if dirvana doesn't work
+    local shell_code
+    shell_code=$({{.BinaryPath}} export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null) || return 0
+
+    [[ -n "$shell_code" ]] && eval "$shell_code"
+    export DIRVANA_PREV_DIR="$PWD"
+  fi
+}
+
+# Add to PROMPT_COMMAND
+if [[ -z "${PROMPT_COMMAND}" ]]; then
+  PROMPT_COMMAND="__dirvana_hook"
+elif [[ ! "${PROMPT_COMMAND}" =~ __dirvana_hook ]]; then
+  PROMPT_COMMAND="__dirvana_hook;${PROMPT_COMMAND}"
+fi
+
+# Run on startup
+__dirvana_hook

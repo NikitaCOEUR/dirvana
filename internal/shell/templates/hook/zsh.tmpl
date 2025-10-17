@@ -1,0 +1,18 @@
+__dirvana_hook() {
+  # Don't run if stdin is not a terminal (prevents TUI interference)
+  [[ ! -t 0 ]] && return 0
+
+  # Minimal hook: all logic is in 'dirvana export' for auto-updates
+  # Capture output and fail silently if dirvana doesn't work
+  local shell_code
+  shell_code=$({{.BinaryPath}} export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null) || return 0
+
+  [[ -n "$shell_code" ]] && eval "$shell_code"
+  export DIRVANA_PREV_DIR="$PWD"
+}
+
+autoload -U add-zsh-hook
+add-zsh-hook chpwd __dirvana_hook
+
+# Run on startup
+__dirvana_hook

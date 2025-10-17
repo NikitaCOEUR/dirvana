@@ -13,6 +13,7 @@ import (
 
 const testPathConst = "/test/path"
 
+
 func TestAllow(t *testing.T) {
 	tmpDir := t.TempDir()
 	authPath := filepath.Join(tmpDir, "auth.json")
@@ -84,6 +85,30 @@ func TestRevoke_InvalidAuthPath(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to initialize auth")
 }
 
+func TestRevokeWithParams_FromRevokedDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	authPath := filepath.Join(tmpDir, "auth.json")
+	testDir := filepath.Join(tmpDir, "testdir")
+	require.NoError(t, os.MkdirAll(testDir, 0755))
+
+	// First allow the test directory
+	err := Allow(authPath, testDir)
+	require.NoError(t, err)
+
+	// Change to the test directory
+	oldWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(oldWd) }()
+	require.NoError(t, os.Chdir(testDir))
+
+	// Revoke while in the directory - should show cleanup tip
+	err = RevokeWithParams(RevokeParams{
+		AuthPath:     authPath,
+		PathToRevoke: testDir,
+	})
+	require.NoError(t, err)
+}
+
 func TestList(t *testing.T) {
 	tmpDir := t.TempDir()
 	authPath := filepath.Join(tmpDir, "auth.json")
@@ -115,7 +140,7 @@ func TestInit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run init
-	err = Init()
+	err = Init(false)
 	require.NoError(t, err)
 
 	// Verify config file was created
@@ -148,7 +173,49 @@ func TestInit_AlreadyExists(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run init should fail
-	err = Init()
+	err = Init(false)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists")
+}
+
+func TestInit_Global(t *testing.T) {
+	// Override XDG_CONFIG_HOME to use temp dir
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	// Run init with global flag
+	err := Init(true)
+	require.NoError(t, err)
+
+	// Verify global config file was created
+	globalConfigPath := filepath.Join(tmpDir, "dirvana", "global.yml")
+	data, err := os.ReadFile(globalConfigPath)
+	require.NoError(t, err)
+
+	content := string(data)
+	assert.Contains(t, content, "yaml-language-server: $schema=")
+	assert.Contains(t, content, "aliases:")
+	assert.Contains(t, content, "functions:")
+	assert.Contains(t, content, "env:")
+	assert.Contains(t, content, "local_only:")
+}
+
+func TestInit_Global_AlreadyExists(t *testing.T) {
+	// Override XDG_CONFIG_HOME to use temp dir
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	// Create global config file first
+	globalConfigDir := filepath.Join(tmpDir, "dirvana")
+	err := os.MkdirAll(globalConfigDir, 0755)
+	require.NoError(t, err)
+
+	globalConfigPath := filepath.Join(globalConfigDir, "global.yml")
+	err = os.WriteFile(globalConfigPath, []byte("test"), 0644)
+	require.NoError(t, err)
+
+	// Run init with global flag should fail
+	err = Init(true)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 }
@@ -843,4 +910,39 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to approve shell commands")
 	})
+}
+
+func TestExport_DisabledViaEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Set DIRVANA_ENABLED=false
+	require.NoError(t, os.Setenv("DIRVANA_ENABLED", "false"))
+	defer func() { _ = os.Unsetenv("DIRVANA_ENABLED") }()
+
+	params := ExportParams{
+		LogLevel:  "error",
+		PrevDir:   "",
+		CachePath: cachePath,
+		AuthPath:  authPath,
+	}
+
+	// Capture stdout
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := Export(params)
+	require.NoError(t, err)
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+
+	buf := new(bytes.Buffer)
+	_, _ = buf.ReadFrom(r)
+	output := buf.String()
+
+	// Should return empty output when disabled
+	assert.Empty(t, output)
 }

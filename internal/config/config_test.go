@@ -300,6 +300,17 @@ env:
 func TestConfig_LoadHierarchy(t *testing.T) {
 	tmpDir := t.TempDir()
 
+	// Isolate from user's global config
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	defer func() {
+		if originalXDG != "" {
+			_ = os.Setenv("XDG_CONFIG_HOME", originalXDG)
+		} else {
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
+		}
+	}()
+	_ = os.Setenv("XDG_CONFIG_HOME", tmpDir)
+
 	// Create parent config
 	parentDir := tmpDir
 	parentConfig := filepath.Join(parentDir, ".dirvana.yml")
@@ -344,6 +355,17 @@ env:
 func TestConfig_LoadHierarchy_LocalOnly(t *testing.T) {
 	tmpDir := t.TempDir()
 
+	// Isolate from user's global config
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	defer func() {
+		if originalXDG != "" {
+			_ = os.Setenv("XDG_CONFIG_HOME", originalXDG)
+		} else {
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
+		}
+	}()
+	_ = os.Setenv("XDG_CONFIG_HOME", tmpDir)
+
 	// Create parent config
 	parentDir := tmpDir
 	parentConfig := filepath.Join(parentDir, ".dirvana.yml")
@@ -377,6 +399,17 @@ local_only: true
 
 func TestConfig_LoadHierarchy_NoConfigs(t *testing.T) {
 	tmpDir := t.TempDir()
+
+	// Isolate from user's global config
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	defer func() {
+		if originalXDG != "" {
+			_ = os.Setenv("XDG_CONFIG_HOME", originalXDG)
+		} else {
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
+		}
+	}()
+	_ = os.Setenv("XDG_CONFIG_HOME", tmpDir)
 
 	loader := New()
 	merged, files, err := loader.LoadHierarchy(tmpDir)
@@ -533,6 +566,18 @@ func (m *MockAuthChecker) IsAllowed(path string) (bool, error) {
 func TestConfig_LoadHierarchyWithAuth_SkipsUnauthorized(t *testing.T) {
 	// Create directory structure A/B/C
 	tmpDir := t.TempDir()
+
+	// Isolate from user's global config
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	defer func() {
+		if originalXDG != "" {
+			_ = os.Setenv("XDG_CONFIG_HOME", originalXDG)
+		} else {
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
+		}
+	}()
+	_ = os.Setenv("XDG_CONFIG_HOME", tmpDir)
+
 	dirA := tmpDir // A (root)
 	dirB := filepath.Join(dirA, "B")
 	dirC := filepath.Join(dirB, "C")
@@ -597,6 +642,18 @@ env:
 func TestConfig_LoadHierarchyWithAuth_AllAuthorized(t *testing.T) {
 	// Create directory structure A/B/C
 	tmpDir := t.TempDir()
+
+	// Isolate from user's global config
+	originalXDG := os.Getenv("XDG_CONFIG_HOME")
+	defer func() {
+		if originalXDG != "" {
+			_ = os.Setenv("XDG_CONFIG_HOME", originalXDG)
+		} else {
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
+		}
+	}()
+	_ = os.Setenv("XDG_CONFIG_HOME", tmpDir)
+
 	dirA := tmpDir // A (root)
 	dirB := filepath.Join(dirA, "B")
 	dirC := filepath.Join(dirB, "C")
