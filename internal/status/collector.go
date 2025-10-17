@@ -2,6 +2,7 @@
 package status
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -131,23 +132,43 @@ func collectSystemInfo(data *Data) {
 			}
 
 			if rcFile != "" {
-				fileData, err := os.ReadFile(rcFile)
-				if err == nil {
-					content := string(fileData)
-					// Check for various hook patterns
-					if strings.Contains(content, "# Dirvana") ||
-						strings.Contains(content, "hook-bash.sh") ||
-						strings.Contains(content, "hook-zsh.sh") ||
-						strings.Contains(content, "dirvana export") {
-						hookInstalled = true
-					}
-				}
+				hookInstalled = checkRCFileForHook(rcFile)
 			}
 		}
 	}
 
 	data.HookInstalled = hookInstalled
 	data.RCFile = rcFile
+}
+
+// checkRCFileForHook scans RC file line by line for hook patterns (optimized)
+func checkRCFileForHook(rcFile string) bool {
+	file, err := os.Open(rcFile)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = file.Close() }()
+
+	// Hook patterns to search for
+	patterns := []string{
+		"# Dirvana",
+		"hook-bash.sh",
+		"hook-zsh.sh",
+		"dirvana export",
+	}
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		// Check each pattern
+		for _, pattern := range patterns {
+			if strings.Contains(line, pattern) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func collectCacheInfo(data *Data, cacheObj *cache.Cache, currentDir string) {

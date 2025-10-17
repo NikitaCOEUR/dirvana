@@ -382,6 +382,7 @@ func TestTryLoadExpiredCache(t *testing.T) {
 // TestLoadRegistry tests registry loading with various scenarios
 func TestLoadRegistry(t *testing.T) {
 	t.Run("loads from cache when valid", func(t *testing.T) {
+		clearRegistryCache() // Clear memory cache before test
 		tmpDir := t.TempDir()
 
 		// Create a valid cached registry

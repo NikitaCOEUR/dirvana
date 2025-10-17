@@ -58,7 +58,9 @@ func execWithTimeoutAndEnv(ctx context.Context, env []string, tool string, args 
 // parseCompletionOutput parses completion output into suggestions
 // If parseDescriptions is true, it will parse tab-separated descriptions
 func parseCompletionOutput(output []byte, parseDescriptions bool) []Suggestion {
-	suggestions := []Suggestion{} // Initialize as empty slice, not nil
+	// Pre-allocate with reasonable capacity to reduce reallocations
+	// Most completions have at least a few suggestions
+	suggestions := make([]Suggestion, 0, 16)
 
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 	for scanner.Scan() {
