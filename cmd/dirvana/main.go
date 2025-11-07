@@ -290,6 +290,7 @@ func main() {
 
 					return dircli.Exec(dircli.ExecParams{
 						CachePath: cachePath,
+						AuthPath:  authPath,
 						LogLevel:  cmd.String("log-level"),
 						Alias:     alias,
 						Args:      args,
@@ -337,6 +338,7 @@ func main() {
 
 					return dircli.Completion(dircli.CompletionParams{
 						CachePath: cachePath,
+						AuthPath:  authPath,
 						LogLevel:  cmd.String("log-level"),
 						Words:     words,
 						CWord:     cword,

@@ -126,9 +126,17 @@ func checkUnauthorizedConfig(currentDir string, currentActiveChain []string, tar
 }
 
 // loadAndMergeConfigs loads all configs in the active chain and caches them
-func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *logger.Logger) *config.Config {
-	var mergedConfig *config.Config
+// Uses LoadHierarchyWithAuth to properly handle global config, ignore_global, and local_only
+func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *logger.Logger, currentDir string) *config.Config {
+	// Load the full hierarchy with proper global, ignore_global, and local_only handling
+	mergedConfig, _, err := comps.config.LoadHierarchyWithAuth(currentDir, comps.auth)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load config hierarchy")
+		return nil
+	}
 
+	// Cache individual configs for cleanup purposes
+	// We iterate through the active chain to cache each config separately
 	for _, configDir := range currentActiveChain {
 		// Find config file in this directory
 		var configPath string
@@ -144,7 +152,7 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 			continue
 		}
 
-		// Load this specific config (not hierarchy)
+		// Load this specific config (not hierarchy) for caching
 		cfg, err := comps.config.Load(configPath)
 		if err != nil {
 			log.Warn().Err(err).Str("path", configPath).Msg("Failed to load config")
@@ -177,18 +185,6 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 
 		if err := comps.cache.Set(entry); err != nil {
 			log.Warn().Err(err).Str("dir", configDir).Msg("Failed to update cache")
-		}
-
-		// Merge configs
-		if mergedConfig == nil {
-			mergedConfig = cfg
-		} else {
-			mergedConfig = config.Merge(mergedConfig, cfg)
-		}
-
-		// If this config has local_only, stop merging (shouldn't happen as GetActiveConfigChain handles it)
-		if cfg.LocalOnly {
-			break
 		}
 	}
 
@@ -248,7 +244,8 @@ func Export(params ExportParams) error {
 	checkUnauthorizedConfig(currentDir, chains.current, targetShell, log)
 
 	// Load each config in the active chain and cache individual definitions
-	mergedConfig := loadAndMergeConfigs(chains.current, comps, log)
+	// This now uses LoadHierarchyWithAuth to properly handle global config, ignore_global, and local_only
+	mergedConfig := loadAndMergeConfigs(chains.current, comps, log, currentDir)
 
 	// If no valid configs loaded, output cleanup and return
 	if mergedConfig == nil {
@@ -283,7 +280,16 @@ func Export(params ExportParams) error {
 		if err := comps.auth.ApproveShellCommands(currentDir, shellEnv); err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stderr, "\n✓ Shell commands approved and cached\n\n")
+
+		// Display confirmation message directly to terminal
+		tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+		if err != nil {
+			// Fallback to stderr if /dev/tty is not available
+			fmt.Fprintf(os.Stderr, "\n✓ Shell commands approved and cached\n\n")
+		} else {
+			fmt.Fprintf(tty, "\n✓ Shell commands approved and cached\n\n")
+			_ = tty.Close()
+		}
 	}
 
 	// Configure shell generator
@@ -322,23 +328,50 @@ func displayShellCommandsForApproval(shellEnv map[string]string) error {
 	if len(shellEnv) == 0 {
 		return nil
 	}
-	fmt.Fprintf(os.Stderr, "\n⚠️  This configuration contains dynamic shell commands:\n\n")
+
+	// Open /dev/tty to write directly to the terminal
+	// This ensures messages are visible even when stdout/stderr are redirected (e.g., in eval)
+	tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+	if err != nil {
+		// Fallback to stderr if /dev/tty is not available
+		tty = os.Stderr
+	} else {
+		defer func() { _ = tty.Close() }()
+	}
+
+	fmt.Fprintf(tty, "\n⚠️  This configuration contains dynamic shell commands:\n\n")
 	keys := make([]string, 0, len(shellEnv))
 	for k := range shellEnv {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		fmt.Fprintf(os.Stderr, "   • %s: %s\n", key, shellEnv[key])
+		fmt.Fprintf(tty, "   • %s: %s\n", key, shellEnv[key])
 	}
-	fmt.Fprintf(os.Stderr, "\nThese commands will execute to set environment variables.\n")
+	fmt.Fprintf(tty, "\nThese commands will execute to set environment variables.\n")
 	return nil
 }
 
 // Prompt user for shell command approval
 func promptShellApproval() (bool, error) {
-	fmt.Fprintf(os.Stderr, "Approve execution? [y/N]: ")
-	reader := bufio.NewReader(os.Stdin)
+	// Open /dev/tty for both reading and writing to interact with the user
+	// This ensures prompts are visible even when stdout/stderr are redirected (e.g., in eval)
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		// Fallback to stderr for output and stdin for input
+		fmt.Fprintf(os.Stderr, "Approve execution? [y/N]: ")
+		reader := bufio.NewReader(os.Stdin)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return false, err
+		}
+		response = strings.TrimSpace(strings.ToLower(response))
+		return response == "y" || response == "yes", nil
+	}
+	defer func() { _ = tty.Close() }()
+
+	fmt.Fprintf(tty, "Approve execution? [y/N]: ")
+	reader := bufio.NewReader(tty)
 	response, err := reader.ReadString('\n')
 	if err != nil {
 		return false, err
