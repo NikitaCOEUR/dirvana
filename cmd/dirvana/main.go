@@ -83,6 +83,11 @@ func main() {
 					pathToAllow := currentDir
 					if cmd.Args().Len() > 0 {
 						pathToAllow = cmd.Args().Get(0)
+						// Resolve relative paths to absolute paths
+						pathToAllow, err = filepath.Abs(pathToAllow)
+						if err != nil {
+							return fmt.Errorf("failed to resolve path: %w", err)
+						}
 					}
 
 					return dircli.AllowWithParams(dircli.AllowParams{
@@ -106,6 +111,11 @@ func main() {
 					pathToRevoke := currentDir
 					if cmd.Args().Len() > 0 {
 						pathToRevoke = cmd.Args().Get(0)
+						// Resolve relative paths to absolute paths
+						pathToRevoke, err = filepath.Abs(pathToRevoke)
+						if err != nil {
+							return fmt.Errorf("failed to resolve path: %w", err)
+						}
 					}
 
 					return dircli.RevokeWithParams(dircli.RevokeParams{
@@ -290,6 +300,7 @@ func main() {
 
 					return dircli.Exec(dircli.ExecParams{
 						CachePath: cachePath,
+						AuthPath:  authPath,
 						LogLevel:  cmd.String("log-level"),
 						Alias:     alias,
 						Args:      args,
@@ -337,6 +348,7 @@ func main() {
 
 					return dircli.Completion(dircli.CompletionParams{
 						CachePath: cachePath,
+						AuthPath:  authPath,
 						LogLevel:  cmd.String("log-level"),
 						Words:     words,
 						CWord:     cword,

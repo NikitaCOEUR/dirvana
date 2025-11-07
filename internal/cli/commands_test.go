@@ -260,10 +260,7 @@ func TestExport_NotAuthorized(t *testing.T) {
 
 	// Create a config file
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	configContent := `aliases:
-  test: echo test
-`
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(testAliasConfig), 0644)
 	require.NoError(t, err)
 
 	params := ExportParams{
@@ -293,10 +290,7 @@ func TestExport_Authorized(t *testing.T) {
 
 	// Create a config file
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	configContent := `aliases:
-  test: echo test
-`
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(testAliasConfig), 0644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -375,10 +369,7 @@ func TestExport_WithContextCleanup(t *testing.T) {
 	require.NoError(t, os.WriteFile(parentConfig, []byte(parentContent), 0644))
 
 	childConfig := filepath.Join(childDir, ".dirvana.yml")
-	childContent := `aliases:
-  child: echo child
-`
-	require.NoError(t, os.WriteFile(childConfig, []byte(childContent), 0644))
+	require.NoError(t, os.WriteFile(childConfig, []byte(childAliasConfig), 0644))
 
 	// Authorize both directories
 	require.NoError(t, Allow(authPath, parentDir))
@@ -446,6 +437,17 @@ env:
 		CachePath: cachePath,
 		AuthPath:  authPath,
 	}
+
+	// Enable test mode to use stdin instead of /dev/tty
+	oldTestMode := os.Getenv("DIRVANA_TEST_MODE")
+	require.NoError(t, os.Setenv("DIRVANA_TEST_MODE", "1"))
+	defer func() {
+		if oldTestMode == "" {
+			_ = os.Unsetenv("DIRVANA_TEST_MODE")
+		} else {
+			_ = os.Setenv("DIRVANA_TEST_MODE", oldTestMode)
+		}
+	}()
 
 	// Simulate user approval for shell commands
 	oldStdin := os.Stdin
@@ -553,6 +555,17 @@ func TestDisplayShellCommandsForApproval(t *testing.T) {
 // TestPromptShellApproval tests the user approval prompt for shell commands
 func TestPromptShellApproval(t *testing.T) {
 	t.Run("Approved", func(t *testing.T) {
+		// Enable test mode to use stdin instead of /dev/tty
+		oldTestMode := os.Getenv("DIRVANA_TEST_MODE")
+		require.NoError(t, os.Setenv("DIRVANA_TEST_MODE", "1"))
+		defer func() {
+			if oldTestMode == "" {
+				_ = os.Unsetenv("DIRVANA_TEST_MODE")
+			} else {
+				_ = os.Setenv("DIRVANA_TEST_MODE", oldTestMode)
+			}
+		}()
+
 		// Simulate user input "y\n"
 		oldStdin := os.Stdin
 		r, w, _ := os.Pipe()
@@ -574,6 +587,17 @@ func TestPromptShellApproval(t *testing.T) {
 	})
 
 	t.Run("Denied", func(t *testing.T) {
+		// Enable test mode to use stdin instead of /dev/tty
+		oldTestMode := os.Getenv("DIRVANA_TEST_MODE")
+		require.NoError(t, os.Setenv("DIRVANA_TEST_MODE", "1"))
+		defer func() {
+			if oldTestMode == "" {
+				_ = os.Unsetenv("DIRVANA_TEST_MODE")
+			} else {
+				_ = os.Setenv("DIRVANA_TEST_MODE", oldTestMode)
+			}
+		}()
+
 		// Simulate user input "n\n"
 		oldStdin := os.Stdin
 		r, w, _ := os.Pipe()
@@ -595,6 +619,17 @@ func TestPromptShellApproval(t *testing.T) {
 	})
 
 	t.Run("YesFullWord", func(t *testing.T) {
+		// Enable test mode to use stdin instead of /dev/tty
+		oldTestMode := os.Getenv("DIRVANA_TEST_MODE")
+		require.NoError(t, os.Setenv("DIRVANA_TEST_MODE", "1"))
+		defer func() {
+			if oldTestMode == "" {
+				_ = os.Unsetenv("DIRVANA_TEST_MODE")
+			} else {
+				_ = os.Setenv("DIRVANA_TEST_MODE", oldTestMode)
+			}
+		}()
+
 		// Simulate user input "yes\n"
 		oldStdin := os.Stdin
 		r, w, _ := os.Pipe()

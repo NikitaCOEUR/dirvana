@@ -2,11 +2,16 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
+	dircontext "github.com/NikitaCOEUR/dirvana/internal/context"
 	"github.com/NikitaCOEUR/dirvana/internal/shell"
+	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
 
 // components holds initialized Dirvana components
@@ -103,4 +108,114 @@ func buildCompletionMap(aliases map[string]config.AliasConfig) map[string]string
 	}
 
 	return completionMap
+}
+
+// getMergedCommandMaps returns merged CommandMaps and CompletionMaps for a directory.
+// Respects the full config hierarchy including global config, ignore_global, local_only, and authorization.
+// Returns nil maps if no context is found or not authorized.
+func getMergedCommandMaps(currentDir string, cachePath string, authPath string) (commandMap, completionMap map[string]string, err error) {
+	// Initialize components
+	comps, err := initializeComponents(cachePath, authPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Try to use cached merged config first
+	if cachedEntry, found := comps.cache.Get(currentDir); found {
+		if validEntry, isValid := validateMergedCache(cachedEntry, currentDir, comps.config, comps.auth, version.Version); isValid {
+			// Cache hit! Return cached merged maps
+			return validEntry.MergedCommandMap, validEntry.MergedCompletionMap, nil
+		}
+		// Cache miss/invalid, fall through to hierarchy load
+	}
+
+	// Cache miss or invalid: Load the full config hierarchy with auth
+	// This respects global config, ignore_global, local_only, and authorization
+	mergedConfig, _, err := comps.config.LoadHierarchyWithAuth(currentDir, comps.auth)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Build command maps from the merged config
+	aliases := mergedConfig.GetAliases()
+	commandMap = buildCommandMap(aliases, mergedConfig.Functions)
+	completionMap = buildCompletionMap(aliases)
+
+	return commandMap, completionMap, nil
+}
+
+// computeHierarchyHash computes a composite hash from all configs in the hierarchy
+// Returns: hierarchyHash, configPaths, error
+// The hierarchyHash is a concatenation of all individual config hashes, making it
+// sensitive to changes in any file in the hierarchy
+func computeHierarchyHash(configDirs []string, configLoader *config.Loader) (string, []string, error) {
+	var hashes []string
+	var paths []string
+
+	for _, configDir := range configDirs {
+		// Find config file in this directory
+		var configPath string
+		for _, name := range config.SupportedConfigNames {
+			path := filepath.Join(configDir, name)
+			if _, err := os.Stat(path); err == nil {
+				configPath = path
+				break
+			}
+		}
+
+		if configPath == "" {
+			continue
+		}
+
+		// Compute hash for this config file
+		hash, err := configLoader.Hash(configPath)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to hash %s: %w", configPath, err)
+		}
+
+		hashes = append(hashes, hash)
+		paths = append(paths, configPath)
+	}
+
+	// Concatenate all hashes with colons
+	hierarchyHash := strings.Join(hashes, ":")
+	return hierarchyHash, paths, nil
+}
+
+// validateMergedCache checks if a cached merged configuration is still valid
+// Returns the cached entry if valid, or nil + false if cache should be invalidated
+func validateMergedCache(cacheEntry *cache.Entry, currentDir string, configLoader *config.Loader, authMgr *auth.Auth, appVersion string) (*cache.Entry, bool) {
+	// Check version compatibility
+	if cacheEntry.Version != appVersion {
+		return nil, false
+	}
+
+	// Check if merged maps exist (backward compatibility with old cache format)
+	if cacheEntry.MergedCommandMap == nil {
+		return nil, false
+	}
+
+	// Check if hierarchy hash exists
+	if cacheEntry.HierarchyHash == "" {
+		return nil, false
+	}
+
+	// Recompute active config chain to check if it changed
+	// Use GetActiveConfigChain from context package
+	activeChain := dircontext.GetActiveConfigChain(currentDir, authMgr, configLoader)
+
+	// Compute current hierarchy hash
+	currentHash, _, err := computeHierarchyHash(activeChain, configLoader)
+	if err != nil {
+		// Failed to compute hash, invalidate cache
+		return nil, false
+	}
+
+	// Compare hashes
+	if currentHash != cacheEntry.HierarchyHash {
+		return nil, false
+	}
+
+	// Cache is valid!
+	return cacheEntry, true
 }

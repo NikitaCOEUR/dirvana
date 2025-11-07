@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
@@ -15,6 +14,7 @@ import (
 // ExecParams contains parameters for the Exec command
 type ExecParams struct {
 	CachePath string
+	AuthPath  string
 	LogLevel  string
 	Alias     string
 	Args      []string
@@ -30,47 +30,59 @@ func Exec(params ExecParams) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Load cache
-	c, err := cache.New(params.CachePath)
+	// Get merged command maps from the full hierarchy
+	// This respects global config, ignore_global, local_only, and authorization
+	commandMap, _, err := getMergedCommandMaps(currentDir, params.CachePath, params.AuthPath)
 	if err != nil {
-		return fmt.Errorf("failed to load cache: %w", err)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Find the cache entry for current directory or parent directories
-	entry, found := findCacheEntry(c, currentDir)
-	if !found {
+	if len(commandMap) == 0 {
 		return fmt.Errorf("no dirvana context found for alias '%s'", params.Alias)
 	}
 
 	// Check if alias exists in this context
-	command, found := entry.CommandMap[params.Alias]
+	command, found := commandMap[params.Alias]
 	if !found {
 		return fmt.Errorf("alias '%s' not found in dirvana context", params.Alias)
 	}
 
 	log.Debug().Str("alias", params.Alias).Str("command", command).Msg("Resolving alias")
 
-	// Parse command (handle multi-word commands)
-	cmdParts := strings.Fields(command)
-	if len(cmdParts) == 0 {
-		return fmt.Errorf("empty command for alias '%s'", params.Alias)
+	// Execute via shell to allow variable expansion, pipes, redirections, etc.
+	// Detect which shell to use
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "bash" // Fallback to bash (will be found via PATH)
 	}
 
-	// Combine command parts with user args
-	allArgs := append(cmdParts[1:], params.Args...)
-
-	// Find executable path
-	execPath, err := exec.LookPath(cmdParts[0])
+	// Find shell executable path
+	execPath, err := exec.LookPath(shell)
 	if err != nil {
-		return fmt.Errorf("command not found: %s", cmdParts[0])
+		return fmt.Errorf("shell not found: %s", shell)
 	}
 
-	// Prepare arguments for exec (argv[0] should be the program name)
-	argv := append([]string{cmdParts[0]}, allArgs...)
+	// Build argv for shell execution
+	// Use: shell -c 'command "$@"' shell args...
+	// The first arg after the command becomes $0 (we use shell name)
+	// The remaining args become $1, $2, $3, etc. which are captured by "$@"
+	var argv []string
+	if len(params.Args) > 0 {
+		// Append "$@" to command to receive user arguments
+		argv = []string{shell, "-c", command + ` "$@"`, shell}
+		argv = append(argv, params.Args...)
+	} else {
+		// No user arguments, just execute the command
+		argv = []string{shell, "-c", command}
+	}
 
-	// Execute the command directly (replace current process)
-	// This is the most efficient way - no fork overhead
-	// NOTE: If this returns, it means exec failed (should never happen after LookPath succeeds)
+	log.Debug().
+		Str("shell", shell).
+		Str("argv", fmt.Sprintf("%q", argv)).
+		Msg("Executing command via shell")
+
+	// Execute the command via shell (replace current process)
+	// This allows shell variable expansion, pipes, redirections, etc.
 	err = syscall.Exec(execPath, argv, os.Environ())
 
 	// If we reach here, syscall.Exec failed (extremely rare)

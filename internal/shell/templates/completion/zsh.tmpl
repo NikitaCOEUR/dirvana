@@ -21,6 +21,11 @@ __dirvana_complete_zsh() {
   # We convert to 0-based for COMP_CWORD
   cword=$((CURRENT - 1))
 
+  # The user could have moved the cursor backwards on the command-line.
+  # We need to trigger completion from the $cword location, so we need
+  # to truncate the command-line ($words) up to the $cword location.
+  words_array=("${words_array[@]:0:$cword+1}")
+
   # If cursor is after all words (CURRENT > number of words), we're completing a new word
   # Add an empty word to the array for completion
   if (( CURRENT > ${#words[@]} )); then

@@ -12,6 +12,10 @@ const testAliasConfig = `aliases:
   test: echo test
 `
 
+const childAliasConfig = `aliases:
+  child: echo child
+`
+
 func TestStatus_NoConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
@@ -168,10 +172,7 @@ func TestStatus_WithHierarchy(t *testing.T) {
 
 	// Create child config
 	childConfig := filepath.Join(childDir, ".dirvana.yml")
-	childContent := `aliases:
-  child: echo child
-`
-	require.NoError(t, os.WriteFile(childConfig, []byte(childContent), 0644))
+	require.NoError(t, os.WriteFile(childConfig, []byte(childAliasConfig), 0644))
 
 	// Authorize both directories
 	require.NoError(t, Allow(authPath, parentDir))

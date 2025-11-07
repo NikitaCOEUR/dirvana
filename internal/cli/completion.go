@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/completion"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 )
@@ -16,6 +15,7 @@ import (
 // CompletionParams contains parameters for the Completion command
 type CompletionParams struct {
 	CachePath string
+	AuthPath  string
 	LogLevel  string
 	Words     []string // Words in the command line (COMP_WORDS)
 	CWord     int      // Index of word being completed (COMP_CWORD)
@@ -47,21 +47,21 @@ func Completion(params CompletionParams) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Load cache
-	c, err := cache.New(params.CachePath)
+	// Get merged command maps from the full hierarchy
+	// This respects global config, ignore_global, local_only, and authorization
+	commandMap, completionMap, err := getMergedCommandMaps(currentDir, params.CachePath, params.AuthPath)
 	if err != nil {
-		return fmt.Errorf("failed to load cache: %w", err)
+		// Failed to load config, no completions
+		return nil
 	}
 
-	// Find the cache entry for current directory
-	entry, found := findCacheEntry(c, currentDir)
-	if !found {
+	if len(commandMap) == 0 {
 		// No dirvana context, no completions
 		return nil
 	}
 
 	// Look up the actual command for this alias
-	command, found := entry.CommandMap[aliasName]
+	command, found := commandMap[aliasName]
 	if !found {
 		// Not a dirvana-managed alias
 		return nil
@@ -70,8 +70,8 @@ func Completion(params CompletionParams) error {
 	// Check if there's a completion override
 	// (e.g., k -> kubecolor for exec, but kubectl for completion)
 	completionCmd := command
-	if entry.CompletionMap != nil {
-		if override, ok := entry.CompletionMap[aliasName]; ok {
+	if completionMap != nil {
+		if override, ok := completionMap[aliasName]; ok {
 			completionCmd = override
 		}
 	}

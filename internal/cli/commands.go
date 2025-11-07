@@ -126,9 +126,17 @@ func checkUnauthorizedConfig(currentDir string, currentActiveChain []string, tar
 }
 
 // loadAndMergeConfigs loads all configs in the active chain and caches them
-func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *logger.Logger) *config.Config {
-	var mergedConfig *config.Config
+// Uses LoadHierarchyWithAuth to properly handle global config, ignore_global, and local_only
+func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *logger.Logger, currentDir string) *config.Config {
+	// Load the full hierarchy with proper global, ignore_global, and local_only handling
+	mergedConfig, _, err := comps.config.LoadHierarchyWithAuth(currentDir, comps.auth)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load config hierarchy")
+		return nil
+	}
 
+	// Cache individual configs for cleanup purposes
+	// We iterate through the active chain to cache each config separately
 	for _, configDir := range currentActiveChain {
 		// Find config file in this directory
 		var configPath string
@@ -144,7 +152,7 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 			continue
 		}
 
-		// Load this specific config (not hierarchy)
+		// Load this specific config (not hierarchy) for caching
 		cfg, err := comps.config.Load(configPath)
 		if err != nil {
 			log.Warn().Err(err).Str("path", configPath).Msg("Failed to load config")
@@ -177,18 +185,6 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 
 		if err := comps.cache.Set(entry); err != nil {
 			log.Warn().Err(err).Str("dir", configDir).Msg("Failed to update cache")
-		}
-
-		// Merge configs
-		if mergedConfig == nil {
-			mergedConfig = cfg
-		} else {
-			mergedConfig = config.Merge(mergedConfig, cfg)
-		}
-
-		// If this config has local_only, stop merging (shouldn't happen as GetActiveConfigChain handles it)
-		if cfg.LocalOnly {
-			break
 		}
 	}
 
@@ -248,7 +244,8 @@ func Export(params ExportParams) error {
 	checkUnauthorizedConfig(currentDir, chains.current, targetShell, log)
 
 	// Load each config in the active chain and cache individual definitions
-	mergedConfig := loadAndMergeConfigs(chains.current, comps, log)
+	// This now uses LoadHierarchyWithAuth to properly handle global config, ignore_global, and local_only
+	mergedConfig := loadAndMergeConfigs(chains.current, comps, log, currentDir)
 
 	// If no valid configs loaded, output cleanup and return
 	if mergedConfig == nil {
@@ -261,9 +258,47 @@ func Export(params ExportParams) error {
 	}
 	timer.Mark("load_configs")
 
+	// Cache the merged configuration for fast completion/exec access
+	// Build merged command and completion maps from the final merged config
+	aliases := mergedConfig.GetAliases()
+	mergedCommandMap := buildCommandMap(aliases, mergedConfig.Functions)
+	mergedCompletionMap := buildCompletionMap(aliases)
+
+	// Compute hierarchy hash from all active config paths
+	hierarchyHash, hierarchyPaths, err := computeHierarchyHash(chains.current, comps.config)
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to compute hierarchy hash")
+	}
+
+	// Cache the merged result for the current directory
+	if hierarchyHash != "" {
+		mergedEntry := &cache.Entry{
+			Path:                currentDir,
+			Hash:                hierarchyHash,
+			Timestamp:           time.Now(),
+			Version:             version.Version,
+			MergedCommandMap:    mergedCommandMap,
+			MergedCompletionMap: mergedCompletionMap,
+			HierarchyHash:       hierarchyHash,
+			HierarchyPaths:      hierarchyPaths,
+			// Don't store individual cleanup data in merged entry
+		}
+
+		if err := comps.cache.Set(mergedEntry); err != nil {
+			log.Debug().Err(err).Str("dir", currentDir).Msg("Failed to cache merged config")
+		} else {
+			log.Debug().
+				Str("dir", currentDir).
+				Int("merged_commands", len(mergedCommandMap)).
+				Int("merged_completions", len(mergedCompletionMap)).
+				Str("hierarchy_hash", hierarchyHash).
+				Msg("Cached merged configuration")
+		}
+	}
+	timer.Mark("cache_merged")
+
 	// Get environment variables and aliases
 	staticEnv, shellEnv := mergedConfig.GetEnvVars()
-	aliases := mergedConfig.GetAliases()
 
 	// Shell command approval logic
 	if comps.auth.RequiresShellApproval(currentDir, shellEnv) {
@@ -283,7 +318,16 @@ func Export(params ExportParams) error {
 		if err := comps.auth.ApproveShellCommands(currentDir, shellEnv); err != nil {
 			return err
 		}
-		fmt.Fprintf(os.Stderr, "\n✓ Shell commands approved and cached\n\n")
+
+		// Display confirmation message directly to terminal
+		tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+		if err != nil {
+			// Fallback to stderr if /dev/tty is not available
+			_, _ = fmt.Fprintf(os.Stderr, "\n✓ Shell commands approved and cached\n\n")
+		} else {
+			_, _ = fmt.Fprintf(tty, "\n✓ Shell commands approved and cached\n\n")
+			_ = tty.Close()
+		}
 	}
 
 	// Configure shell generator
@@ -322,23 +366,61 @@ func displayShellCommandsForApproval(shellEnv map[string]string) error {
 	if len(shellEnv) == 0 {
 		return nil
 	}
-	fmt.Fprintf(os.Stderr, "\n⚠️  This configuration contains dynamic shell commands:\n\n")
+
+	// Open /dev/tty to write directly to the terminal
+	// This ensures messages are visible even when stdout/stderr are redirected (e.g., in eval)
+	tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+	if err != nil {
+		// Fallback to stderr if /dev/tty is not available
+		tty = os.Stderr
+	} else {
+		defer func() { _ = tty.Close() }()
+	}
+
+	_, _ = fmt.Fprintf(tty, "\n⚠️  This configuration contains dynamic shell commands:\n\n")
 	keys := make([]string, 0, len(shellEnv))
 	for k := range shellEnv {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		fmt.Fprintf(os.Stderr, "   • %s: %s\n", key, shellEnv[key])
+		_, _ = fmt.Fprintf(tty, "   • %s: %s\n", key, shellEnv[key])
 	}
-	fmt.Fprintf(os.Stderr, "\nThese commands will execute to set environment variables.\n")
+	_, _ = fmt.Fprintf(tty, "\nThese commands will execute to set environment variables.\n")
 	return nil
 }
 
 // Prompt user for shell command approval
 func promptShellApproval() (bool, error) {
-	fmt.Fprintf(os.Stderr, "Approve execution? [y/N]: ")
-	reader := bufio.NewReader(os.Stdin)
+	// For testing: use stdin/stderr fallback if DIRVANA_TEST_MODE is set
+	useFallback := os.Getenv("DIRVANA_TEST_MODE") != ""
+
+	// Open /dev/tty for both reading and writing to interact with the user
+	// This ensures prompts are visible even when stdout/stderr are redirected (e.g., in eval)
+	var tty *os.File
+	var err error
+
+	if !useFallback {
+		tty, err = os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	} else {
+		err = fmt.Errorf("test mode: skip /dev/tty")
+	}
+
+	if err != nil {
+		// Fallback to stderr for output and stdin for input
+		_, _ = fmt.Fprintf(os.Stderr, "Approve execution? [y/N]: ")
+		reader := bufio.NewReader(os.Stdin)
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			return false, err
+		}
+		response = strings.TrimSpace(strings.ToLower(response))
+		return response == "y" || response == "yes", nil
+	}
+	defer func() { _ = tty.Close() }()
+
+	_, _ = fmt.Fprintf(tty, "Approve execution? [y/N]: ")
+	reader := bufio.NewReader(tty)
 	response, err := reader.ReadString('\n')
 	if err != nil {
 		return false, err
@@ -374,6 +456,18 @@ func AllowWithParams(params AllowParams) error {
 
 	if err := authMgr.Allow(params.PathToAllow); err != nil {
 		return fmt.Errorf("failed to authorize: %w", err)
+	}
+
+	// Invalidate cache for the authorized directory
+	// This ensures the config will be reloaded with proper authorization
+	if params.CachePath != "" {
+		cacheStorage, err := cache.New(params.CachePath)
+		if err == nil {
+			if err := cacheStorage.Delete(params.PathToAllow); err != nil {
+				// Log but don't fail - cache invalidation is not critical
+				fmt.Fprintf(os.Stderr, "Warning: failed to invalidate cache: %v\n", err)
+			}
+		}
 	}
 
 	fmt.Printf("Authorized: %s\n", params.PathToAllow)
@@ -424,6 +518,18 @@ func RevokeWithParams(params RevokeParams) error {
 
 	if err := authMgr.Revoke(params.PathToRevoke); err != nil {
 		return fmt.Errorf("failed to revoke: %w", err)
+	}
+
+	// Invalidate cache for the revoked directory and all its subdirectories
+	// This ensures configs are no longer accessible without re-authorization
+	if params.CachePath != "" {
+		cacheStorage, err := cache.New(params.CachePath)
+		if err == nil {
+			if err := cacheStorage.DeleteWithSubdirs(params.PathToRevoke); err != nil {
+				// Log but don't fail - cache invalidation is not critical
+				fmt.Fprintf(os.Stderr, "Warning: failed to invalidate cache: %v\n", err)
+			}
+		}
 	}
 
 	fmt.Printf("Revoked: %s\n", params.PathToRevoke)

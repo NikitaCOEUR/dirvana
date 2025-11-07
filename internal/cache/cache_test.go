@@ -277,3 +277,74 @@ func TestIsParentOf(t *testing.T) {
 		})
 	}
 }
+
+func TestCache_DeleteWithSubdirs(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+
+	c, err := New(cachePath)
+	require.NoError(t, err)
+
+	// Create entries for parent, child, grandchild, and sibling
+	parent := &Entry{
+		Path:      "/home/user",
+		Hash:      "hash1",
+		Timestamp: time.Now(),
+		Version:   "1.0.0",
+	}
+	child := &Entry{
+		Path:      "/home/user/project",
+		Hash:      "hash2",
+		Timestamp: time.Now(),
+		Version:   "1.0.0",
+	}
+	grandchild := &Entry{
+		Path:      "/home/user/project/subdir",
+		Hash:      "hash3",
+		Timestamp: time.Now(),
+		Version:   "1.0.0",
+	}
+	sibling := &Entry{
+		Path:      "/home/other",
+		Hash:      "hash4",
+		Timestamp: time.Now(),
+		Version:   "1.0.0",
+	}
+
+	require.NoError(t, c.Set(parent))
+	require.NoError(t, c.Set(child))
+	require.NoError(t, c.Set(grandchild))
+	require.NoError(t, c.Set(sibling))
+
+	// Delete child and its subdirectories
+	err = c.DeleteWithSubdirs("/home/user/project")
+	require.NoError(t, err)
+
+	// Parent should still exist
+	_, found := c.Get("/home/user")
+	assert.True(t, found, "Parent should still exist")
+
+	// Child should be deleted
+	_, found = c.Get("/home/user/project")
+	assert.False(t, found, "Child should be deleted")
+
+	// Grandchild should be deleted
+	_, found = c.Get("/home/user/project/subdir")
+	assert.False(t, found, "Grandchild should be deleted")
+
+	// Sibling should still exist
+	_, found = c.Get("/home/other")
+	assert.True(t, found, "Sibling should still exist")
+}
+
+func TestCache_DeleteWithSubdirs_EmptyCache(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+
+	c, err := New(cachePath)
+	require.NoError(t, err)
+
+	// Should not error on empty cache
+	err = c.DeleteWithSubdirs("/home/user/project")
+	require.NoError(t, err)
+}

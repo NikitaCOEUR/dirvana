@@ -10,6 +10,11 @@ __dirvana_complete() {
     cword=$COMP_CWORD
   }
 
+  # The user could have moved the cursor backwards on the command-line.
+  # We need to trigger completion from the $cword location, so we need
+  # to truncate the command-line ($words) up to the $cword location.
+  words=("${words[@]:0:$cword+1}")
+
   # Let dirvana handle ALL completion logic (fuzzy matching, filtering, etc.)
   local IFS=$'\n'
   local suggestions

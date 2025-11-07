@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 	"github.com/stretchr/testify/assert"
@@ -104,6 +105,7 @@ func TestExec_NoCacheEntry(t *testing.T) {
 func TestExec_AliasNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
 	workDir := filepath.Join(tmpDir, "work")
 	require.NoError(t, os.MkdirAll(workDir, 0755))
 
@@ -111,20 +113,17 @@ func TestExec_AliasNotFound(t *testing.T) {
 	workDir, err := filepath.EvalSymlinks(workDir)
 	require.NoError(t, err)
 
-	// Create cache with entry but different alias
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
+	// Create a real config file with an alias
+	configPath := filepath.Join(workDir, ".dirvana.yml")
+	configContent := `aliases:
+  other: echo other
+`
+	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
 
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-		CommandMap: map[string]string{
-			"other": "echo other",
-		},
-	})
+	// Authorize the directory
+	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
+	require.NoError(t, authMgr.Allow(workDir))
 
 	// Change to work directory
 	origDir, err := os.Getwd()
@@ -135,6 +134,7 @@ func TestExec_AliasNotFound(t *testing.T) {
 
 	params := ExecParams{
 		CachePath: cachePath,
+		AuthPath:  authPath,
 		LogLevel:  "error",
 		Alias:     "nonexistent",
 		Args:      []string{},
@@ -148,6 +148,7 @@ func TestExec_AliasNotFound(t *testing.T) {
 func TestExec_EmptyCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
 	workDir := filepath.Join(tmpDir, "work")
 	require.NoError(t, os.MkdirAll(workDir, 0755))
 
@@ -155,20 +156,17 @@ func TestExec_EmptyCommand(t *testing.T) {
 	workDir, err := filepath.EvalSymlinks(workDir)
 	require.NoError(t, err)
 
-	// Create cache with empty command
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
+	// Create a real config file with empty command
+	configPath := filepath.Join(workDir, ".dirvana.yml")
+	configContent := `aliases:
+  empty: ""
+`
+	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
 
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-		CommandMap: map[string]string{
-			"empty": "",
-		},
-	})
+	// Authorize the directory
+	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
+	require.NoError(t, authMgr.Allow(workDir))
 
 	// Change to work directory
 	origDir, err := os.Getwd()
@@ -179,6 +177,7 @@ func TestExec_EmptyCommand(t *testing.T) {
 
 	params := ExecParams{
 		CachePath: cachePath,
+		AuthPath:  authPath,
 		LogLevel:  "error",
 		Alias:     "empty",
 		Args:      []string{},
@@ -192,6 +191,7 @@ func TestExec_EmptyCommand(t *testing.T) {
 func TestExec_CommandNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
 	workDir := filepath.Join(tmpDir, "work")
 	require.NoError(t, os.MkdirAll(workDir, 0755))
 
@@ -199,20 +199,17 @@ func TestExec_CommandNotFound(t *testing.T) {
 	workDir, err := filepath.EvalSymlinks(workDir)
 	require.NoError(t, err)
 
-	// Create cache with non-existent command
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
+	// Create a real config file with non-existent command
+	configPath := filepath.Join(workDir, ".dirvana.yml")
+	configContent := `aliases:
+  badcmd: this-command-does-not-exist-anywhere
+`
+	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
 
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-		CommandMap: map[string]string{
-			"badcmd": "this-command-does-not-exist-anywhere",
-		},
-	})
+	// Authorize the directory
+	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
+	require.NoError(t, authMgr.Allow(workDir))
 
 	// Change to work directory
 	origDir, err := os.Getwd()
@@ -223,6 +220,7 @@ func TestExec_CommandNotFound(t *testing.T) {
 
 	params := ExecParams{
 		CachePath: cachePath,
+		AuthPath:  authPath,
 		LogLevel:  "error",
 		Alias:     "badcmd",
 		Args:      []string{},

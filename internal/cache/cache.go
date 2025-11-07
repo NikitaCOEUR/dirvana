@@ -26,6 +26,16 @@ type Entry struct {
 	// Map of alias name to completion command (overrides CommandMap for completion)
 	// Example: k -> kubectl (when k executes kubecolor but completes with kubectl)
 	CompletionMap map[string]string `json:"completion_map,omitempty"`
+
+	// NEW: Merged configuration cache for fast completion/exec
+	// This stores the merged result after applying hierarchy, auth, global config, etc.
+	MergedCommandMap    map[string]string `json:"merged_command_map,omitempty"`
+	MergedCompletionMap map[string]string `json:"merged_completion_map,omitempty"`
+	// Hash of the full hierarchy (all config files that contributed to the merge)
+	// Format: "hash1:hash2:hash3:..." from root to leaf
+	HierarchyHash string `json:"hierarchy_hash,omitempty"`
+	// Paths of all configs in the hierarchy that contributed to this merge
+	HierarchyPaths []string `json:"hierarchy_paths,omitempty"`
 }
 
 // Cache manages persistent and in-memory cache
@@ -107,6 +117,35 @@ func (c *Cache) ClearHierarchy(dir string) error {
 		// Delete if path is the directory or is within its hierarchy
 		cleanPath := filepath.Clean(path)
 		if cleanPath == dir || isParentOf(dir, cleanPath) || isParentOf(cleanPath, dir) {
+			toDelete = append(toDelete, path)
+		}
+	}
+
+	// Delete the entries
+	for _, path := range toDelete {
+		delete(c.entries, path)
+	}
+
+	return c.persist()
+}
+
+// DeleteWithSubdirs removes cache entries for the given directory and all its subdirectories
+// This is useful when revoking authorization - we want to invalidate the revoked directory
+// and all subdirectories, but not parent directories
+func (c *Cache) DeleteWithSubdirs(dir string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Normalize path
+	dir = filepath.Clean(dir)
+
+	// Track which entries to delete
+	toDelete := []string{}
+
+	for path := range c.entries {
+		// Delete if path is the directory or is a subdirectory
+		cleanPath := filepath.Clean(path)
+		if cleanPath == dir || isParentOf(dir, cleanPath) {
 			toDelete = append(toDelete, path)
 		}
 	}
