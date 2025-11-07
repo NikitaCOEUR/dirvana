@@ -258,9 +258,47 @@ func Export(params ExportParams) error {
 	}
 	timer.Mark("load_configs")
 
+	// Cache the merged configuration for fast completion/exec access
+	// Build merged command and completion maps from the final merged config
+	aliases := mergedConfig.GetAliases()
+	mergedCommandMap := buildCommandMap(aliases, mergedConfig.Functions)
+	mergedCompletionMap := buildCompletionMap(aliases)
+
+	// Compute hierarchy hash from all active config paths
+	hierarchyHash, hierarchyPaths, err := computeHierarchyHash(chains.current, comps.config)
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to compute hierarchy hash")
+	}
+
+	// Cache the merged result for the current directory
+	if hierarchyHash != "" {
+		mergedEntry := &cache.Entry{
+			Path:                currentDir,
+			Hash:                hierarchyHash,
+			Timestamp:           time.Now(),
+			Version:             version.Version,
+			MergedCommandMap:    mergedCommandMap,
+			MergedCompletionMap: mergedCompletionMap,
+			HierarchyHash:       hierarchyHash,
+			HierarchyPaths:      hierarchyPaths,
+			// Don't store individual cleanup data in merged entry
+		}
+
+		if err := comps.cache.Set(mergedEntry); err != nil {
+			log.Debug().Err(err).Str("dir", currentDir).Msg("Failed to cache merged config")
+		} else {
+			log.Debug().
+				Str("dir", currentDir).
+				Int("merged_commands", len(mergedCommandMap)).
+				Int("merged_completions", len(mergedCompletionMap)).
+				Str("hierarchy_hash", hierarchyHash).
+				Msg("Cached merged configuration")
+		}
+	}
+	timer.Mark("cache_merged")
+
 	// Get environment variables and aliases
 	staticEnv, shellEnv := mergedConfig.GetEnvVars()
-	aliases := mergedConfig.GetAliases()
 
 	// Shell command approval logic
 	if comps.auth.RequiresShellApproval(currentDir, shellEnv) {
@@ -285,9 +323,9 @@ func Export(params ExportParams) error {
 		tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
 		if err != nil {
 			// Fallback to stderr if /dev/tty is not available
-			fmt.Fprintf(os.Stderr, "\n✓ Shell commands approved and cached\n\n")
+			_, _ = fmt.Fprintf(os.Stderr, "\n✓ Shell commands approved and cached\n\n")
 		} else {
-			fmt.Fprintf(tty, "\n✓ Shell commands approved and cached\n\n")
+			_, _ = fmt.Fprintf(tty, "\n✓ Shell commands approved and cached\n\n")
 			_ = tty.Close()
 		}
 	}
@@ -339,27 +377,38 @@ func displayShellCommandsForApproval(shellEnv map[string]string) error {
 		defer func() { _ = tty.Close() }()
 	}
 
-	fmt.Fprintf(tty, "\n⚠️  This configuration contains dynamic shell commands:\n\n")
+	_, _ = fmt.Fprintf(tty, "\n⚠️  This configuration contains dynamic shell commands:\n\n")
 	keys := make([]string, 0, len(shellEnv))
 	for k := range shellEnv {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		fmt.Fprintf(tty, "   • %s: %s\n", key, shellEnv[key])
+		_, _ = fmt.Fprintf(tty, "   • %s: %s\n", key, shellEnv[key])
 	}
-	fmt.Fprintf(tty, "\nThese commands will execute to set environment variables.\n")
+	_, _ = fmt.Fprintf(tty, "\nThese commands will execute to set environment variables.\n")
 	return nil
 }
 
 // Prompt user for shell command approval
 func promptShellApproval() (bool, error) {
+	// For testing: use stdin/stderr fallback if DIRVANA_TEST_MODE is set
+	useFallback := os.Getenv("DIRVANA_TEST_MODE") != ""
+
 	// Open /dev/tty for both reading and writing to interact with the user
 	// This ensures prompts are visible even when stdout/stderr are redirected (e.g., in eval)
-	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	var tty *os.File
+	var err error
+
+	if !useFallback {
+		tty, err = os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	} else {
+		err = fmt.Errorf("test mode: skip /dev/tty")
+	}
+
 	if err != nil {
 		// Fallback to stderr for output and stdin for input
-		fmt.Fprintf(os.Stderr, "Approve execution? [y/N]: ")
+		_, _ = fmt.Fprintf(os.Stderr, "Approve execution? [y/N]: ")
 		reader := bufio.NewReader(os.Stdin)
 		response, err := reader.ReadString('\n')
 		if err != nil {
@@ -370,7 +419,7 @@ func promptShellApproval() (bool, error) {
 	}
 	defer func() { _ = tty.Close() }()
 
-	fmt.Fprintf(tty, "Approve execution? [y/N]: ")
+	_, _ = fmt.Fprintf(tty, "Approve execution? [y/N]: ")
 	reader := bufio.NewReader(tty)
 	response, err := reader.ReadString('\n')
 	if err != nil {

@@ -53,7 +53,7 @@ func Exec(params ExecParams) error {
 	// Detect which shell to use
 	shell := os.Getenv("SHELL")
 	if shell == "" {
-		shell = "/bin/bash" // Fallback to bash
+		shell = "bash" // Fallback to bash (will be found via PATH)
 	}
 
 	// Find shell executable path
