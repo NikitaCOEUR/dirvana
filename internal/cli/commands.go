@@ -458,6 +458,18 @@ func AllowWithParams(params AllowParams) error {
 		return fmt.Errorf("failed to authorize: %w", err)
 	}
 
+	// Invalidate cache for the authorized directory
+	// This ensures the config will be reloaded with proper authorization
+	if params.CachePath != "" {
+		cacheStorage, err := cache.New(params.CachePath)
+		if err == nil {
+			if err := cacheStorage.Delete(params.PathToAllow); err != nil {
+				// Log but don't fail - cache invalidation is not critical
+				fmt.Fprintf(os.Stderr, "Warning: failed to invalidate cache: %v\n", err)
+			}
+		}
+	}
+
 	fmt.Printf("Authorized: %s\n", params.PathToAllow)
 
 	// If auto-approve flag is set, approve shell commands immediately
@@ -506,6 +518,18 @@ func RevokeWithParams(params RevokeParams) error {
 
 	if err := authMgr.Revoke(params.PathToRevoke); err != nil {
 		return fmt.Errorf("failed to revoke: %w", err)
+	}
+
+	// Invalidate cache for the revoked directory and all its subdirectories
+	// This ensures configs are no longer accessible without re-authorization
+	if params.CachePath != "" {
+		cacheStorage, err := cache.New(params.CachePath)
+		if err == nil {
+			if err := cacheStorage.DeleteWithSubdirs(params.PathToRevoke); err != nil {
+				// Log but don't fail - cache invalidation is not critical
+				fmt.Fprintf(os.Stderr, "Warning: failed to invalidate cache: %v\n", err)
+			}
+		}
 	}
 
 	fmt.Printf("Revoked: %s\n", params.PathToRevoke)

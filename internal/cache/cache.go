@@ -129,6 +129,35 @@ func (c *Cache) ClearHierarchy(dir string) error {
 	return c.persist()
 }
 
+// DeleteWithSubdirs removes cache entries for the given directory and all its subdirectories
+// This is useful when revoking authorization - we want to invalidate the revoked directory
+// and all subdirectories, but not parent directories
+func (c *Cache) DeleteWithSubdirs(dir string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Normalize path
+	dir = filepath.Clean(dir)
+
+	// Track which entries to delete
+	toDelete := []string{}
+
+	for path := range c.entries {
+		// Delete if path is the directory or is a subdirectory
+		cleanPath := filepath.Clean(path)
+		if cleanPath == dir || isParentOf(dir, cleanPath) {
+			toDelete = append(toDelete, path)
+		}
+	}
+
+	// Delete the entries
+	for _, path := range toDelete {
+		delete(c.entries, path)
+	}
+
+	return c.persist()
+}
+
 // isParentOf checks if parent is a parent directory of child
 func isParentOf(parent, child string) bool {
 	rel, err := filepath.Rel(parent, child)
