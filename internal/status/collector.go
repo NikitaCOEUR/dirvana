@@ -23,7 +23,7 @@ const (
 // CollectAll gathers all status information from the current directory
 func CollectAll(cachePath, authPath string) (*Data, error) {
 	data := &Data{
-		Aliases:             make(map[string]string),
+		Aliases:             make(map[string]config.AliasInfo),
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
 		EnvShell:            make(map[string]config.EnvShellInfo),

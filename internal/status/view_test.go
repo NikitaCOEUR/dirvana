@@ -21,7 +21,7 @@ func TestRender_EmptyData(t *testing.T) {
 		AuthPath:            "/test/auth.json",
 		HasAnyConfig:        false,
 		Authorized:          true,
-		Aliases:             make(map[string]string),
+		Aliases:             make(map[string]config.AliasInfo),
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
 		EnvShell:            make(map[string]config.EnvShellInfo),
@@ -72,7 +72,7 @@ func TestRender_WithUnauthorizedConfig(t *testing.T) {
 				LocalOnly:  false,
 			},
 		},
-		Aliases:             make(map[string]string),
+		Aliases:             make(map[string]config.AliasInfo),
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
 		EnvShell:            make(map[string]config.EnvShellInfo),
@@ -116,9 +116,9 @@ func TestRender_WithAuthorizedConfig(t *testing.T) {
 				LocalOnly:  false,
 			},
 		},
-		Aliases: map[string]string{
-			"gs": "git status",
-			"k":  "kubectl",
+		Aliases: map[string]config.AliasInfo{
+			"gs": {Command: "git status"},
+			"k":  {Command: "kubectl"},
 		},
 		Functions: []string{"greet", "mkcd"},
 		EnvStatic: map[string]string{
@@ -174,6 +174,95 @@ func TestRender_WithAuthorizedConfig(t *testing.T) {
 	assert.Contains(t, output, "local_only")
 }
 
+// TestRender_WithConditionalAliases tests rendering with conditional aliases
+func TestRender_WithConditionalAliases(t *testing.T) {
+	data := &Data{
+		CurrentDir:    "/test/dir",
+		Version:       "1.0.0",
+		Shell:         "bash",
+		HookInstalled: true,
+		RCFile:        "/home/user/.bashrc",
+		CachePath:     "/test/cache.json",
+		AuthPath:      "/test/auth.json",
+		HasAnyConfig:  true,
+		Authorized:    true,
+		LocalConfigs: []config.FileInfo{
+			{
+				Path:       "/test/dir/.dirvana.yml",
+				Loaded:     true,
+				Authorized: true,
+				LocalOnly:  false,
+			},
+		},
+		Aliases: map[string]config.AliasInfo{
+			"simple": {
+				Command: "echo simple",
+				HasWhen: false,
+			},
+			"k": {
+				Command:     "kubectl",
+				HasWhen:     true,
+				WhenSummary: "var:KUBECONFIG + file:$KUBECONFIG",
+				Else:        "echo 'Error: KUBECONFIG not set'",
+			},
+			"dev": {
+				Command:     "npm run dev",
+				HasWhen:     true,
+				WhenSummary: "file:package.json",
+				Else:        "echo 'Error: package.json not found'",
+			},
+			"prod": {
+				Command:     "npm run prod",
+				HasWhen:     true,
+				WhenSummary: "all(file:package.json, var:NODE_ENV)",
+				Else:        "",
+			},
+		},
+		Functions:           make([]string, 0),
+		EnvStatic:           make(map[string]string),
+		EnvShell:            make(map[string]config.EnvShellInfo),
+		Flags:               make([]string, 0),
+		CompletionScripts:   make([]CompletionScriptInfo, 0),
+		CompletionOverrides: make(map[string]string),
+	}
+
+	output := Render(data)
+
+	// Aliases section
+	assert.Contains(t, output, "Aliases:")
+
+	// Simple alias without condition
+	assert.Contains(t, output, "simple")
+	assert.Contains(t, output, "echo simple")
+
+	// Conditional alias with when and else
+	assert.Contains(t, output, "k")
+	assert.Contains(t, output, "kubectl")
+	assert.Contains(t, output, "when:")
+	assert.Contains(t, output, "var:KUBECONFIG + file:$KUBECONFIG")
+	assert.Contains(t, output, "else:")
+	assert.Contains(t, output, "echo 'Error: KUBECONFIG not set'")
+
+	// Conditional alias with file condition
+	assert.Contains(t, output, "dev")
+	assert.Contains(t, output, "npm run dev")
+	assert.Contains(t, output, "file:package.json")
+	assert.Contains(t, output, "echo 'Error: package.json not found'")
+
+	// Conditional alias with composite condition (all) and no else
+	assert.Contains(t, output, "prod")
+	assert.Contains(t, output, "npm run prod")
+	assert.Contains(t, output, "all(file:package.json, var:NODE_ENV)")
+
+	// Verify the "when:" label appears multiple times (once for each conditional alias)
+	whenCount := strings.Count(output, "when:")
+	assert.Equal(t, 3, whenCount, "Should have 3 conditional aliases with 'when:'")
+
+	// Verify the "else:" label appears for aliases with else (k and dev)
+	elseCount := strings.Count(output, "else:")
+	assert.Equal(t, 2, elseCount, "Should have 2 aliases with 'else:'")
+}
+
 // TestRender_WithGlobalConfig tests rendering with global and local configs
 func TestRender_WithGlobalConfig(t *testing.T) {
 	data := &Data{
@@ -198,7 +287,7 @@ func TestRender_WithGlobalConfig(t *testing.T) {
 				LocalOnly:  false,
 			},
 		},
-		Aliases:             make(map[string]string),
+		Aliases:             make(map[string]config.AliasInfo),
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
 		EnvShell:            make(map[string]config.EnvShellInfo),
@@ -253,7 +342,7 @@ func TestRender_WithCache(t *testing.T) {
 		CacheValid:          true,
 		CacheUpdated:        cacheUpdated,
 		CacheLocalOnly:      false,
-		Aliases:             make(map[string]string),
+		Aliases:             make(map[string]config.AliasInfo),
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
 		EnvShell:            make(map[string]config.EnvShellInfo),
@@ -310,7 +399,7 @@ func TestRender_WithCompletion(t *testing.T) {
 		CompletionOverrides: map[string]string{
 			"k": "kubectl",
 		},
-		Aliases:       make(map[string]string),
+		Aliases:       make(map[string]config.AliasInfo),
 		Functions:     make([]string, 0),
 		EnvStatic:     make(map[string]string),
 		EnvShell:      make(map[string]config.EnvShellInfo),

@@ -28,7 +28,7 @@ type Data struct {
 	LocalConfigs []config.FileInfo
 
 	// Config Details
-	Aliases   map[string]string
+	Aliases   map[string]config.AliasInfo
 	Functions []string
 	EnvStatic map[string]string
 	EnvShell  map[string]config.EnvShellInfo

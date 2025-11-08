@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
+	"github.com/NikitaCOEUR/dirvana/internal/condition"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 )
 
@@ -30,24 +31,77 @@ func Exec(params ExecParams) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Get merged command maps from the full hierarchy
+	// Get merged alias configs and functions from the full hierarchy
 	// This respects global config, ignore_global, local_only, and authorization
-	commandMap, _, err := getMergedCommandMaps(currentDir, params.CachePath, params.AuthPath)
+	aliases, functions, err := getMergedAliasConfigs(currentDir, params.CachePath, params.AuthPath)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	if len(commandMap) == 0 {
+	if len(aliases) == 0 && len(functions) == 0 {
 		return fmt.Errorf("no dirvana context found for alias '%s'", params.Alias)
 	}
 
-	// Check if alias exists in this context
-	command, found := commandMap[params.Alias]
-	if !found {
+	// Check if alias exists
+	aliasConf, foundAlias := aliases[params.Alias]
+	functionBody, foundFunction := functions[params.Alias]
+
+	if !foundAlias && !foundFunction {
 		return fmt.Errorf("alias '%s' not found in dirvana context", params.Alias)
 	}
 
-	log.Debug().Str("alias", params.Alias).Str("command", command).Msg("Resolving alias")
+	var command string
+
+	if foundAlias {
+		// Handle alias with potential conditions
+		command = aliasConf.Command
+
+		// Evaluate conditions if present
+		if aliasConf.When != nil {
+			log.Debug().Str("alias", params.Alias).Msg("Evaluating conditions")
+
+			// Parse the When struct into a Condition
+			cond, err := condition.Parse(aliasConf.When)
+			if err != nil {
+				return fmt.Errorf("failed to parse conditions for alias '%s': %w", params.Alias, err)
+			}
+
+			// Create evaluation context
+			ctx := condition.Context{
+				Env:        buildEnvMap(),
+				WorkingDir: currentDir,
+			}
+
+			// Evaluate the condition
+			ok, msg, err := cond.Evaluate(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to evaluate conditions for alias '%s': %w", params.Alias, err)
+			}
+
+			if !ok {
+				// Condition not met
+				if aliasConf.Else != "" {
+					// Use fallback command
+					log.Debug().
+						Str("alias", params.Alias).
+						Str("reason", msg).
+						Msg("Condition not met, using fallback command")
+					command = aliasConf.Else
+				} else {
+					// No fallback, return error
+					return fmt.Errorf("condition not met for alias '%s':\n%s", params.Alias, msg)
+				}
+			} else {
+				log.Debug().Str("alias", params.Alias).Msg("Conditions met")
+			}
+		}
+
+		log.Debug().Str("alias", params.Alias).Str("command", command).Msg("Resolving alias")
+	} else {
+		// Handle function
+		command = "__dirvana_function__" + functionBody
+		log.Debug().Str("function", params.Alias).Msg("Resolving function")
+	}
 
 	// Execute via shell to allow variable expansion, pipes, redirections, etc.
 	// Detect which shell to use
@@ -87,6 +141,23 @@ func Exec(params ExecParams) error {
 
 	// If we reach here, syscall.Exec failed (extremely rare)
 	return fmt.Errorf("failed to execute command: %w", err)
+}
+
+// buildEnvMap creates a map of environment variables for condition evaluation
+func buildEnvMap() map[string]string {
+	envMap := make(map[string]string)
+	for _, env := range os.Environ() {
+		// Split on first '=' only
+		for i := 0; i < len(env); i++ {
+			if env[i] == '=' {
+				key := env[:i]
+				value := env[i+1:]
+				envMap[key] = value
+				break
+			}
+		}
+	}
+	return envMap
 }
 
 // findCacheEntry searches for a cache entry in the current directory or parent directories

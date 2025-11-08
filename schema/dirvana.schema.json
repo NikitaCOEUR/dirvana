@@ -4,6 +4,48 @@
   "title": "Dirvana Configuration",
   "description": "Configuration file for Dirvana - automatic shell environment loader per folder",
   "type": "object",
+  "definitions": {
+    "condition": {
+      "type": "object",
+      "description": "Condition to evaluate before executing an alias",
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Path to file that must exist (supports env var expansion like $VAR)"
+        },
+        "var": {
+          "type": "string",
+          "description": "Environment variable that must be set and non-empty"
+        },
+        "dir": {
+          "type": "string",
+          "description": "Path to directory that must exist (supports env var expansion)"
+        },
+        "command": {
+          "type": "string",
+          "description": "Command that must exist in PATH"
+        },
+        "all": {
+          "type": "array",
+          "description": "All conditions must be true (AND logic)",
+          "items": {
+            "$ref": "#/definitions/condition"
+          },
+          "minItems": 1
+        },
+        "any": {
+          "type": "array",
+          "description": "At least one condition must be true (OR logic)",
+          "items": {
+            "$ref": "#/definitions/condition"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    }
+  },
   "properties": {
     "aliases": {
       "type": "object",
@@ -18,7 +60,7 @@
             },
             {
               "type": "object",
-              "description": "Advanced alias with completion control",
+              "description": "Advanced alias with completion control and conditional execution",
               "properties": {
                 "command": {
                   "type": "string",
@@ -53,6 +95,14 @@
                     }
                   ],
                   "description": "Completion configuration (optional)"
+                },
+                "when": {
+                  "$ref": "#/definitions/condition",
+                  "description": "Conditions that must be met for the alias to execute"
+                },
+                "else": {
+                  "type": "string",
+                  "description": "Fallback command to execute if conditions are not met"
                 }
               },
               "required": ["command"],

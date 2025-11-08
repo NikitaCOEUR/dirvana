@@ -1,8 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 )
@@ -100,9 +102,17 @@ func GetHierarchyInfo(currentDir string, authMgr *auth.Auth) (*HierarchyInfo, er
 	return info, nil
 }
 
+// AliasInfo contains information about a single alias
+type AliasInfo struct {
+	Command    string
+	HasWhen    bool
+	WhenSummary string
+	Else       string
+}
+
 // DetailsInfo contains detailed information about the merged configuration
 type DetailsInfo struct {
-	Aliases   map[string]string
+	Aliases   map[string]AliasInfo
 	Functions []string
 	EnvStatic map[string]string
 	EnvShell  map[string]EnvShellInfo
@@ -119,7 +129,7 @@ type EnvShellInfo struct {
 func GetConfigDetails(merged *Config, authMgr *auth.Auth, currentDir string) *DetailsInfo {
 	if merged == nil {
 		return &DetailsInfo{
-			Aliases:   make(map[string]string),
+			Aliases:   make(map[string]AliasInfo),
 			Functions: make([]string, 0),
 			EnvStatic: make(map[string]string),
 			EnvShell:  make(map[string]EnvShellInfo),
@@ -128,7 +138,7 @@ func GetConfigDetails(merged *Config, authMgr *auth.Auth, currentDir string) *De
 	}
 
 	details := &DetailsInfo{
-		Aliases:   convertAliases(merged.Aliases),
+		Aliases:   convertAliasesWithInfo(merged.GetAliases()),
 		Functions: getFunctionsList(merged.Functions),
 		EnvShell:  make(map[string]EnvShellInfo),
 		Flags:     make([]string, 0),
@@ -181,7 +191,27 @@ func GetCompletionOverrides(merged *Config) map[string]string {
 	return result
 }
 
-// Helper to convert aliases
+// Helper to convert aliases with full information including conditions
+func convertAliasesWithInfo(aliases map[string]AliasConfig) map[string]AliasInfo {
+	result := make(map[string]AliasInfo)
+	for name, aliasConfig := range aliases {
+		info := AliasInfo{
+			Command: aliasConfig.Command,
+			HasWhen: aliasConfig.When != nil,
+			Else:    aliasConfig.Else,
+		}
+
+		// Generate when summary
+		if aliasConfig.When != nil {
+			info.WhenSummary = summarizeWhen(aliasConfig.When)
+		}
+
+		result[name] = info
+	}
+	return result
+}
+
+// Helper to convert aliases (legacy, kept for compatibility)
 func convertAliases(aliases map[string]interface{}) map[string]string {
 	result := make(map[string]string)
 	for name, value := range aliases {
@@ -199,6 +229,56 @@ func convertAliases(aliases map[string]interface{}) map[string]string {
 		}
 	}
 	return result
+}
+
+// summarizeWhen creates a human-readable summary of a When condition
+func summarizeWhen(when *When) string {
+	if when == nil {
+		return ""
+	}
+
+	var parts []string
+
+	// Atomic conditions
+	if when.File != "" {
+		parts = append(parts, fmt.Sprintf("file:%s", when.File))
+	}
+	if when.Var != "" {
+		parts = append(parts, fmt.Sprintf("var:%s", when.Var))
+	}
+	if when.Dir != "" {
+		parts = append(parts, fmt.Sprintf("dir:%s", when.Dir))
+	}
+	if when.Command != "" {
+		parts = append(parts, fmt.Sprintf("cmd:%s", when.Command))
+	}
+
+	// Composite conditions
+	if len(when.All) > 0 {
+		subParts := make([]string, len(when.All))
+		for i, sub := range when.All {
+			subParts[i] = summarizeWhen(&sub)
+		}
+		parts = append(parts, fmt.Sprintf("all(%s)", strings.Join(subParts, ", ")))
+	}
+	if len(when.Any) > 0 {
+		subParts := make([]string, len(when.Any))
+		for i, sub := range when.Any {
+			subParts[i] = summarizeWhen(&sub)
+		}
+		parts = append(parts, fmt.Sprintf("any(%s)", strings.Join(subParts, " | ")))
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	// If multiple atomic conditions, they're ANDed together
+	if len(parts) > 1 && len(when.All) == 0 && len(when.Any) == 0 {
+		return strings.Join(parts, " + ")
+	}
+
+	return strings.Join(parts, ", ")
 }
 
 // Helper to get functions list

@@ -890,3 +890,175 @@ func TestConfig_GetAliases_WithCustomCompletion(t *testing.T) {
 	assert.Equal(t, "complete -W 'foo bar' mt", compCfg.Bash)
 	assert.Equal(t, "compdef _mt mt", compCfg.Zsh)
 }
+
+func TestConfig_GetAliases_WithConditionalSimple(t *testing.T) {
+	cfg := &Config{
+		Aliases: map[string]interface{}{
+			"kubectl": map[string]interface{}{
+				"command": "kubectl --kubeconfig $KUBECONFIG",
+				"when": map[string]interface{}{
+					"file": "$KUBECONFIG",
+				},
+				"else": "kubectl",
+			},
+		},
+	}
+
+	aliases := cfg.GetAliases()
+
+	assert.Len(t, aliases, 1)
+	assert.Equal(t, "kubectl --kubeconfig $KUBECONFIG", aliases["kubectl"].Command)
+	assert.Equal(t, "kubectl", aliases["kubectl"].Else)
+	assert.NotNil(t, aliases["kubectl"].When)
+	assert.Equal(t, "$KUBECONFIG", aliases["kubectl"].When.File)
+}
+
+func TestConfig_GetAliases_WithConditionalAll(t *testing.T) {
+	cfg := &Config{
+		Aliases: map[string]interface{}{
+			"deploy": map[string]interface{}{
+				"command": "./deploy.sh",
+				"when": map[string]interface{}{
+					"all": []interface{}{
+						map[string]interface{}{"var": "AWS_PROFILE"},
+						map[string]interface{}{"file": ".env"},
+					},
+				},
+				"else": "echo 'Prerequisites not met'",
+			},
+		},
+	}
+
+	aliases := cfg.GetAliases()
+
+	assert.Len(t, aliases, 1)
+	assert.Equal(t, "./deploy.sh", aliases["deploy"].Command)
+	assert.Equal(t, "echo 'Prerequisites not met'", aliases["deploy"].Else)
+	assert.NotNil(t, aliases["deploy"].When)
+	assert.Len(t, aliases["deploy"].When.All, 2)
+	assert.Equal(t, "AWS_PROFILE", aliases["deploy"].When.All[0].Var)
+	assert.Equal(t, ".env", aliases["deploy"].When.All[1].File)
+}
+
+func TestConfig_GetAliases_WithConditionalAny(t *testing.T) {
+	cfg := &Config{
+		Aliases: map[string]interface{}{
+			"config": map[string]interface{}{
+				"command": "vim $CONFIG_FILE",
+				"when": map[string]interface{}{
+					"any": []interface{}{
+						map[string]interface{}{"file": ".env.local"},
+						map[string]interface{}{"file": ".env"},
+					},
+				},
+			},
+		},
+	}
+
+	aliases := cfg.GetAliases()
+
+	assert.Len(t, aliases, 1)
+	assert.NotNil(t, aliases["config"].When)
+	assert.Len(t, aliases["config"].When.Any, 2)
+	assert.Equal(t, ".env.local", aliases["config"].When.Any[0].File)
+	assert.Equal(t, ".env", aliases["config"].When.Any[1].File)
+}
+
+func TestConfig_GetAliases_WithConditionalNested(t *testing.T) {
+	cfg := &Config{
+		Aliases: map[string]interface{}{
+			"start": map[string]interface{}{
+				"command": "npm start",
+				"when": map[string]interface{}{
+					"all": []interface{}{
+						map[string]interface{}{"dir": "node_modules"},
+						map[string]interface{}{
+							"any": []interface{}{
+								map[string]interface{}{"file": ".env.local"},
+								map[string]interface{}{"file": ".env"},
+							},
+						},
+					},
+				},
+				"else": "echo 'Run npm install first'",
+			},
+		},
+	}
+
+	aliases := cfg.GetAliases()
+
+	assert.Len(t, aliases, 1)
+	assert.NotNil(t, aliases["start"].When)
+	assert.Len(t, aliases["start"].When.All, 2)
+	assert.Equal(t, "node_modules", aliases["start"].When.All[0].Dir)
+	assert.Len(t, aliases["start"].When.All[1].Any, 2)
+}
+
+func TestConfig_GetAliases_WithConditionalMultipleAtomics(t *testing.T) {
+	cfg := &Config{
+		Aliases: map[string]interface{}{
+			"kubectl": map[string]interface{}{
+				"command": "kubectl --kubeconfig $KUBECONFIG",
+				"when": map[string]interface{}{
+					"var":  "KUBECONFIG",
+					"file": "$KUBECONFIG",
+				},
+				"else": "kubectl",
+			},
+		},
+	}
+
+	aliases := cfg.GetAliases()
+
+	assert.Len(t, aliases, 1)
+	assert.NotNil(t, aliases["kubectl"].When)
+	assert.Equal(t, "KUBECONFIG", aliases["kubectl"].When.Var)
+	assert.Equal(t, "$KUBECONFIG", aliases["kubectl"].When.File)
+}
+
+func TestConfig_Load_WithConditional(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+
+	yamlContent := `
+aliases:
+  kubectl:
+    when:
+      all:
+        - var: "KUBECONFIG"
+        - file: "$KUBECONFIG"
+    command: kubectl --kubeconfig "$KUBECONFIG"
+    else: kubectl
+
+  deploy:
+    when:
+      file: ".env"
+    command: ./deploy.sh
+    else: "echo 'No .env file'"
+`
+	require.NoError(t, os.WriteFile(configPath, []byte(yamlContent), 0644))
+
+	c := New()
+	cfg, err := c.Load(configPath)
+	require.NoError(t, err)
+
+	aliases := cfg.GetAliases()
+
+	// Test kubectl alias
+	assert.Contains(t, aliases, "kubectl")
+	kubectlAlias := aliases["kubectl"]
+	// YAML parser preserves quotes in strings
+	assert.Contains(t, kubectlAlias.Command, "kubectl --kubeconfig")
+	assert.Contains(t, kubectlAlias.Command, "$KUBECONFIG")
+	assert.Equal(t, "kubectl", kubectlAlias.Else)
+	assert.NotNil(t, kubectlAlias.When)
+	assert.Len(t, kubectlAlias.When.All, 2)
+
+	// Test deploy alias
+	assert.Contains(t, aliases, "deploy")
+	deployAlias := aliases["deploy"]
+	assert.Equal(t, "./deploy.sh", deployAlias.Command)
+	assert.Equal(t, "echo 'No .env file'", deployAlias.Else)
+	assert.NotNil(t, deployAlias.When)
+	assert.Equal(t, ".env", deployAlias.When.File)
+}
