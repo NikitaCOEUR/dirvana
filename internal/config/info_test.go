@@ -438,3 +438,233 @@ func TestGetHierarchyInfo_WithMultipleConfigs(t *testing.T) {
 		assert.True(t, cfg.Loaded)
 	}
 }
+
+// TestSummarizeWhen_NilCondition tests with nil when
+func TestSummarizeWhen_NilCondition(t *testing.T) {
+	result := summarizeWhen(nil)
+	assert.Empty(t, result)
+}
+
+// TestSummarizeWhen_FileCondition tests file condition summary
+func TestSummarizeWhen_FileCondition(t *testing.T) {
+	when := &When{File: "package.json"}
+	result := summarizeWhen(when)
+	assert.Equal(t, "file:package.json", result)
+}
+
+// TestSummarizeWhen_VarCondition tests variable condition summary
+func TestSummarizeWhen_VarCondition(t *testing.T) {
+	when := &When{Var: "KUBECONFIG"}
+	result := summarizeWhen(when)
+	assert.Equal(t, "var:KUBECONFIG", result)
+}
+
+// TestSummarizeWhen_DirCondition tests directory condition summary
+func TestSummarizeWhen_DirCondition(t *testing.T) {
+	when := &When{Dir: "node_modules"}
+	result := summarizeWhen(when)
+	assert.Equal(t, "dir:node_modules", result)
+}
+
+// TestSummarizeWhen_CommandCondition tests command condition summary
+func TestSummarizeWhen_CommandCondition(t *testing.T) {
+	when := &When{Command: "docker"}
+	result := summarizeWhen(when)
+	assert.Equal(t, "cmd:docker", result)
+}
+
+// TestSummarizeWhen_MultipleAtomicConditions tests multiple atomic conditions (AND)
+func TestSummarizeWhen_MultipleAtomicConditions(t *testing.T) {
+	when := &When{
+		File: "$KUBECONFIG",
+		Var:  "KUBECONFIG",
+	}
+	result := summarizeWhen(when)
+	// Should join with " + " for multiple atomics
+	assert.Contains(t, result, "file:$KUBECONFIG")
+	assert.Contains(t, result, "var:KUBECONFIG")
+	assert.Contains(t, result, " + ")
+}
+
+// TestSummarizeWhen_AllCondition tests all (AND) composite condition
+func TestSummarizeWhen_AllCondition(t *testing.T) {
+	when := &When{
+		All: []When{
+			{Var: "AWS_PROFILE"},
+			{Command: "aws"},
+			{File: ".env"},
+		},
+	}
+	result := summarizeWhen(when)
+	assert.Contains(t, result, "all(")
+	assert.Contains(t, result, "var:AWS_PROFILE")
+	assert.Contains(t, result, "cmd:aws")
+	assert.Contains(t, result, "file:.env")
+}
+
+// TestSummarizeWhen_AnyCondition tests any (OR) composite condition
+func TestSummarizeWhen_AnyCondition(t *testing.T) {
+	when := &When{
+		Any: []When{
+			{File: ".env.local"},
+			{File: ".env"},
+			{File: ".env.example"},
+		},
+	}
+	result := summarizeWhen(when)
+	assert.Contains(t, result, "any(")
+	assert.Contains(t, result, "file:.env.local")
+	assert.Contains(t, result, "file:.env")
+	assert.Contains(t, result, " | ")
+}
+
+// TestSummarizeWhen_NestedConditions tests nested all/any conditions
+func TestSummarizeWhen_NestedConditions(t *testing.T) {
+	when := &When{
+		All: []When{
+			{Var: "AWS_PROFILE"},
+			{
+				Any: []When{
+					{File: ".env.production"},
+					{File: ".env"},
+				},
+			},
+		},
+	}
+	result := summarizeWhen(when)
+	assert.Contains(t, result, "all(")
+	assert.Contains(t, result, "var:AWS_PROFILE")
+	assert.Contains(t, result, "any(")
+	assert.Contains(t, result, "file:.env.production")
+	assert.Contains(t, result, "file:.env")
+}
+
+// TestSummarizeWhen_EmptyCondition tests empty when structure
+func TestSummarizeWhen_EmptyCondition(t *testing.T) {
+	when := &When{}
+	result := summarizeWhen(when)
+	assert.Empty(t, result)
+}
+
+// TestSummarizeWhen_EmptyAllCondition tests empty all array
+func TestSummarizeWhen_EmptyAllCondition(t *testing.T) {
+	when := &When{
+		All: []When{},
+	}
+	result := summarizeWhen(when)
+	// Empty all should result in empty string
+	assert.Empty(t, result)
+}
+
+// TestConvertAliasesWithInfo_SimpleAliases tests simple aliases conversion
+func TestConvertAliasesWithInfo_SimpleAliases(t *testing.T) {
+	aliases := map[string]AliasConfig{
+		"simple": {Command: "echo simple"},
+		"test":   {Command: "npm test"},
+	}
+
+	result := convertAliasesWithInfo(aliases)
+
+	assert.Len(t, result, 2)
+	assert.Equal(t, "echo simple", result["simple"].Command)
+	assert.False(t, result["simple"].HasWhen)
+	assert.Empty(t, result["simple"].WhenSummary)
+	assert.Empty(t, result["simple"].Else)
+
+	assert.Equal(t, "npm test", result["test"].Command)
+	assert.False(t, result["test"].HasWhen)
+}
+
+// TestConvertAliasesWithInfo_ConditionalAliases tests conditional aliases conversion
+func TestConvertAliasesWithInfo_ConditionalAliases(t *testing.T) {
+	aliases := map[string]AliasConfig{
+		"k": {
+			Command: "kubectl",
+			When: &When{
+				Var:  "KUBECONFIG",
+				File: "$KUBECONFIG",
+			},
+			Else: "echo 'KUBECONFIG not set'",
+		},
+		"dev": {
+			Command: "npm run dev",
+			When: &When{
+				File: "package.json",
+			},
+			Else: "echo 'package.json not found'",
+		},
+	}
+
+	result := convertAliasesWithInfo(aliases)
+
+	assert.Len(t, result, 2)
+
+	// Check k alias
+	assert.Equal(t, "kubectl", result["k"].Command)
+	assert.True(t, result["k"].HasWhen)
+	assert.Contains(t, result["k"].WhenSummary, "var:KUBECONFIG")
+	assert.Contains(t, result["k"].WhenSummary, "file:$KUBECONFIG")
+	assert.Equal(t, "echo 'KUBECONFIG not set'", result["k"].Else)
+
+	// Check dev alias
+	assert.Equal(t, "npm run dev", result["dev"].Command)
+	assert.True(t, result["dev"].HasWhen)
+	assert.Equal(t, "file:package.json", result["dev"].WhenSummary)
+	assert.Equal(t, "echo 'package.json not found'", result["dev"].Else)
+}
+
+// TestConvertAliasesWithInfo_ConditionalWithoutElse tests conditional without else
+func TestConvertAliasesWithInfo_ConditionalWithoutElse(t *testing.T) {
+	aliases := map[string]AliasConfig{
+		"test": {
+			Command: "npm test",
+			When: &When{
+				Dir: "node_modules",
+			},
+		},
+	}
+
+	result := convertAliasesWithInfo(aliases)
+
+	assert.Len(t, result, 1)
+	assert.Equal(t, "npm test", result["test"].Command)
+	assert.True(t, result["test"].HasWhen)
+	assert.Equal(t, "dir:node_modules", result["test"].WhenSummary)
+	assert.Empty(t, result["test"].Else)
+}
+
+// TestConvertAliasesWithInfo_MixedAliases tests mix of simple and conditional
+func TestConvertAliasesWithInfo_MixedAliases(t *testing.T) {
+	aliases := map[string]AliasConfig{
+		"simple": {Command: "echo simple"},
+		"conditional": {
+			Command: "docker compose",
+			When:    &When{Command: "docker"},
+			Else:    "echo 'Docker not installed'",
+		},
+	}
+
+	result := convertAliasesWithInfo(aliases)
+
+	assert.Len(t, result, 2)
+
+	// Simple alias
+	assert.Equal(t, "echo simple", result["simple"].Command)
+	assert.False(t, result["simple"].HasWhen)
+
+	// Conditional alias
+	assert.Equal(t, "docker compose", result["conditional"].Command)
+	assert.True(t, result["conditional"].HasWhen)
+	assert.Equal(t, "cmd:docker", result["conditional"].WhenSummary)
+	assert.Equal(t, "echo 'Docker not installed'", result["conditional"].Else)
+}
+
+// TestConvertAliasesWithInfo_EmptyMap tests with empty alias map
+func TestConvertAliasesWithInfo_EmptyMap(t *testing.T) {
+	aliases := map[string]AliasConfig{}
+
+	result := convertAliasesWithInfo(aliases)
+
+	assert.NotNil(t, result)
+	assert.Empty(t, result)
+}

@@ -192,10 +192,27 @@ func renderAliases(data *Data) string {
 	var b strings.Builder
 	b.WriteString(sectionStyle.Render("🔗 Aliases:") + "\n")
 
-	for name, cmd := range data.Aliases {
-		b.WriteString(fmt.Sprintf("   %s → %s\n",
+	for name, info := range data.Aliases {
+		b.WriteString(fmt.Sprintf("   %s → %s",
 			keyStyle.Render(name),
-			valueStyle.Render(cmd)))
+			valueStyle.Render(info.Command)))
+
+		// Show conditional information if present
+		if info.HasWhen {
+			b.WriteString("\n")
+			b.WriteString(fmt.Sprintf("      %s %s",
+				subtleStyle.Render("when:"),
+				subtleStyle.Render(info.WhenSummary)))
+
+			if info.Else != "" {
+				b.WriteString("\n")
+				b.WriteString(fmt.Sprintf("      %s %s",
+					subtleStyle.Render("else:"),
+					subtleStyle.Render(info.Else)))
+			}
+		}
+
+		b.WriteString("\n")
 	}
 
 	return strings.TrimSuffix(b.String(), "\n")

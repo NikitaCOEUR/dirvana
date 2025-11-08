@@ -59,10 +59,25 @@ type CompletionConfig struct {
 	Zsh  string `koanf:"zsh"`  // Zsh completion code
 }
 
+// When represents conditions that must be met for an alias to execute
+type When struct {
+	// Atomic conditions (syntactic sugar for single condition)
+	File    string `koanf:"file"`    // Path to file that must exist (supports env var expansion)
+	Var     string `koanf:"var"`     // Environment variable that must be set and non-empty
+	Dir     string `koanf:"dir"`     // Path to directory that must exist (supports env var expansion)
+	Command string `koanf:"command"` // Command that must exist in PATH
+
+	// Composite conditions
+	All []When `koanf:"all"` // All conditions must be true (AND)
+	Any []When `koanf:"any"` // At least one condition must be true (OR)
+}
+
 // AliasConfig represents an alias with optional completion override
 type AliasConfig struct {
 	Command    string      // The command to execute
 	Completion interface{} // Can be: string (inherit), false (disable), or CompletionConfig object
+	When       *When       // Conditions that must be met for the alias to execute
+	Else       string      // Fallback command if conditions are not met
 }
 
 // Config represents a dirvana configuration
@@ -117,11 +132,62 @@ func (c *Config) GetAliases() map[string]AliasConfig {
 				}
 			}
 
+			// Parse 'when' conditions
+			if whenData, exists := v["when"]; exists {
+				if whenMap, ok := whenData.(map[string]interface{}); ok {
+					alias.When = parseWhen(whenMap)
+				}
+			}
+
+			// Parse 'else' fallback command
+			if elseCmd, ok := v["else"].(string); ok {
+				alias.Else = elseCmd
+			}
+
 			result[name] = alias
 		}
 	}
 
 	return result
+}
+
+// parseWhen recursively parses a when condition map into a When struct
+func parseWhen(m map[string]interface{}) *When {
+	when := &When{}
+
+	// Parse atomic conditions
+	if file, ok := m["file"].(string); ok {
+		when.File = file
+	}
+	if varName, ok := m["var"].(string); ok {
+		when.Var = varName
+	}
+	if dir, ok := m["dir"].(string); ok {
+		when.Dir = dir
+	}
+	if cmd, ok := m["command"].(string); ok {
+		when.Command = cmd
+	}
+
+	// Parse composite conditions (all)
+	if allData, ok := m["all"].([]interface{}); ok {
+		for _, item := range allData {
+			if itemMap, ok := item.(map[string]interface{}); ok {
+				when.All = append(when.All, *parseWhen(itemMap))
+			}
+		}
+	}
+
+	// Parse composite conditions (any)
+	if anyData, ok := m["any"].([]interface{}); ok {
+		for _, item := range anyData {
+			if itemMap, ok := item.(map[string]interface{}); ok {
+				when.Any = append(when.Any, *parseWhen(itemMap))
+			}
+		}
+	}
+
+	return when
 }
 
 // GetEnvVars returns a map of environment variable names to their resolved values or shell commands

@@ -109,6 +109,7 @@ $ cd ..
 - 🐚 **Compatible**: Works with Bash and Zsh
 - 🔄 **Auto-completion**: Inherits completion from aliased commands (git, kubectl, etc.)
   - 🛠️ **Completion Registry**: Some commands do not have built-in completion support, but we can define custom completions via [registry](./registry/README.md)
+- 🎯 **Conditional Aliases**: Execute commands based on runtime conditions (file existence, env vars, etc.)
 
 ## 📦 Installation
 
@@ -224,6 +225,22 @@ aliases:
 
   g: git # Git branch/file completion!
 
+# Conditional aliases - execute different commands based on conditions
+aliases:
+  kubectl:
+    when:
+      all:
+        - var: "KUBECONFIG"  # Check env var is set
+        - file: "$KUBECONFIG"  # Check file exists
+    command: kubectl --kubeconfig "$KUBECONFIG"
+    else: kubectl  # Fallback if conditions not met
+
+  deploy:
+    when:
+      file: ".env"  # Check if .env exists
+    command: ./deploy.sh
+    else: "echo 'Error: .env file not found'"
+
 # Functions - reusable command sequences
 functions:
   mkcd: |
@@ -280,6 +297,214 @@ env:
 The shell commands are executed when the configuration is loaded, and the output becomes the environment variable value.
 
 **Security Note:** Dynamic environment variables require explicit user authorization for each project to prevent execution of untrusted code. An authorization prompt appears the first time you enter a new directory with dynamic env vars.
+
+### Conditional Aliases
+
+Dirvana supports conditional aliases that execute different commands based on runtime conditions. This is useful for:
+- Checking if required files or directories exist before running commands
+- Verifying environment variables are set
+- Ensuring required tools are installed
+- Providing fallback commands when conditions aren't met
+
+#### Basic Conditions
+
+```yaml
+aliases:
+  # File condition - check if a file exists
+  dev:
+    when:
+      file: "package.json"
+    command: npm run dev
+    else: "echo 'Error: package.json not found'"
+
+  # Variable condition - check if env var is set and non-empty
+  aws-deploy:
+    when:
+      var: "AWS_PROFILE"
+    command: aws deploy push
+    else: "echo 'Error: AWS_PROFILE not set. Run: export AWS_PROFILE=...' && false"
+
+  # Directory condition - check if directory exists
+  test:
+    when:
+      dir: "node_modules"
+    command: npm test
+    else: "echo 'Run npm install first' && false"
+
+  # Command condition - check if command exists in PATH
+  dc:
+    when:
+      command: "docker"
+    command: docker compose
+    else: "echo 'Docker not installed'"
+```
+
+#### Multiple Conditions with `all` and `any`
+
+Use `all` (AND logic) or `any` (OR logic) to combine multiple conditions:
+
+```yaml
+aliases:
+  # All conditions must be true (AND)
+  k:
+    when:
+      all:
+        - var: "KUBECONFIG"       # Check env var is set
+        - file: "$KUBECONFIG"     # Check file exists
+    command: kubectl --kubeconfig "$KUBECONFIG"
+    else: kubectl  # Use default kubectl
+
+  # At least one condition must be true (OR)
+  config-edit:
+    when:
+      any:
+        - file: ".env.local"
+        - file: ".env"
+        - file: ".env.example"
+    command: vim $(ls .env.local .env .env.example 2>/dev/null | head -1)
+    else: "echo 'No config file found'"
+
+  # Nested conditions for complex logic
+  deploy:
+    when:
+      all:
+        - var: "AWS_PROFILE"
+        - command: "aws"
+        - any:
+            - file: ".env.production"
+            - file: ".env"
+    command: ./deploy.sh
+    else: "echo 'Prerequisites not met: need AWS_PROFILE, aws CLI, and .env file' && false"
+```
+
+#### Reusing Conditions with YAML Anchors
+
+For complex projects, you can define conditions once and reuse them with YAML anchors:
+
+```yaml
+# Define reusable conditions with anchors
+conditions:
+  kubeconfig:
+    when: &kubeconfig
+      all:
+        - var: "KUBECONFIG"
+        - file: "$KUBECONFIG"
+
+  talosconfig:
+    when: &talosconfig
+      file: "$TALOSCONFIG"
+
+  docker_running:
+    when: &docker_running
+      all:
+        - command: "docker"
+        - command: "docker-compose"
+
+# Reuse conditions across multiple aliases
+aliases:
+  # Kubernetes tools - all require KUBECONFIG
+  k:
+    when: *kubeconfig
+    command: kubectl
+    else: "echo 'KUBECONFIG not configured' && false"
+    completion: kubectl
+
+  h:
+    when: *kubeconfig
+    command: helm
+    else: "echo 'Helm requires KUBECONFIG to be set' && false"
+
+  kns:
+    when: *kubeconfig
+    command: kubens
+    else: "echo 'kubens requires KUBECONFIG' && false"
+
+  # Talos tools - require TALOSCONFIG
+  t:
+    when: *talosconfig
+    command: talosctl
+    else: "echo 'TALOSCONFIG not found' && false"
+    completion: talosctl
+
+  # Docker commands
+  dc:
+    when: *docker_running
+    command: docker compose
+    else: "echo 'Docker or docker-compose not available' && false"
+
+# Generate config files dynamically
+env:
+  KUBECONFIG:
+    sh: echo "/tmp/kubeconfig-$(echo -n $(pwd) | sha1sum | awk '{print $1}')"
+
+  TALOSCONFIG:
+    sh: echo "/tmp/talosconfig-$(echo -n $(pwd) | sha1sum | awk '{print $1}')"
+```
+
+#### Real-World Example: Project-Specific Tooling
+
+```yaml
+# Dynamic environment variables for project-specific configs
+env:
+  PROJECT_KUBECONFIG:
+    sh: echo "$HOME/.kube/$(basename $(pwd))-config"
+
+  PROJECT_ENV:
+    sh: git rev-parse --abbrev-ref HEAD | sed 's/.*\///'  # Extract env from branch
+
+# Define conditions
+conditions:
+  kube_ready:
+    when: &kube_ready
+      all:
+        - var: "PROJECT_KUBECONFIG"
+        - file: "$PROJECT_KUBECONFIG"
+        - command: "kubectl"
+
+  has_taskfile:
+    when: &has_taskfile
+      file: "Taskfile.yml"
+
+aliases:
+  # kubectl with automatic config switching
+  k:
+    when: *kube_ready
+    command: kubectl --kubeconfig "$PROJECT_KUBECONFIG"
+    else: "echo 'Generate kubeconfig first: task bootstrap' && false"
+    completion: kubectl
+
+  # Use Taskfile if available, otherwise direct command
+  build:
+    when: *has_taskfile
+    command: task build
+    else: go build -o bin/app ./cmd/app
+
+  deploy:
+    when:
+      all:
+        - *kube_ready
+        - *has_taskfile
+        - var: "PROJECT_ENV"
+    command: task deploy -- --env=$PROJECT_ENV
+    else: "echo 'Missing requirements: kubeconfig, Taskfile, or PROJECT_ENV' && false"
+```
+
+#### Error Messages
+
+If conditions fail and no `else` is specified, a descriptive error is shown:
+
+```bash
+$ k get pods
+Error: condition not met for alias 'k':
+All conditions must be met:
+  ✓ environment variable 'PROJECT_KUBECONFIG' is set
+  ✗ file '/home/user/.kube/myproject-config' does not exist
+  ✓ command 'kubectl' exists in PATH
+```
+
+**Environment Variable Expansion:** File and directory paths support environment variable expansion using `$VAR` or `${VAR}` syntax.
+
+See `examples/conditional-aliases/` for more examples.
 
 ### Global Configuration
 

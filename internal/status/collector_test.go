@@ -166,8 +166,8 @@ local_only: true
 
 	// Aliases/functions should be loaded
 	assert.Len(t, data.Aliases, 2)
-	assert.Equal(t, "git status", data.Aliases["gs"])
-	assert.Equal(t, "kubectl", data.Aliases["k"])
+	assert.Equal(t, "git status", data.Aliases["gs"].Command)
+	assert.Equal(t, "kubectl", data.Aliases["k"].Command)
 
 	assert.Len(t, data.Functions, 1)
 	assert.Contains(t, data.Functions, "greet")
@@ -426,8 +426,8 @@ func TestCollectAll_WithGlobalConfig(t *testing.T) {
 
 	// Should have aliases from both global and local
 	assert.Len(t, data.Aliases, 2)
-	assert.Equal(t, "ls -la", data.Aliases["ll"])
-	assert.Equal(t, "git status", data.Aliases["gs"])
+	assert.Equal(t, "ls -la", data.Aliases["ll"].Command)
+	assert.Equal(t, "git status", data.Aliases["gs"].Command)
 }
 
 // TestCheckRCFileForHook tests the RC file hook detection function

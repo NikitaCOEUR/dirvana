@@ -110,6 +110,30 @@ func buildCompletionMap(aliases map[string]config.AliasConfig) map[string]string
 	return completionMap
 }
 
+// getMergedAliasConfigs returns the merged aliases and functions for a directory.
+// Respects the full config hierarchy including global config, ignore_global, local_only, and authorization.
+// Returns nil if no context is found or not authorized.
+func getMergedAliasConfigs(currentDir string, cachePath string, authPath string) (aliases map[string]config.AliasConfig, functions map[string]string, err error) {
+	// Initialize components
+	comps, err := initializeComponents(cachePath, authPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Load the full config hierarchy with auth
+	// This respects global config, ignore_global, local_only, and authorization
+	mergedConfig, _, err := comps.config.LoadHierarchyWithAuth(currentDir, comps.auth)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Return aliases and functions
+	aliases = mergedConfig.GetAliases()
+	functions = mergedConfig.Functions
+
+	return aliases, functions, nil
+}
+
 // getMergedCommandMaps returns merged CommandMaps and CompletionMaps for a directory.
 // Respects the full config hierarchy including global config, ignore_global, local_only, and authorization.
 // Returns nil maps if no context is found or not authorized.

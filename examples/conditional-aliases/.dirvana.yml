@@ -1,0 +1,92 @@
+# Conditional Aliases Example
+# This example demonstrates the use of conditional aliases with the 'when' and 'else' fields
+
+aliases:
+  # Simple file condition
+  # If config.json exists, use it; otherwise create from template
+  config:
+    when:
+      file: "config.json"
+    command: cat config.json
+    else: cp config.template.json config.json && cat config.json
+
+  # Variable condition
+  # Check if AWS_PROFILE is set before running AWS commands
+  aws-deploy:
+    when:
+      var: "AWS_PROFILE"
+    command: aws deploy push
+    else: "echo 'Error: AWS_PROFILE environment variable is not set'"
+
+  # Directory condition
+  # Check if node_modules exists before building
+  build:
+    when:
+      dir: "node_modules"
+    command: npm run build
+    else: "echo 'Error: node_modules not found. Run npm install first'"
+
+  # Command condition
+  # Check if docker is installed before running
+  docker-build:
+    when:
+      command: "docker"
+    command: docker build -t myapp .
+    else: "echo 'Error: Docker is not installed'"
+
+  # Multiple conditions with 'all' (AND logic)
+  # Check KUBECONFIG var is set AND the file exists
+  kubectl:
+    when:
+      all:
+        - var: "KUBECONFIG"
+        - file: "$KUBECONFIG"
+    command: kubectl --kubeconfig "$KUBECONFIG"
+    else: kubectl  # Fallback to default kubectl
+
+  # Multiple conditions with 'all'
+  # Deploy only if AWS_PROFILE is set, .env exists, and aws CLI is available
+  full-deploy:
+    when:
+      all:
+        - var: "AWS_PROFILE"
+        - file: ".env"
+        - command: "aws"
+    command: ./scripts/deploy.sh
+    else: "echo 'Error: Prerequisites not met. Check AWS_PROFILE, .env file, and aws CLI'"
+
+  # Multiple conditions with 'any' (OR logic)
+  # Use local config if it exists, otherwise use global
+  config-edit:
+    when:
+      any:
+        - file: ".env.local"
+        - file: ".env"
+    command: ${EDITOR:-vim} $([ -f .env.local ] && echo .env.local || echo .env)
+    else: "echo 'Error: No config file found (.env.local or .env)'"
+
+  # Nested conditions
+  # Complex example: use dev or prod config based on what's available
+  start:
+    when:
+      all:
+        - dir: "node_modules"
+        - any:
+            - file: ".env.local"
+            - file: ".env"
+    command: npm start
+    else: "echo 'Error: Run npm install and create a .env file first'"
+
+  # Simple alias without conditions (for comparison)
+  test:
+    command: npm test
+
+  # Alias with condition but no fallback
+  # This will show an error message if condition fails
+  prod-deploy:
+    when:
+      all:
+        - var: "PROD_API_KEY"
+        - file: "dist/bundle.js"
+    command: ./scripts/deploy-prod.sh
+    # No 'else' field: will fail with descriptive error if conditions not met
