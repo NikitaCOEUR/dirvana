@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
+	"github.com/NikitaCOEUR/dirvana/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -980,4 +981,140 @@ func TestExport_DisabledViaEnv(t *testing.T) {
 
 	// Should return empty output when disabled
 	assert.Empty(t, output)
+}
+
+func TestCacheMergedConfig_WithLocalConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Create a config file
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	configContent := `aliases:
+  test: echo test
+env:
+  TEST_VAR: value
+functions:
+  test_func: |
+    echo "test function"
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	// Authorize the directory
+	err = Allow(authPath, tmpDir)
+	require.NoError(t, err)
+
+	// Initialize components
+	comps, err := initializeComponents(cachePath, authPath)
+	require.NoError(t, err)
+
+	// Load the config
+	cfg, err := comps.config.Load(configPath)
+	require.NoError(t, err)
+
+	aliases := cfg.GetAliases()
+	mergedCommandMap := buildCommandMap(aliases, cfg.Functions)
+	mergedCompletionMap := buildCompletionMap(aliases)
+	hierarchyHash := "test_hash"
+	hierarchyPaths := []string{tmpDir}
+
+	log := logger.New("error", os.Stderr)
+
+	// Call cacheMergedConfig
+	cacheMergedConfig(tmpDir, hierarchyHash, hierarchyPaths, cfg, aliases, mergedCommandMap, mergedCompletionMap, comps, log)
+
+	// Verify cache entry
+	entry, found := comps.cache.Get(tmpDir)
+	require.True(t, found, "Cache entry should exist")
+
+	// Should have cleanup data (has local config)
+	assert.NotNil(t, entry.Aliases, "Aliases should not be nil")
+	assert.NotNil(t, entry.EnvVars, "EnvVars should not be nil")
+	assert.NotNil(t, entry.Functions, "Functions should not be nil")
+	assert.Contains(t, entry.Aliases, "test", "Should contain alias 'test'")
+	assert.Contains(t, entry.EnvVars, "TEST_VAR", "Should contain env var 'TEST_VAR'")
+	assert.Contains(t, entry.Functions, "test_func", "Should contain function 'test_func'")
+
+	// Should have merged data (for performance)
+	assert.NotNil(t, entry.MergedCommandMap, "MergedCommandMap should not be nil")
+	assert.NotNil(t, entry.MergedCompletionMap, "MergedCompletionMap should not be nil")
+	assert.Equal(t, hierarchyHash, entry.HierarchyHash, "HierarchyHash should match")
+}
+
+func TestCacheMergedConfig_WithoutLocalConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Create a subdirectory WITHOUT a config file
+	subDir := filepath.Join(tmpDir, "subdir")
+	require.NoError(t, os.MkdirAll(subDir, 0755))
+
+	// Create a config in the parent only
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	configContent := `aliases:
+  test: echo test
+env:
+  TEST_VAR: value
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	// Authorize the directory
+	err = Allow(authPath, tmpDir)
+	require.NoError(t, err)
+
+	// Initialize components
+	comps, err := initializeComponents(cachePath, authPath)
+	require.NoError(t, err)
+
+	// Load the parent config (this is what would be loaded when in subDir)
+	cfg, err := comps.config.Load(configPath)
+	require.NoError(t, err)
+
+	aliases := cfg.GetAliases()
+	mergedCommandMap := buildCommandMap(aliases, cfg.Functions)
+	mergedCompletionMap := buildCompletionMap(aliases)
+	hierarchyHash := "test_hash"
+	hierarchyPaths := []string{tmpDir}
+
+	log := logger.New("error", os.Stderr)
+
+	// Call cacheMergedConfig for the subdirectory (which has no local config)
+	cacheMergedConfig(subDir, hierarchyHash, hierarchyPaths, cfg, aliases, mergedCommandMap, mergedCompletionMap, comps, log)
+
+	// Verify cache entry
+	entry, found := comps.cache.Get(subDir)
+	require.True(t, found, "Cache entry should exist")
+
+	// Should NOT have cleanup data (no local config)
+	assert.Nil(t, entry.Aliases, "Aliases should be nil (no local config)")
+	assert.Nil(t, entry.EnvVars, "EnvVars should be nil (no local config)")
+	assert.Nil(t, entry.Functions, "Functions should be nil (no local config)")
+
+	// Should still have merged data (for performance)
+	assert.NotNil(t, entry.MergedCommandMap, "MergedCommandMap should not be nil")
+	assert.NotNil(t, entry.MergedCompletionMap, "MergedCompletionMap should not be nil")
+	assert.Equal(t, hierarchyHash, entry.HierarchyHash, "HierarchyHash should match")
+	assert.Equal(t, hierarchyPaths, entry.HierarchyPaths, "HierarchyPaths should match")
+}
+
+func TestCacheMergedConfig_EmptyHash(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	// Initialize components
+	comps, err := initializeComponents(cachePath, authPath)
+	require.NoError(t, err)
+
+	log := logger.New("error", os.Stderr)
+
+	// Call with empty hierarchyHash - should not cache anything
+	cacheMergedConfig(tmpDir, "", []string{}, nil, nil, nil, nil, comps, log)
+
+	// Verify NO cache entry was created
+	_, found := comps.cache.Get(tmpDir)
+	assert.False(t, found, "No cache entry should exist when hierarchyHash is empty")
 }
