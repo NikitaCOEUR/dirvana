@@ -11,7 +11,7 @@ type: docs
 
 <p align="center">
   <strong>Reach directory nirvana</strong><br>
-  Automatic project-specific shell environments
+  Per-project aliases, functions, and env vars that auto-load when you cd. Zero friction, zero pollution.
 </p>
 
 <p align="center">

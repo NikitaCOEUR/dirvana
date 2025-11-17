@@ -1,6 +1,7 @@
 # Dirvana - Reach directory nirvana
+[![Read the Docs](https://img.shields.io/badge/read-docs-informational)](https://nikitacoeur.github.io/dirvana/)
+[![GitHub Release](https://img.shields.io/github/v/release/NikitaCOEUR/dirvana?sort=semver&display_name=release&style=flat&color=%2300ADD8)](https://github.com/NikitaCOEUR/dirvana/releases) [![codecov](https://codecov.io/gh/NikitaCOEUR/dirvana/graph/badge.svg?token=IBRJQQQB3V)](https://codecov.io/gh/NikitaCOEUR/dirvana) [![License](https://img.shields.io/github/license/NikitaCOEUR/dirvana)](LICENSE) ![GitHub repo size](https://img.shields.io/github/repo-size/NikitaCOEUR/dirvana)
 
-[![GitHub Release](https://img.shields.io/github/v/release/NikitaCOEUR/dirvana?sort=semver&display_name=release&style=flat&color=%2300ADD8)](https://github.com/NikitaCOEUR/dirvana/releases) [![codecov](https://codecov.io/gh/NikitaCOEUR/dirvana/graph/badge.svg?token=IBRJQQQB3V)](https://codecov.io/gh/NikitaCOEUR/dirvana) [![License](https://img.shields.io/github/license/NikitaCOEUR/dirvana)](LICENSE)
 
 ![dirvana-logo](docs/static/DirvanaLogo.png)
 
@@ -9,11 +10,14 @@
 >
 > Dirvana is currently in beta. Found a bug? Have a feature request? Please [open an issue](https://github.com/NikitaCOEUR/dirvana/issues)!
 
-**Automatically load shell aliases, functions, and environment variables per directory.**
 
-Dirvana is a lightweight CLI tool that manages project-specific shell environments. When you enter a directory, Dirvana automatically loads the configuration defined in `.dirvana.yml`, giving you instant access to project-specific commands and settings. When you leave, everything is automatically unloaded.
+## Automatically load shell aliases, functions, and environment variables per directory.
 
----
+Dirvana is a lightweight CLI tool that manages project-specific shell environments.
+
+When you enter a directory, Dirvana automatically loads the configuration defined in `.dirvana.yml`, giving you instant access to project-specific commands and settings.
+
+When you leave, everything is automatically unloaded.
 
 ## The Problem
 
