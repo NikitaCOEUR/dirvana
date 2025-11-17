@@ -1,0 +1,81 @@
+# Dirvana Templating Example
+#
+# This example demonstrates the template variable system inspired by Taskfile.
+# Variables use Go templates with Sprig functions for powerful string manipulation.
+
+# Environment Variables with Templates
+env:
+  # Reference the directory containing this .dirvana.yml file
+  PROJECT_ROOT: "{{.DIRVANA_DIR}}"
+
+  # Extract just the project name using Sprig's base function
+  PROJECT_NAME: "{{.DIRVANA_DIR | base}}"
+
+  # Build paths relative to the config directory
+  BUILD_DIR: "{{.DIRVANA_DIR}}/build"
+  CONFIG_FILE: "{{.DIRVANA_DIR}}/config.yml"
+
+  # Generate unique identifiers using hash functions
+  PROJECT_ID: "{{.DIRVANA_DIR | sha256sum | trunc 8}}"
+
+  # Transform strings with Sprig functions
+  PROJECT_NAME_UPPER: "{{.DIRVANA_DIR | base | upper}}"
+
+  # Reference the user's current working directory
+  ORIGINAL_CWD: "{{.USER_WORKING_DIR}}"
+
+  # Combine variables and functions
+  CACHE_KEY: "build-{{.DIRVANA_DIR | base}}-{{.DIRVANA_DIR | sha256sum | trunc 8}}"
+
+# Aliases using templates
+aliases:
+  # Always build from the project root, regardless of where you run it
+  build: "cd {{.DIRVANA_DIR}} && make build"
+
+  # Use template in shell commands
+  clean: "rm -rf {{.DIRVANA_DIR}}/build {{.DIRVANA_DIR}}/dist"
+
+  # Multi-line commands with templates
+  info: |
+    echo "Project: {{.DIRVANA_DIR | base}}"
+    echo "Location: {{.DIRVANA_DIR}}"
+    echo "You ran this from: {{.USER_WORKING_DIR}}"
+    echo "Project ID: {{.DIRVANA_DIR | sha256sum | trunc 8}}"
+
+  # Deploy with hash-based versioning
+  deploy: "./deploy.sh --version={{.DIRVANA_DIR | sha256sum | trunc 8}}"
+
+  # Conditional commands with templates
+  test:
+    command: "cd {{.DIRVANA_DIR}} && go test ./..."
+    when:
+      file: "{{.DIRVANA_DIR}}/go.mod"
+    else: "echo 'Not a Go project'"
+
+# Functions using templates
+functions:
+  # Jump to project root from anywhere
+  goto: "cd {{.DIRVANA_DIR}}"
+
+  # Create build directory if it doesn't exist
+  mkbuild: "mkdir -p {{.DIRVANA_DIR}}/build && cd {{.DIRVANA_DIR}}/build"
+
+  # Return to where you originally were
+  back: "cd {{.USER_WORKING_DIR}}"
+
+# Advanced: Nested directories example
+#
+# If you have multiple .dirvana.yml files in a hierarchy:
+# /project/.dirvana.yml              <- DIRVANA_DIR = /project
+# /project/backend/.dirvana.yml      <- DIRVANA_DIR = /project/backend
+# /project/frontend/.dirvana.yml     <- DIRVANA_DIR = /project/frontend
+#
+# Each file's templates will reference its own directory!
+# This allows you to have project-specific paths that always work.
+
+# Example: Parent directory structure
+# parent-dir/
+#   .dirvana.yml                     <- PROJECT_ROOT: /parent-dir
+#   subproject/
+#     .dirvana.yml                   <- SUBPROJECT_ROOT: /parent-dir/subproject
+#                                       (inherits PROJECT_ROOT from parent)

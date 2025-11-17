@@ -110,6 +110,7 @@ $ cd ..
 - 🔄 **Auto-completion**: Inherits completion from aliased commands (git, kubectl, etc.)
   - 🛠️ **Completion Registry**: Some commands do not have built-in completion support, but we can define custom completions via [registry](./registry/README.md)
 - 🎯 **Conditional Aliases**: Execute commands based on runtime conditions (file existence, env vars, etc.)
+- 🎨 **Template Variables**: Go templates with Sprig functions for dynamic paths and string manipulation
 
 ## 📦 Installation
 
@@ -505,6 +506,79 @@ All conditions must be met:
 **Environment Variable Expansion:** File and directory paths support environment variable expansion using `$VAR` or `${VAR}` syntax.
 
 See `examples/conditional-aliases/` for more examples.
+
+### Template Variables
+
+Dirvana supports Go template variables with [Sprig functions](http://masterminds.github.io/sprig/) for dynamic path references and string manipulation, inspired by [Taskfile](https://taskfile.dev).
+
+#### Available Variables
+
+- **`{{.DIRVANA_DIR}}`** - Directory containing the `.dirvana.yml` file where the variable is defined
+- **`{{.USER_WORKING_DIR}}`** - Directory where you invoked the command
+
+These variables work perfectly with hierarchical configs - each `.dirvana.yml` file gets its own `DIRVANA_DIR`:
+
+```yaml
+# Parent: /project/.dirvana.yml
+env:
+  PROJECT_ROOT: "{{.DIRVANA_DIR}}"  # /project
+
+# Child: /project/backend/.dirvana.yml
+env:
+  BACKEND_ROOT: "{{.DIRVANA_DIR}}"  # /project/backend
+  # Inherits PROJECT_ROOT=/project from parent
+```
+
+#### Using Sprig Functions
+
+Sprig provides 100+ functions for string manipulation, hashing, and more:
+
+```yaml
+env:
+  # Path manipulation
+  PROJECT_NAME: "{{.DIRVANA_DIR | base}}"              # Extract directory name
+  PARENT_DIR: "{{.DIRVANA_DIR | dir}}"                 # Get parent directory
+
+  # String transformation
+  PROJECT_UPPER: "{{.DIRVANA_DIR | base | upper}}"     # MYPROJECT
+  PROJECT_LOWER: "{{.DIRVANA_DIR | base | lower}}"     # myproject
+
+  # Hash functions for unique IDs
+  PROJECT_ID: "{{.DIRVANA_DIR | sha256sum | trunc 8}}" # 8-char hash
+  CACHE_KEY: "build-{{.DIRVANA_DIR | sha256sum | trunc 8}}"
+
+  # Build paths
+  BUILD_DIR: "{{.DIRVANA_DIR}}/build"
+  CONFIG_FILE: "{{.DIRVANA_DIR}}/config.yml"
+
+aliases:
+  # Always build from project root
+  build: "cd {{.DIRVANA_DIR}} && make build"
+
+  # Multi-line with templates
+  info: |
+    echo "Project: {{.DIRVANA_DIR | base}}"
+    echo "Location: {{.DIRVANA_DIR}}"
+    echo "Current dir: {{.USER_WORKING_DIR}}"
+
+  # Use in conditionals
+  deploy:
+    when:
+      file: "{{.DIRVANA_DIR}}/deploy.sh"
+    command: "{{.DIRVANA_DIR}}/deploy.sh --id={{.DIRVANA_DIR | sha256sum | trunc 8}}"
+
+functions:
+  # Jump to project root from anywhere
+  goto: "cd {{.DIRVANA_DIR}}"
+```
+
+**Common Use Cases:**
+- **Monorepos**: Each service has its own `DIRVANA_DIR` pointing to its directory
+- **Build paths**: Reference build directories relative to project root
+- **Unique identifiers**: Generate cache keys or Docker tags using hashes
+- **Dynamic configs**: Create project-specific configuration paths
+
+See [`examples/templating/`](./examples/templating/) for comprehensive examples and all available Sprig functions.
 
 ### Global Configuration
 

@@ -2,6 +2,7 @@
 package config
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -9,8 +10,10 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -87,6 +90,141 @@ type Config struct {
 	Env          map[string]interface{} `koanf:"env"` // Can be string or EnvVar struct
 	LocalOnly    bool                   `koanf:"local_only"`
 	IgnoreGlobal bool                   `koanf:"ignore_global"`
+	ConfigDir    string                 // Directory containing the config file (not persisted in YAML)
+}
+
+// expandTemplate expands a template string using Sprig functions and Dirvana variables
+// Available variables in templates (aligned with Taskfile conventions):
+//   - {{.DIRVANA_DIR}} - Directory containing the .dirvana.yml file
+//   - {{.USER_WORKING_DIR}} - Directory where the command was invoked
+func (c *Config) expandTemplate(tmplStr string) string {
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "" // Fallback to empty if we can't get CWD
+	}
+
+	// Prepare template variables using a map to allow uppercase names
+	// This aligns with Taskfile's naming convention (TASKFILE_DIR, USER_WORKING_DIR)
+	vars := map[string]string{
+		"DIRVANA_DIR":      c.ConfigDir,
+		"USER_WORKING_DIR": cwd,
+	}
+
+	// Create template with Sprig functions
+	tmpl, err := template.New("dirvana").Funcs(sprig.TxtFuncMap()).Parse(tmplStr)
+	if err != nil {
+		// If template parsing fails, return original string
+		// This allows non-template strings to pass through
+		return tmplStr
+	}
+
+	// Execute template
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, vars); err != nil {
+		// If execution fails, return original string
+		return tmplStr
+	}
+
+	return buf.String()
+}
+
+// ExpandVars expands all Dirvana template variables in the config
+// This should be called after loading the config and before merging
+func (c *Config) ExpandVars() error {
+	if err := c.expandAliasVars(); err != nil {
+		return err
+	}
+	if err := c.expandFunctionVars(); err != nil {
+		return err
+	}
+	if err := c.expandEnvVars(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// expandAliasVars expands template variables in aliases
+func (c *Config) expandAliasVars() error {
+	for name, value := range c.Aliases {
+		switch v := value.(type) {
+		case string:
+			c.Aliases[name] = c.expandTemplate(v)
+		case map[string]interface{}:
+			if cmd, ok := v["command"].(string); ok {
+				v["command"] = c.expandTemplate(cmd)
+			}
+			if elseCmd, ok := v["else"].(string); ok {
+				v["else"] = c.expandTemplate(elseCmd)
+			}
+			// Expand conditions
+			if whenData, ok := v["when"].(map[string]interface{}); ok {
+				if err := c.expandWhenVars(whenData); err != nil {
+					return fmt.Errorf("failed to expand conditions for alias '%s': %w", name, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// expandFunctionVars expands template variables in functions
+func (c *Config) expandFunctionVars() error {
+	for name, body := range c.Functions {
+		c.Functions[name] = c.expandTemplate(body)
+	}
+	return nil
+}
+
+// expandEnvVars expands template variables in environment variables
+func (c *Config) expandEnvVars() error {
+	for key, value := range c.Env {
+		switch v := value.(type) {
+		case string:
+			c.Env[key] = c.expandTemplate(v)
+		case map[string]interface{}:
+			if sh, ok := v["sh"].(string); ok {
+				v["sh"] = c.expandTemplate(sh)
+			}
+			if val, ok := v["value"].(string); ok {
+				v["value"] = c.expandTemplate(val)
+			}
+		}
+	}
+	return nil
+}
+
+// expandWhenVars recursively expands Dirvana template variables in condition maps
+func (c *Config) expandWhenVars(when map[string]interface{}) error {
+	// Expand atomic conditions
+	if file, ok := when["file"].(string); ok {
+		when["file"] = c.expandTemplate(file)
+	}
+	if dir, ok := when["dir"].(string); ok {
+		when["dir"] = c.expandTemplate(dir)
+	}
+
+	// Recursively expand composite conditions
+	if allData, ok := when["all"].([]interface{}); ok {
+		for _, item := range allData {
+			if itemMap, ok := item.(map[string]interface{}); ok {
+				if err := c.expandWhenVars(itemMap); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if anyData, ok := when["any"].([]interface{}); ok {
+		for _, item := range anyData {
+			if itemMap, ok := item.(map[string]interface{}); ok {
+				if err := c.expandWhenVars(itemMap); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // GetAliases returns a normalized map of alias name to AliasConfig
@@ -354,6 +492,14 @@ func (l *Loader) Load(path string) (*Config, error) {
 
 	if err := k.Unmarshal("", cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	// Store the config directory for template expansion
+	cfg.ConfigDir = filepath.Dir(path)
+
+	// Expand template variables ({{.DIRVANA_DIR}}, {{.USER_WORKING_DIR}}, etc.)
+	if err := cfg.ExpandVars(); err != nil {
+		return nil, fmt.Errorf("failed to expand template variables: %w", err)
 	}
 
 	// Cache the parsed config with write lock

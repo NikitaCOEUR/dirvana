@@ -146,6 +146,15 @@ LOG_LEVEL = "debug"
 
 ## 🎯 Advanced Features Showcase
 
+### [Templating](./templating/)
+Template variables and Sprig functions for dynamic configurations:
+- Path references with `{{.DIRVANA_DIR}}` and `{{.USER_WORKING_DIR}}`
+- String manipulation (upper, lower, replace, trim)
+- Hash functions (sha256sum, md5sum)
+- Path functions (base, dir, clean)
+- Conditional logic in templates
+- Perfect for monorepos and hierarchical projects
+
 ### Completion Control
 
 ```yaml
