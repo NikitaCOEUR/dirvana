@@ -12,6 +12,7 @@ aliases:
   k:
     command: kubecolor
     completion: kubectl
+  kubectl: kubectl
   h: helm
   p: packer
   t: task

@@ -1,0 +1,467 @@
+// Custom styles for Dirvana documentation
+// Main theme color: #41495b (dark blue-gray)
+
+// Override layout widths for better screen usage
+$container-max-width: 120rem; // Increased from 80rem for large screens
+$menu-width: 18rem; // Slightly wider menu
+$toc-width: 18rem; // Slightly wider TOC
+
+:root {
+  // Color palette
+  --dirvana-bg-primary: #41495b;      // Main background
+  --dirvana-bg-secondary: #353c4a;    // Sidebar/darker areas
+  --dirvana-bg-code: #2d3139;         // Code blocks
+  --dirvana-text: #e8ecf0;            // Main text (high contrast)
+  --dirvana-text-muted: #b8bec6;      // Secondary text
+  --dirvana-accent: #ffd66e;          // Menu accent (golden yellow)
+  --dirvana-accent-hover: #ffe49a;    // Menu accent hover (lighter yellow)
+  --dirvana-link: #8cfae6;            // Links (cyan)
+  --dirvana-link-hover: #a8ffef;      // Link hover (lighter cyan)
+  --dirvana-highlight: #ffd66e;       // Highlights/important text
+  --dirvana-border: #5a6374;          // Borders
+  --dirvana-success: #4caf50;         // Success/green
+  --dirvana-warning: #ff9800;         // Warning/orange
+  --dirvana-error: #f44336;           // Error/red
+  --dirvana-info: #2196f3;            // Info/blue
+
+  // Override theme variables
+  --body-background: var(--dirvana-bg-primary);
+  --body-font-color: var(--dirvana-text);
+  --color-link: var(--dirvana-link);
+  --color-visited-link: var(--dirvana-link);
+
+  --gray-100: var(--dirvana-bg-secondary);
+  --gray-200: var(--dirvana-bg-code);
+  --gray-500: var(--dirvana-text-muted);
+
+  // Same colors for dark mode
+  &.dark {
+    --body-background: var(--dirvana-bg-primary);
+    --body-font-color: var(--dirvana-text);
+    --color-link: var(--dirvana-link);
+  }
+}
+
+// Ensure body and html use the correct background color
+html {
+  background: #41495b;
+}
+
+body {
+  background: #41495b;
+}
+
+// Sidebar
+.book-menu {
+  background: var(--dirvana-bg-secondary);
+  border-right: 1px solid var(--dirvana-border);
+  min-height: 100vh;
+
+  nav {
+    color: var(--dirvana-text);
+  }
+
+  // Prevent brand/logo from shifting on hover
+  .book-brand a {
+    &:hover {
+      padding-left: 0 !important;
+      background: transparent !important;
+    }
+  }
+
+  a {
+    color: var(--dirvana-accent) !important;
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: var(--dirvana-accent-hover) !important;
+      background: rgba(255, 214, 110, 0.15);
+      padding-left: 0.5em;
+    }
+
+    &.active {
+      color: var(--dirvana-accent) !important;
+      font-weight: 600;
+      background: rgba(255, 214, 110, 0.2);
+      border-left: 3px solid var(--dirvana-accent);
+      padding-left: calc(0.5em - 3px);
+    }
+
+    // Override visited link color
+    &:visited {
+      color: var(--dirvana-accent) !important;
+
+      &.active {
+        color: var(--dirvana-accent) !important;
+      }
+
+      &:hover {
+        color: var(--dirvana-accent-hover) !important;
+      }
+    }
+  }
+}
+
+// Main content
+.book-page {
+  background: var(--dirvana-bg-primary);
+  color: var(--dirvana-text);
+}
+
+// Links - globally enforce cyan color for clickable elements
+a {
+  color: var(--dirvana-link) !important;
+  text-decoration: none;
+
+  &:visited {
+    color: var(--dirvana-link) !important;
+  }
+
+  &:hover {
+    color: var(--dirvana-link-hover) !important;
+    text-decoration: underline;
+  }
+}
+
+// Links in main content
+.book-page, .markdown {
+  a[href] {
+    color: var(--dirvana-link) !important;
+
+    &:visited {
+      color: var(--dirvana-link) !important;
+    }
+
+    &:hover {
+      color: var(--dirvana-link-hover) !important;
+    }
+  }
+}
+
+// Headers - use highlight color to make them stand out
+h1, h2, h3, h4, h5, h6 {
+  color: var(--dirvana-highlight);
+  border-bottom-color: var(--dirvana-border);
+}
+
+// Make H1 extra prominent
+h1 {
+  font-weight: 700;
+}
+
+// Strong/bold text also uses highlight color
+strong, b {
+  color: var(--dirvana-highlight);
+  font-weight: 600;
+}
+
+// Code blocks
+code {
+  background: #272822 !important;
+  color: #f8f8f2;
+  border: 1px solid var(--dirvana-border);
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+}
+
+pre {
+  background: #272822 !important;
+  border: 1px solid var(--dirvana-border);
+  border-radius: 4px;
+
+  code {
+    background: transparent !important;
+    border: none;
+    padding: 0;
+  }
+}
+
+// Tables
+table {
+  border-collapse: collapse;
+
+  th {
+    background: var(--dirvana-bg-secondary);
+    color: var(--dirvana-text);
+    border: 1px solid var(--dirvana-border);
+    font-weight: 600;
+  }
+
+  td {
+    border: 1px solid var(--dirvana-border);
+    color: var(--dirvana-text);
+  }
+
+  tr {
+    background: var(--dirvana-bg-primary);
+
+    &:nth-child(2n) {
+      background: rgba(53, 60, 74, 0.3);
+    }
+
+    &:hover {
+      background: rgba(255, 214, 110, 0.08);
+    }
+  }
+}
+
+// Blockquotes and alerts
+blockquote {
+  background: rgba(53, 60, 74, 0.5);
+  border-left: 4px solid var(--dirvana-border);
+  color: var(--dirvana-text);
+  padding: 0.5em 1em;
+  margin: 1em 0;
+
+  // Markdown alerts
+  &.markdown-alert {
+    padding-left: 1em;
+
+    &.markdown-alert-note {
+      border-left-color: var(--dirvana-info);
+      background: rgba(33, 150, 243, 0.1);
+    }
+
+    &.markdown-alert-warning {
+      border-left-color: var(--dirvana-warning);
+      background: rgba(255, 152, 0, 0.1);
+    }
+
+    &.markdown-alert-important {
+      border-left-color: var(--dirvana-error);
+      background: rgba(244, 67, 54, 0.1);
+    }
+
+    &.markdown-alert-tip {
+      border-left-color: var(--dirvana-success);
+      background: rgba(76, 175, 80, 0.1);
+    }
+  }
+}
+
+// Search
+.book-search input {
+  background: var(--dirvana-bg-code);
+  border: 1px solid var(--dirvana-border);
+  color: var(--dirvana-text);
+
+  &:focus {
+    border-color: var(--dirvana-accent);
+    outline: none;
+  }
+
+  &::placeholder {
+    color: var(--dirvana-text-muted);
+  }
+}
+
+// Buttons
+.book-btn {
+  background: var(--dirvana-bg-secondary) !important;
+  color: var(--dirvana-link) !important;
+  border: 1px solid var(--dirvana-link) !important;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  text-decoration: none !important;
+
+  &:hover {
+    background: rgba(140, 250, 230, 0.1) !important;
+    color: var(--dirvana-link-hover) !important;
+    border-color: var(--dirvana-link-hover) !important;
+  }
+}
+
+// Cards (blocs cliquables)
+.book-card {
+  background: var(--dirvana-bg-secondary) !important;
+  border: 1px solid var(--dirvana-border) !important;
+  transition: all 0.2s ease;
+
+  > a {
+    color: var(--dirvana-text) !important;
+    text-decoration: none !important;
+
+    h3, h4, h5 {
+      color: var(--dirvana-link);
+      transition: color 0.2s ease;
+    }
+  }
+
+  &:hover {
+    border-color: var(--dirvana-link) !important;
+    background: rgba(140, 250, 230, 0.05) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+
+    > a h3, > a h4, > a h5 {
+      color: var(--dirvana-link-hover) !important;
+    }
+  }
+}
+
+// TOC (Table of Contents)
+.book-toc {
+  background: var(--dirvana-bg-secondary);
+  border-left: 1px solid var(--dirvana-border);
+  min-height: 100vh;
+
+  nav {
+    color: var(--dirvana-accent);
+  }
+
+  a {
+    color: var(--dirvana-accent) !important;
+    transition: all 0.2s ease;
+
+    &:hover {
+      color: var(--dirvana-accent-hover) !important;
+      background: rgba(255, 214, 110, 0.15);
+      padding-left: 0.5em;
+    }
+
+    &.active {
+      color: var(--dirvana-accent) !important;
+      font-weight: 600;
+      background: rgba(255, 214, 110, 0.2);
+    }
+  }
+}
+
+// Footer
+footer {
+  color: var(--dirvana-text);
+  border-top: 1px solid var(--dirvana-border);
+
+  a {
+    color: var(--dirvana-link) !important;
+
+    &:hover {
+      color: var(--dirvana-link-hover) !important;
+    }
+  }
+}
+
+// Navigation de pagination (Next/Previous)
+.book-footer {
+  a {
+    color: var(--dirvana-link) !important;
+    background: var(--dirvana-bg-secondary);
+    border: 1px solid var(--dirvana-border);
+    padding: 0.5em 1em;
+
+    &:hover {
+      color: var(--dirvana-link-hover) !important;
+      background: rgba(140, 250, 230, 0.1);
+      border-color: var(--dirvana-link);
+    }
+  }
+}
+
+// Horizontal rules
+hr {
+  border-color: var(--dirvana-border);
+}
+
+// Selection
+::selection {
+  background: var(--dirvana-accent);
+  color: white;
+}
+
+// Scrollbar (webkit)
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dirvana-bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--dirvana-border);
+  border-radius: 4px;
+
+  &:hover {
+    background: var(--dirvana-accent);
+  }
+}
+
+// Badge/tag styling
+.badge, .tag {
+  background: var(--dirvana-bg-code);
+  color: var(--dirvana-text);
+  border: 1px solid var(--dirvana-border);
+  padding: 0.2em 0.6em;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+// Tabs styling
+.book-tabs {
+  background: var(--dirvana-bg-secondary);
+  border: 1px solid var(--dirvana-border);
+
+  label {
+    color: var(--dirvana-text-muted);
+    background: var(--dirvana-bg-code);
+    border-bottom: 2px solid transparent;
+
+    &:hover {
+      color: var(--dirvana-link);
+      background: rgba(140, 250, 230, 0.05);
+    }
+  }
+
+  input[type="radio"]:checked + label {
+    color: var(--dirvana-link);
+    background: var(--dirvana-bg-secondary);
+    border-bottom-color: var(--dirvana-link);
+  }
+
+  .book-tabs-content {
+    background: var(--dirvana-bg-secondary);
+    border-top: 1px solid var(--dirvana-border);
+    color: var(--dirvana-text);
+  }
+}
+
+// Responsive adjustments for better screen usage
+.container {
+  max-width: $container-max-width;
+}
+
+.book-menu {
+  flex: 0 0 $menu-width;
+
+  .book-menu-content {
+    width: $menu-width;
+  }
+}
+
+.book-toc {
+  flex: 0 0 $toc-width;
+
+  .book-toc-content {
+    width: $toc-width;
+  }
+}
+
+// Better spacing on large screens
+@media screen and (min-width: $container-max-width) {
+  .book-page {
+    max-width: 100%;
+  }
+}
+
+// Reduce margins on small screens
+@media screen and (max-width: 768px) {
+  .book-page {
+    padding: 0.5rem;
+  }
+
+  .book-menu .book-menu-content,
+  .book-toc .book-toc-content {
+    padding: 0.5rem;
+  }
+}
