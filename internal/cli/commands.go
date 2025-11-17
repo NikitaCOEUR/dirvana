@@ -191,6 +191,63 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 	return mergedConfig
 }
 
+// cacheMergedConfig creates and caches the merged configuration for the current directory
+func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths []string, mergedConfig *config.Config, aliases map[string]config.AliasConfig, mergedCommandMap, mergedCompletionMap map[string]string, comps *components, log *logger.Logger) {
+	if hierarchyHash == "" {
+		return
+	}
+
+	// Check if current directory has a local config file
+	hasLocalConfig := config.HasLocalConfig(currentDir)
+
+	// Only extract cleanup data if this directory has a local config
+	// Directories without local config still get cached for performance (completion/exec),
+	// but without cleanup data since they only inherit configs (nothing new to clean up)
+	var aliasKeys, functions, envVars []string
+	if hasLocalConfig {
+		aliasKeys = keysFromAliasMap(aliases)
+		functions = keysFromMap(mergedConfig.Functions)
+		staticEnv, shellEnv := mergedConfig.GetEnvVars()
+		envVars = mergeTwoKeyLists(staticEnv, shellEnv)
+	}
+
+	mergedEntry := &cache.Entry{
+		Path:                currentDir,
+		Hash:                hierarchyHash,
+		Timestamp:           time.Now(),
+		Version:             version.Version,
+		MergedCommandMap:    mergedCommandMap,
+		MergedCompletionMap: mergedCompletionMap,
+		HierarchyHash:       hierarchyHash,
+		HierarchyPaths:      hierarchyPaths,
+		// Store cleanup data only for directories with local config
+		// This avoids duplicating cleanup data for inherited configs
+		Aliases:   aliasKeys,   // nil if !hasLocalConfig
+		Functions: functions,    // nil if !hasLocalConfig
+		EnvVars:   envVars,      // nil if !hasLocalConfig
+	}
+
+	if err := comps.cache.Set(mergedEntry); err != nil {
+		log.Debug().Err(err).Str("dir", currentDir).Msg("Failed to cache merged config")
+	} else {
+		logEvent := log.Debug().
+			Str("dir", currentDir).
+			Bool("has_local_config", hasLocalConfig).
+			Int("merged_commands", len(mergedCommandMap)).
+			Int("merged_completions", len(mergedCompletionMap)).
+			Str("hierarchy_hash", hierarchyHash)
+
+		if hasLocalConfig {
+			logEvent.
+				Int("aliases", len(aliasKeys)).
+				Int("functions", len(functions)).
+				Int("env_vars", len(envVars))
+		}
+
+		logEvent.Msg("Cached merged configuration")
+	}
+}
+
 // Export generates and outputs shell code for the current directory
 func Export(params ExportParams) error {
 	// Check if Dirvana is disabled via environment variable
@@ -271,30 +328,7 @@ func Export(params ExportParams) error {
 	}
 
 	// Cache the merged result for the current directory
-	if hierarchyHash != "" {
-		mergedEntry := &cache.Entry{
-			Path:                currentDir,
-			Hash:                hierarchyHash,
-			Timestamp:           time.Now(),
-			Version:             version.Version,
-			MergedCommandMap:    mergedCommandMap,
-			MergedCompletionMap: mergedCompletionMap,
-			HierarchyHash:       hierarchyHash,
-			HierarchyPaths:      hierarchyPaths,
-			// Don't store individual cleanup data in merged entry
-		}
-
-		if err := comps.cache.Set(mergedEntry); err != nil {
-			log.Debug().Err(err).Str("dir", currentDir).Msg("Failed to cache merged config")
-		} else {
-			log.Debug().
-				Str("dir", currentDir).
-				Int("merged_commands", len(mergedCommandMap)).
-				Int("merged_completions", len(mergedCompletionMap)).
-				Str("hierarchy_hash", hierarchyHash).
-				Msg("Cached merged configuration")
-		}
-	}
+	cacheMergedConfig(currentDir, hierarchyHash, hierarchyPaths, mergedConfig, aliases, mergedCommandMap, mergedCompletionMap, comps, log)
 	timer.Mark("cache_merged")
 
 	// Get environment variables and aliases
