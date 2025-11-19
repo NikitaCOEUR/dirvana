@@ -10,7 +10,7 @@ __dirvana_hook() {
     shell_code=$({{.BinaryPath}} export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null) || return 0
 
     [[ -n "$shell_code" ]] && eval "$shell_code"
-    export DIRVANA_PREV_DIR="$PWD"
+    DIRVANA_PREV_DIR="$PWD"
   fi
 }
 
