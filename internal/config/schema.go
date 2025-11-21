@@ -1,6 +1,7 @@
 package config
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 
@@ -8,138 +9,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+//go:embed schema.json
+var schemaJSON string
+
 // GetSchemaJSON returns the JSON Schema for Dirvana configuration
 func GetSchemaJSON() string {
-	return `{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json",
-  "title": "Dirvana Configuration",
-  "description": "Configuration file for Dirvana - automatic shell environment loader per folder",
-  "type": "object",
-  "properties": {
-    "aliases": {
-      "type": "object",
-      "description": "Shell aliases - shortcuts for common commands",
-      "patternProperties": {
-        "^[a-zA-Z_][a-zA-Z0-9_-]*$": {
-          "oneOf": [
-            {
-              "type": "string",
-              "minLength": 1,
-              "description": "Simple alias: command to execute (auto-detects completion)"
-            },
-            {
-              "type": "object",
-              "description": "Advanced alias with completion control",
-              "properties": {
-                "command": {
-                  "type": "string",
-                  "minLength": 1,
-                  "description": "Command to execute"
-                },
-                "completion": {
-                  "oneOf": [
-                    {
-                      "type": "string",
-                      "minLength": 1,
-                      "description": "Inherit completion from another command (e.g., 'git')"
-                    },
-                    {
-                      "type": "boolean",
-                      "description": "Set to false to disable completion"
-                    },
-                    {
-                      "type": "object",
-                      "description": "Custom shell completion code",
-                      "properties": {
-                        "bash": {
-                          "type": "string",
-                          "description": "Bash completion code"
-                        },
-                        "zsh": {
-                          "type": "string",
-                          "description": "Zsh completion code"
-                        }
-                      },
-                      "additionalProperties": false
-                    }
-                  ],
-                  "description": "Completion configuration (optional)"
-                }
-              },
-              "required": ["command"],
-              "additionalProperties": false
-            }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "functions": {
-      "type": "object",
-      "description": "Shell functions - reusable command sequences",
-      "patternProperties": {
-        "^[a-zA-Z_][a-zA-Z0-9_-]*$": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Function body (shell script)"
-        }
-      },
-      "additionalProperties": false
-    },
-    "env": {
-      "type": "object",
-      "description": "Environment variables (static or dynamic via shell commands)",
-      "patternProperties": {
-        "^[a-zA-Z_][a-zA-Z0-9_]*$": {
-          "oneOf": [
-            {
-              "type": "string",
-              "description": "Static environment variable value"
-            },
-            {
-              "type": "object",
-              "description": "Dynamic environment variable (executed via shell)",
-              "properties": {
-                "sh": {
-                  "type": "string",
-                  "minLength": 1,
-                  "pattern": "^[^\n]+$",
-                  "description": "Shell command to execute (output becomes env var value)"
-                },
-                "value": {
-                  "type": "string",
-                  "description": "Alternative: static value (use string directly instead)"
-                }
-              },
-              "oneOf": [
-                {
-                  "required": ["sh"]
-                },
-                {
-                  "required": ["value"]
-                }
-              ],
-              "additionalProperties": false
-            }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "local_only": {
-      "type": "boolean",
-      "description": "If true, only use this directory's config (don't merge with parent configs)",
-      "default": false
-    },
-    "ignore_global": {
-      "type": "boolean",
-      "description": "If true, ignore global config (start fresh from this directory)",
-      "default": false
-    }
-  },
-  "additionalProperties": false
-}`
+	return schemaJSON
 }
 
 // ValidateWithSchema validates a config file against the JSON Schema

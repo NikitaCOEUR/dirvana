@@ -68,6 +68,18 @@ env:
 	assert.NotEmpty(t, result.Errors)
 }
 
+func TestValidateWithSchema_ValidYAMLExtension(t *testing.T) {
+	content := []byte(`
+aliases:
+  ll: ls -lah
+`)
+
+	result, err := ValidateWithSchema("test.yaml", content)
+	require.NoError(t, err)
+	assert.True(t, result.Valid)
+	assert.Empty(t, result.Errors)
+}
+
 func TestValidateWithSchema_ValidJSON(t *testing.T) {
 	content := []byte(`{
   "aliases": {

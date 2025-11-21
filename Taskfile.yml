@@ -42,6 +42,7 @@ tasks:
       - echo "Building {{.BINARY_NAME}}..."
       - mkdir -p {{.BUILD_DIR}}
       - go build {{.LDFLAGS}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/dirvana
+      - task: generate-schema
 
   install:
     desc: Install the binary to GOPATH/bin
@@ -189,3 +190,12 @@ tasks:
       - echo "Testing completion in zsh..."
       - task: test-completion
         vars: { TEST_SHELL: "zsh" }
+
+  generate-schema:
+    desc: Generate JSON schema from Go structs
+    silent: true
+    cmds:
+      - echo "Generating JSON schema..."
+      - go run internal/config/schema_gen.go internal/config/schema.json
+      - cp internal/config/schema.json schema/dirvana.schema.json
+      - echo "Schema generated in internal/config/schema.json and schema/dirvana.schema.json"

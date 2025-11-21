@@ -1,5 +1,11 @@
 # Dirvana configuration file
 # Documentation: https://github.com/NikitaCOEUR/dirvana
+conditions:
+  no_kubeconfig: &no_kubeconfig
+    when:
+      all:
+        - var: PROJECT_NAME # Test if ENV var PROJECT_NAME is set as example
+        - command: kubectl  # Test if command kubectl is available
 
 # Shell aliases
 aliases:
@@ -9,10 +15,18 @@ aliases:
   gs: git status
   gd: git diff
   gov: govc
-  k:
+
+  kubecolor: &kubecolor
     command: kubecolor
     completion: kubectl
-  kubectl: kubectl
+    <<: *no_kubeconfig
+
+  k: *kubecolor
+
+  kubectl:
+    command: kubectl
+    <<: *no_kubeconfig
+
   h: helm
   p: packer
   t: task
