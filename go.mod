@@ -5,6 +5,7 @@ go 1.25.1
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/invopop/jsonschema v0.13.0
 	github.com/knadh/koanf/parsers/json v1.0.0
 	github.com/knadh/koanf/parsers/toml v0.1.0
 	github.com/knadh/koanf/parsers/yaml v1.1.0
@@ -35,7 +36,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
-	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
