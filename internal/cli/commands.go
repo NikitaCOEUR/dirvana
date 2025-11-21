@@ -483,9 +483,21 @@ func Allow(authPath, pathToAllow string) error {
 
 // AllowWithParams authorizes a directory and optionally loads the environment
 func AllowWithParams(params AllowParams) error {
+	log := logger.New(params.LogLevel, os.Stderr)
+
 	authMgr, err := auth.New(params.AuthPath)
 	if err != nil {
 		return fmt.Errorf("failed to initialize auth: %w", err)
+	}
+
+	// Check if already allowed - idempotent operation
+	alreadyAllowed, err := authMgr.IsAllowed(params.PathToAllow)
+	if err != nil {
+		return fmt.Errorf("failed to check authorization: %w", err)
+	}
+	if alreadyAllowed {
+		log.Debug().Msg("already authorized: " + params.PathToAllow)
+		return nil
 	}
 
 	if err := authMgr.Allow(params.PathToAllow); err != nil {

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -231,6 +232,74 @@ func TestAuth_AllowDuplicates(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, count)
+}
+
+func TestAuth_AllowIdempotent(t *testing.T) {
+	tmpDir := t.TempDir()
+	authPath := filepath.Join(tmpDir, "authorized.json")
+
+	a, err := New(authPath)
+	require.NoError(t, err)
+
+	testPath := testProjectPath
+
+	// First allow - should persist
+	require.NoError(t, a.Allow(testPath))
+
+	// Get the original AllowedAt timestamp
+	auth := a.GetAuth(testPath)
+	require.NotNil(t, auth)
+	originalTimestamp := auth.AllowedAt
+
+	// Get the file modification time after first allow
+	v2Path := filepath.Join(tmpDir, "authorized_v2.json")
+	stat1, err := os.Stat(v2Path)
+	require.NoError(t, err)
+	modTime1 := stat1.ModTime()
+
+	// Second allow - should be idempotent (no persist)
+	require.NoError(t, a.Allow(testPath))
+
+	// Timestamp should be preserved
+	auth = a.GetAuth(testPath)
+	require.NotNil(t, auth)
+	assert.Equal(t, originalTimestamp, auth.AllowedAt, "AllowedAt should be preserved on idempotent call")
+
+	// File should not have been modified
+	stat2, err := os.Stat(v2Path)
+	require.NoError(t, err)
+	assert.Equal(t, modTime1, stat2.ModTime(), "File should not be modified on idempotent call")
+}
+
+func TestAuth_AllowAfterDisabled(t *testing.T) {
+	tmpDir := t.TempDir()
+	authPath := filepath.Join(tmpDir, "authorized.json")
+
+	// Create a V2 file with a directory that has Allowed=false
+	v2Path := filepath.Join(tmpDir, "authorized_v2.json")
+	v2Data := `{"_version":2,"directories":{"/test/project":{"allowed":false,"allowed_at":"2020-01-01T00:00:00Z"}}}`
+	require.NoError(t, os.WriteFile(v2Path, []byte(v2Data), 0600))
+
+	a, err := New(authPath)
+	require.NoError(t, err)
+
+	// Directory exists but is not allowed
+	allowed, err := a.IsAllowed(testProjectPath)
+	require.NoError(t, err)
+	assert.False(t, allowed)
+
+	// Allow should update the existing entry
+	require.NoError(t, a.Allow(testProjectPath))
+
+	// Should now be allowed
+	allowed, err = a.IsAllowed(testProjectPath)
+	require.NoError(t, err)
+	assert.True(t, allowed)
+
+	// AllowedAt should be updated
+	auth := a.GetAuth(testProjectPath)
+	require.NotNil(t, auth)
+	assert.True(t, auth.AllowedAt.After(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)))
 }
 
 func TestAuth_MigrationWithCorruptedFile(t *testing.T) {

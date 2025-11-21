@@ -126,6 +126,12 @@ func (a *Auth) Allow(path string) error {
 	defer a.mu.Unlock()
 
 	normalized := normalizePath(path)
+
+	// Check if already allowed - idempotent operation
+	if existing := a.authorized[normalized]; existing != nil && existing.Allowed {
+		return nil
+	}
+
 	now := time.Now()
 	if a.authorized[normalized] == nil {
 		a.authorized[normalized] = &DirAuth{
