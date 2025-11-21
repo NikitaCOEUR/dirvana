@@ -134,7 +134,7 @@ Define conditions once and reuse them:
 
 ```yaml
 # Define reusable conditions
-conditions:
+conditions: # This section is not mandatory but helps organize
   kubeconfig:
     when: &kubeconfig
       all:
@@ -160,6 +160,34 @@ aliases:
     when: *talosconfig
     command: talosctl
     completion: talosctl
+```
+
+You can also use anchors to define multiple names for the same alias:
+
+```yaml
+conditions:
+  no_kubeconfig: &no_kubeconfig
+    when:
+      file: "$KUBECONFIG"
+    else: |-
+      echo No context selected, select a context and relaunch your command
+      kubie ctx -f {{.DIRVANA_DIR}}/.kubeconfig
+      # Add a comment here if you want to prevent command errors when parameters are passed to the alias
+
+# Shell aliases
+aliases:
+  kubecolor: &kubecolor
+    command: kubecolor
+    completion: kubectl
+    <<: *no_kubeconfig
+
+  k: *kubecolor
+
+  kubectl:
+    command: kubectl
+    completion: kubectl
+    <<: *no_kubeconfig
+
 ```
 
 ---
