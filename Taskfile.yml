@@ -21,6 +21,13 @@ tasks:
     cmds:
       - task --list
 
+  docs:
+    desc: Launch hugo server for documentation
+    silent: true
+    dir: "{{.ROOT_DIR}}/docs"
+    cmds:
+      - hugo server -D --bind 0.0.0.0 {{.CLI_ARGS}}
+
   deps:
     desc: Install dependencies
     cmds:
