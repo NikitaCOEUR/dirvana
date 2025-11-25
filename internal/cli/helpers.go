@@ -243,3 +243,8 @@ func validateMergedCache(cacheEntry *cache.Entry, currentDir string, configLoade
 	// Cache is valid!
 	return cacheEntry, true
 }
+
+// containsString checks if a string contains a substring
+func containsString(s, substr string) bool {
+	return strings.Contains(s, substr)
+}
