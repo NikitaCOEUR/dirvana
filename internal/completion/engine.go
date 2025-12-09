@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/NikitaCOEUR/dirvana/internal/trace"
 )
 
 // Engine orchestrates multiple completion strategies
@@ -52,10 +54,17 @@ type completerResult struct {
 
 // Complete tries all completers in parallel and returns the first successful result
 func (e *Engine) Complete(tool string, args []string) (*Result, error) {
+	ctx := context.Background()
+	defer trace.Region(ctx, "Engine.Complete")()
+
 	// Check if we already know which completer works for this tool
 	if cachedType := e.detectionCache.Get(tool); cachedType != "" {
 		if completer, ok := e.completerByName[cachedType]; ok {
-			suggestions, err := completer.Complete(tool, args)
+			var suggestions []Suggestion
+			var err error
+			trace.WithRegion(ctx, "completer.Complete(cached:"+cachedType+")", func() {
+				suggestions, err = completer.Complete(tool, args)
+			})
 			if err == nil {
 				// Return immediately, even with empty suggestions
 				return &Result{
@@ -67,7 +76,7 @@ func (e *Engine) Complete(tool string, args []string) (*Result, error) {
 	}
 
 	// Launch all completers in parallel
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultCommandTimeout)
+	ctxTimeout, cancel := context.WithTimeout(ctx, DefaultCommandTimeout)
 	defer cancel()
 
 	resultChan := make(chan completerResult, len(e.completers))
@@ -93,7 +102,7 @@ func (e *Engine) Complete(tool string, args []string) (*Result, error) {
 			// Send result to channel
 			select {
 			case resultChan <- completerResult{completer: c, suggestions: suggestions, err: nil}:
-			case <-ctx.Done():
+			case <-ctxTimeout.Done():
 				return
 			}
 		}(completer)
@@ -131,6 +140,12 @@ func (e *Engine) Complete(tool string, args []string) (*Result, error) {
 		Suggestions: []Suggestion{},
 		Source:      "none",
 	}, nil
+}
+
+// HasCachedDetection returns true if we have a valid cached detection for this tool
+// This can be used to skip expensive checks like LookPath
+func (e *Engine) HasCachedDetection(tool string) bool {
+	return e.detectionCache.Get(tool) != ""
 }
 
 // Filter applies prefix filtering to suggestions

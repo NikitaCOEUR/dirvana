@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/NikitaCOEUR/dirvana/internal/completion"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
+	"github.com/NikitaCOEUR/dirvana/internal/trace"
 )
 
 // CompletionParams contains parameters for the Completion command
@@ -24,6 +26,9 @@ type CompletionParams struct {
 // Completion generates shell completions for dirvana-managed aliases
 // This is called by the shell completion function with the current command line state
 func Completion(params CompletionParams) error {
+	ctx := context.Background()
+	defer trace.Region(ctx, "cli.Completion")()
+
 	log := logger.New(params.LogLevel, os.Stderr)
 
 	// Validate input
@@ -49,7 +54,10 @@ func Completion(params CompletionParams) error {
 
 	// Get merged command maps from the full hierarchy
 	// This respects global config, ignore_global, local_only, and authorization
-	commandMap, completionMap, err := getMergedCommandMaps(currentDir, params.CachePath, params.AuthPath)
+	var commandMap, completionMap map[string]string
+	trace.WithRegion(ctx, "getMergedCommandMaps", func() {
+		commandMap, completionMap, err = getMergedCommandMaps(currentDir, params.CachePath, params.AuthPath)
+	})
 	if err != nil {
 		// Failed to load config, no completions
 		return nil
@@ -95,10 +103,24 @@ func Completion(params CompletionParams) error {
 
 	baseCmd := cmdParts[0]
 
-	// Check if command exists
-	if _, err := exec.LookPath(baseCmd); err != nil {
-		log.Debug().Str("cmd", baseCmd).Msg("Command not found, no completion")
-		return nil
+	// Create completion engine early to check detection cache
+	// If we have a cache hit, we know the command exists (was working < 24h ago)
+	cacheDir := filepath.Dir(params.CachePath)
+	engine := completion.NewEngine(cacheDir)
+
+	// Check if command exists - skip LookPath if we have a detection cache hit
+	// (if tool is in detection cache, it was working recently)
+	if !engine.HasCachedDetection(baseCmd) {
+		var lookPathErr error
+		trace.WithRegion(ctx, "exec.LookPath", func() {
+			_, lookPathErr = exec.LookPath(baseCmd)
+		})
+		if lookPathErr != nil {
+			log.Debug().Str("cmd", baseCmd).Msg("Command not found, no completion")
+			return nil
+		}
+	} else {
+		log.Debug().Str("cmd", baseCmd).Msg("Skipping LookPath (detection cache hit)")
 	}
 
 	// Prepare arguments for completion
@@ -132,11 +154,11 @@ func Completion(params CompletionParams) error {
 		Int("args_count", len(args)).
 		Msg("Starting completion")
 
-	// Create completion engine and get suggestions
-	// Pass cache path directory for detection cache
-	cacheDir := filepath.Dir(params.CachePath)
-	engine := completion.NewEngine(cacheDir)
-	result, err := engine.Complete(baseCmd, args)
+	// Get suggestions from the completion engine (already created above)
+	var result *completion.Result
+	trace.WithRegion(ctx, "engine.Complete", func() {
+		result, err = engine.Complete(baseCmd, args)
+	})
 	if err != nil {
 		log.Debug().Err(err).Msg("Completion failed")
 		return nil

@@ -1,16 +1,19 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
 	dircontext "github.com/NikitaCOEUR/dirvana/internal/context"
 	"github.com/NikitaCOEUR/dirvana/internal/shell"
+	"github.com/NikitaCOEUR/dirvana/internal/trace"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
 
@@ -138,24 +141,61 @@ func getMergedAliasConfigs(currentDir string, cachePath string, authPath string)
 // Respects the full config hierarchy including global config, ignore_global, local_only, and authorization.
 // Returns nil maps if no context is found or not authorized.
 func getMergedCommandMaps(currentDir string, cachePath string, authPath string) (commandMap, completionMap map[string]string, err error) {
-	// Initialize components
-	comps, err := initializeComponents(cachePath, authPath)
+	ctx := context.Background()
+	defer trace.Region(ctx, "getMergedCommandMaps")()
+
+	// FAST PATH: Check cache with TTL first, before loading heavy components (auth, config)
+	// This avoids ~24ms of file I/O in the common case where cache is still fresh
+	var cacheStore *cache.Cache
+	trace.WithRegion(ctx, "cache.New", func() {
+		cacheStore, err = cache.New(cachePath)
+	})
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Try to use cached merged config first
+	if cachedEntry, found := cacheStore.Get(currentDir); found {
+		// Quick validation: check version and TTL only (no file I/O)
+		if isCacheValidFast(cachedEntry, version.Version) {
+			trace.Log(ctx, "cache", "hit-fast")
+			return cachedEntry.MergedCommandMap, cachedEntry.MergedCompletionMap, nil
+		}
+	}
+
+	// SLOW PATH: Cache miss or TTL expired - need full validation
+	// Now load auth and config for full hierarchy validation
+	var comps *components
+	trace.WithRegion(ctx, "initializeComponents", func() {
+		comps, err = initializeComponentsWithCache(cachePath, authPath, cacheStore)
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Try full cache validation (with hash check)
 	if cachedEntry, found := comps.cache.Get(currentDir); found {
-		if validEntry, isValid := validateMergedCache(cachedEntry, currentDir, comps.config, comps.auth, version.Version); isValid {
-			// Cache hit! Return cached merged maps
+		var validEntry *cache.Entry
+		var isValid bool
+		trace.WithRegion(ctx, "validateMergedCache", func() {
+			validEntry, isValid = validateMergedCache(cachedEntry, currentDir, comps.config, comps.auth, version.Version)
+		})
+		if isValid {
+			// Cache hit after full validation
+			trace.Log(ctx, "cache", "hit-validated")
 			return validEntry.MergedCommandMap, validEntry.MergedCompletionMap, nil
 		}
-		// Cache miss/invalid, fall through to hierarchy load
+		// Cache invalid, fall through to hierarchy load
+		trace.Log(ctx, "cache", "invalid")
+	} else {
+		trace.Log(ctx, "cache", "miss")
 	}
 
 	// Cache miss or invalid: Load the full config hierarchy with auth
 	// This respects global config, ignore_global, local_only, and authorization
-	mergedConfig, _, err := comps.config.LoadHierarchyWithAuth(currentDir, comps.auth)
+	var mergedConfig *config.Config
+	trace.WithRegion(ctx, "LoadHierarchyWithAuth", func() {
+		mergedConfig, _, err = comps.config.LoadHierarchyWithAuth(currentDir, comps.auth)
+	})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -166,6 +206,43 @@ func getMergedCommandMaps(currentDir string, cachePath string, authPath string) 
 	completionMap = buildCompletionMap(aliases)
 
 	return commandMap, completionMap, nil
+}
+
+// isCacheValidFast performs quick cache validation without file I/O
+// Only checks version and TTL - used for fast path before loading auth/config
+func isCacheValidFast(cacheEntry *cache.Entry, appVersion string) bool {
+	// Check version compatibility
+	if cacheEntry.Version != appVersion {
+		return false
+	}
+
+	// Check if merged maps exist (backward compatibility with old cache format)
+	if cacheEntry.MergedCommandMap == nil {
+		return false
+	}
+
+	// Check if hierarchy hash exists
+	if cacheEntry.HierarchyHash == "" {
+		return false
+	}
+
+	// Fast path: if cache was validated recently, trust it without recomputing hash
+	return time.Since(cacheEntry.Timestamp) < cacheValidationTTL
+}
+
+// initializeComponentsWithCache creates components reusing an existing cache instance
+func initializeComponentsWithCache(_, authPath string, cacheStore *cache.Cache) (*components, error) {
+	authMgr, err := auth.New(authPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize auth: %w", err)
+	}
+
+	return &components{
+		auth:   authMgr,
+		cache:  cacheStore,
+		config: config.New(),
+		shell:  shell.NewGenerator(),
+	}, nil
 }
 
 // computeHierarchyHash computes a composite hash from all configs in the hierarchy
@@ -206,6 +283,10 @@ func computeHierarchyHash(configDirs []string, configLoader *config.Loader) (str
 	return hierarchyHash, paths, nil
 }
 
+// cacheValidationTTL is the time during which we trust the cache without revalidating
+// This avoids expensive hash recalculation on every completion keystroke
+const cacheValidationTTL = 2 * time.Second
+
 // validateMergedCache checks if a cached merged configuration is still valid
 // Returns the cached entry if valid, or nil + false if cache should be invalidated
 func validateMergedCache(cacheEntry *cache.Entry, currentDir string, configLoader *config.Loader, authMgr *auth.Auth, appVersion string) (*cache.Entry, bool) {
@@ -224,7 +305,13 @@ func validateMergedCache(cacheEntry *cache.Entry, currentDir string, configLoade
 		return nil, false
 	}
 
-	// Recompute active config chain to check if it changed
+	// Fast path: if cache was validated recently, trust it without recomputing hash
+	// This dramatically speeds up completion (avoids ~20ms of stat calls per keystroke)
+	if time.Since(cacheEntry.Timestamp) < cacheValidationTTL {
+		return cacheEntry, true
+	}
+
+	// Slow path: recompute active config chain to check if it changed
 	// Use GetActiveConfigChain from context package
 	activeChain := dircontext.GetActiveConfigChain(currentDir, authMgr, configLoader)
 

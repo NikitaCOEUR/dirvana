@@ -9,12 +9,16 @@ import (
 
 	dircli "github.com/NikitaCOEUR/dirvana/internal/cli"
 	"github.com/NikitaCOEUR/dirvana/internal/setup"
+	"github.com/NikitaCOEUR/dirvana/internal/trace"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 	"github.com/urfave/cli/v3"
 )
 
 //nolint:gocyclo // Main function complexity is acceptable
 func main() {
+	// Initialize tracing (only active in dev builds with DIRVANA_TRACE set)
+	defer trace.Init()()
+
 	// Get XDG paths
 	cacheHome := os.Getenv("XDG_CACHE_HOME")
 	if cacheHome == "" {

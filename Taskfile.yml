@@ -44,6 +44,15 @@ tasks:
       - go build {{.LDFLAGS}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/dirvana
       - task: generate-schema
 
+  build-dev:
+    desc: Build the binary with dev features (tracing support)
+    deps: [deps]
+    cmds:
+      - echo "Building {{.BINARY_NAME}} (dev mode with tracing)..."
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -tags=dev {{.LDFLAGS}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/dirvana
+      - 'echo "Dev build complete. Use DIRVANA_TRACE=trace.out to capture traces. Analyze with: go tool trace trace.out"'
+
   install:
     desc: Install the binary to GOPATH/bin
     deps: [build]
