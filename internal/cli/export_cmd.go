@@ -46,7 +46,7 @@ func calculateActiveChains(prevDir, currentDir string, authMgr *auth.Auth, confi
 }
 
 // generateCleanupCodeForDirs generates cleanup code for directories that need cleanup
-func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache, log *logger.Logger) string {
+func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache, shell string, log *logger.Logger) string {
 	var cleanupCode string
 
 	if len(cleanupDirs) == 0 {
@@ -61,6 +61,7 @@ func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache,
 				entry.Aliases,
 				entry.Functions,
 				entry.EnvVars,
+				shell,
 			)
 			duration := time.Since(startTime)
 
@@ -273,13 +274,16 @@ func Export(params ExportParams) error {
 	}
 	timer.Mark("init")
 
+	// Detect current shell early (for cleanup and shell-specific code generation)
+	targetShell := detectTargetShell()
+
 	// Calculate active config chains for cleanup logic
 	chains := calculateActiveChains(params.PrevDir, currentDir, comps.auth, comps.config)
 	timer.Mark("calc_chains")
 
 	// Determine what needs cleanup
 	cleanupDirs := dircontext.CalculateCleanup(chains.prev, chains.current)
-	cleanupCode := generateCleanupCodeForDirs(cleanupDirs, comps.cache, log)
+	cleanupCode := generateCleanupCodeForDirs(cleanupDirs, comps.cache, targetShell, log)
 	timer.Mark("cleanup")
 
 	// If no active configs in current directory, just output cleanup and return
@@ -291,9 +295,6 @@ func Export(params ExportParams) error {
 		}
 		return nil
 	}
-
-	// Detect current shell early (for error messages and shell-specific code generation)
-	targetShell := detectTargetShell()
 
 	// Check if current directory has a local config but is not in the active chain
 	checkUnauthorizedConfig(currentDir, chains.current, targetShell, log)
