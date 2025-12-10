@@ -137,32 +137,13 @@ func Exec(params ExecParams) error {
 
 	// Build argv for shell execution
 	// Bash/Zsh: shell -c 'command "$@"' shell args...
-	// Fish: Different approach - fish -c doesn't support positional args the same way
+	// Fish: shell -c 'command $argv' args...
 	var argv []string
 	if len(params.Args) > 0 {
 		if shellType == ShellFish {
-			// Fish doesn't support "$@" style argument passing with -c
-			// We need to build the command inline or use a different approach
-			// For now, use bash as a fallback for Fish when executing commands with args
-			// This is a temporary workaround until we find a better solution
-			bashPath, err := exec.LookPath("bash")
-			if err == nil {
-				// Use bash as execution shell, even if user shell is fish
-				execPath = bashPath // Update execPath to bash
-				argv = []string{bashPath, "-c", command + ` "$@"`, "bash"}
-				argv = append(argv, params.Args...)
-				log.Debug().Msg("Using bash for command execution (fish doesn't support arg passing with -c)")
-			} else {
-				// No bash available, construct command with quoted args
-				// This is less safe but should work for simple cases
-				quotedArgs := ""
-				for _, arg := range params.Args {
-					// Basic quoting - escape single quotes
-					escaped := "'" + escapeForShell(arg) + "'"
-					quotedArgs += " " + escaped
-				}
-				argv = []string{shell, "-c", command + quotedArgs}
-			}
+			// Fish uses $argv for positional arguments
+			argv = []string{shell, "-c", command + " $argv"}
+			argv = append(argv, params.Args...)
 		} else {
 			// Bash/Zsh: Use "$@" for argument passing
 			argv = []string{shell, "-c", command + ` "$@"`, shell}

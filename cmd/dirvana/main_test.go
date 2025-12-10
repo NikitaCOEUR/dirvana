@@ -52,6 +52,12 @@ func TestDetectShell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Clean up shell version environment variables that might interfere
+			envVars := []string{"FISH_VERSION", "ZSH_VERSION", "BASH_VERSION", "DIRVANA_SHELL"}
+			for _, envVar := range envVars {
+				_ = os.Unsetenv(envVar)
+			}
+
 			if tt.shellEnv != "" {
 				_ = os.Setenv("SHELL", tt.shellEnv)
 				defer func() { _ = os.Unsetenv("SHELL") }()
