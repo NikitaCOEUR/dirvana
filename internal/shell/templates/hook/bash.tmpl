@@ -7,12 +7,15 @@ __dirvana_hook() {
   if [[ "$PWD" != "${DIRVANA_PREV_DIR:-}" ]]; then
     # Capture output and fail silently if dirvana doesn't work
     local shell_code
-    DIRVANA_SHELL=bash shell_code=$({{.BinaryPath}} export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null) || return 0
+    shell_code=$({{.BinaryPath}} export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null) || return 0
 
     [[ -n "$shell_code" ]] && eval "$shell_code"
     DIRVANA_PREV_DIR="$PWD"
   fi
 }
+
+# Export DIRVANA_SHELL for reliable shell detection
+export DIRVANA_SHELL=bash
 
 # Add to PROMPT_COMMAND
 if [[ -z "${PROMPT_COMMAND}" ]]; then
