@@ -10,6 +10,7 @@ weight: 10
 Dirvana works with:
 - **Bash** (4.0+)
 - **Zsh** (5.0+)
+- **Fish** (3.0+)
 - **Linux**, **macOS**, or **WSL**
 
 ---
@@ -88,16 +89,17 @@ dirvana setup
 ```
 
 This will:
-- Detect your shell (Bash or Zsh)
-- Add a hook to your `~/.bashrc` or `~/.zshrc`
+- Detect your shell (Bash, Zsh, or Fish)
+- Add a hook to your `~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`
 - Enable automatic configuration loading on directory changes
 - Install shell completion
 
 **Reload your shell:**
 
 ```bash
-source ~/.bashrc  # For Bash
-source ~/.zshrc   # For Zsh
+source ~/.bashrc                      # For Bash
+source ~/.zshrc                       # For Zsh
+source ~/.config/fish/config.fish     # For Fish
 ```
 
 Or simply restart your terminal.
@@ -137,6 +139,15 @@ source <(dirvana completion zsh)
 # Permanent
 dirvana completion zsh > "${fpath[1]}/_dirvana"
 # Then reload: compinit
+```
+
+**Fish:**
+```bash
+# One-time use (current shell only)
+dirvana completion fish | source
+
+# Permanent
+dirvana completion fish > ~/.config/fish/completions/dirvana.fish
 ```
 
 ---

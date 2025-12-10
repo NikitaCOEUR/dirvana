@@ -61,7 +61,7 @@ $ cd ..
 - **Secure**: Authorization system prevents untrusted configs
 - **Hierarchical**: Merge configurations from parent directories
 - **Simple**: YAML configuration with JSON Schema validation
-- **Compatible**: Works with Bash and Zsh
+- **Compatible**: Works with Bash, Zsh, and Fish
 - **Auto-completion**: Inherits completion from aliased commands
 - **Conditional Aliases**: Execute commands based on runtime conditions
 - **Template Variables**: Go templates with Sprig functions
@@ -85,7 +85,7 @@ chmod +x /usr/local/bin/dirvana
 
 ```bash
 dirvana setup
-source ~/.bashrc  # or ~/.zshrc
+source ~/.bashrc  # or ~/.zshrc, or ~/.config/fish/config.fish
 ```
 
 ### 3. Create Configuration
