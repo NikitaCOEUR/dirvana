@@ -65,6 +65,12 @@ func TestGenerator_WithShell(t *testing.T) {
 	code = g.Generate(aliases, nil, nil, nil)
 	// Zsh uses functions
 	assert.Contains(t, code, "test() { dirvana exec test")
+
+	// Test setting shell to fish
+	g.WithShell("fish")
+	code = g.Generate(aliases, nil, nil, nil)
+	// Fish uses functions
+	assert.Contains(t, code, "function test; dirvana exec test $argv; end")
 }
 
 func TestGenerator_GenerateEmpty(t *testing.T) {

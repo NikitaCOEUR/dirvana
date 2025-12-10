@@ -212,3 +212,80 @@ func TestFishHookStrategy_IdempotentInstall(t *testing.T) {
 	hookCount := strings.Count(string(content2), sourceLinePrefix)
 	assert.Equal(t, 1, hookCount, "Should only have one occurrence of hook source line")
 }
+
+func TestFishHookStrategy_IsInstalled(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Override home directory
+	oldHome := os.Getenv("HOME")
+	require.NoError(t, os.Setenv("HOME", tmpDir))
+	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+
+	strategy, err := NewFishHookStrategy()
+	require.NoError(t, err)
+
+	// Before installation, should not be installed
+	assert.False(t, strategy.IsInstalled())
+
+	// Install
+	err = strategy.Install()
+	require.NoError(t, err)
+
+	// After installation, should be installed
+	assert.True(t, strategy.IsInstalled())
+
+	// Remove hook file
+	err = os.Remove(strategy.hookPath)
+	require.NoError(t, err)
+
+	// Should not be installed if hook file missing
+	assert.False(t, strategy.IsInstalled())
+}
+
+func TestFishHookStrategy_GetMessage(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Override home directory
+	oldHome := os.Getenv("HOME")
+	require.NoError(t, os.Setenv("HOME", tmpDir))
+	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+
+	strategy, err := NewFishHookStrategy()
+	require.NoError(t, err)
+
+	// Before any operation, message should be default
+	msg := strategy.GetMessage()
+	assert.Equal(t, "✓ Dirvana hook is up to date", msg)
+
+	// After install
+	err = strategy.Install()
+	require.NoError(t, err)
+
+	msg = strategy.GetMessage()
+	assert.Contains(t, msg, "Hook created")
+	assert.Contains(t, msg, strategy.hookPath)
+}
+
+func TestFishHookStrategy_GetRCFile(t *testing.T) {
+	// Create temp directory for test
+	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+	// Override home directory
+	oldHome := os.Getenv("HOME")
+	require.NoError(t, os.Setenv("HOME", tmpDir))
+	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+
+	strategy, err := NewFishHookStrategy()
+	require.NoError(t, err)
+
+	expectedRCFile := filepath.Join(tmpDir, ".config", "fish", "config.fish")
+	assert.Equal(t, expectedRCFile, strategy.GetRCFile())
+}

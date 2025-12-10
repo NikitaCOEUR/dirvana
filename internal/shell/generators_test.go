@@ -319,3 +319,36 @@ func TestGenerateHookCode_MinimalDesign(t *testing.T) {
 		})
 	}
 }
+
+func TestFishCodeGenerator_Name(t *testing.T) {
+	gen := &FishCodeGenerator{}
+	assert.Equal(t, "fish", gen.Name())
+}
+
+func TestFishCodeGenerator_GenerateCompletionFunction(t *testing.T) {
+	gen := &FishCodeGenerator{}
+
+	// Test with single alias
+	lines := gen.GenerateCompletionFunction([]string{"kubectl"})
+	assert.NotEmpty(t, lines)
+	script := strings.Join(lines, "\n")
+	assert.Contains(t, script, "function __dirvana_complete_fish")
+	assert.Contains(t, script, "complete -c kubectl")
+
+	// Test with multiple aliases
+	lines = gen.GenerateCompletionFunction([]string{"kubectl", "docker"})
+	assert.NotEmpty(t, lines)
+	script = strings.Join(lines, "\n")
+	assert.Contains(t, script, "complete -c kubectl")
+	assert.Contains(t, script, "complete -c docker")
+}
+
+func TestGenerateHookCode_Fish(t *testing.T) {
+	code, err := GenerateHookCode("fish", "dirvana")
+	assert.NoError(t, err)
+	assert.NotEmpty(t, code)
+
+	// Fish hook should contain fish-specific syntax
+	assert.Contains(t, code, "function")
+	assert.Contains(t, code, "dirvana export")
+}

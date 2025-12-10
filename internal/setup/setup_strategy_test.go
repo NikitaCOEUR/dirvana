@@ -61,6 +61,18 @@ func TestSelectInstallStrategy_FallbackToExternal(t *testing.T) {
 	}
 }
 
+func TestSelectInstallStrategy_Fish(t *testing.T) {
+	strategy, err := SelectInstallStrategy("fish")
+	if err != nil {
+		t.Fatalf("SelectInstallStrategy failed: %v", err)
+	}
+
+	// Should return FishHookStrategy
+	if _, ok := strategy.(*FishHookStrategy); !ok {
+		t.Errorf("Expected FishHookStrategy, got %T", strategy)
+	}
+}
+
 func TestHasLegacyInstall(t *testing.T) {
 	tests := []struct {
 		name      string

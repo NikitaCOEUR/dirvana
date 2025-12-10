@@ -11,8 +11,8 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
-	dircontext "github.com/NikitaCOEUR/dirvana/internal/context"
 	"github.com/NikitaCOEUR/dirvana/internal/shell"
+	"github.com/NikitaCOEUR/dirvana/internal/shellctx"
 	"github.com/NikitaCOEUR/dirvana/internal/trace"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
@@ -323,7 +323,7 @@ func validateMergedCache(cacheEntry *cache.Entry, currentDir string, configLoade
 
 	// Slow path: recompute active config chain to check if it changed
 	// Use GetActiveConfigChain from context package
-	activeChain := dircontext.GetActiveConfigChain(currentDir, authMgr, configLoader)
+	activeChain := shellctx.GetActiveConfigChain(currentDir, authMgr, configLoader)
 
 	// Compute current hierarchy hash
 	currentHash, _, err := computeHierarchyHash(activeChain, configLoader)

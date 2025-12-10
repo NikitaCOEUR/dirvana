@@ -1,5 +1,5 @@
-// Package context handles tracking of shell context and environment cleanup.
-package context
+// Package shellctx handles tracking of shell context and environment cleanup.
+package shellctx
 
 import (
 	"path/filepath"

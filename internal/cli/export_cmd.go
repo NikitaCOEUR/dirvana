@@ -9,9 +9,9 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
-	dircontext "github.com/NikitaCOEUR/dirvana/internal/context"
 	"github.com/NikitaCOEUR/dirvana/internal/errors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
+	"github.com/NikitaCOEUR/dirvana/internal/shellctx"
 	"github.com/NikitaCOEUR/dirvana/internal/timing"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
@@ -35,11 +35,11 @@ func calculateActiveChains(prevDir, currentDir string, authMgr *auth.Auth, confi
 	chains := activeChains{}
 
 	if prevDir != "" && prevDir != currentDir {
-		chains.prev = dircontext.GetActiveConfigChain(prevDir, authMgr, configLoader)
-		chains.current = dircontext.GetActiveConfigChain(currentDir, authMgr, configLoader)
+		chains.prev = shellctx.GetActiveConfigChain(prevDir, authMgr, configLoader)
+		chains.current = shellctx.GetActiveConfigChain(currentDir, authMgr, configLoader)
 	} else {
 		// Same directory or no previous directory
-		chains.current = dircontext.GetActiveConfigChain(currentDir, authMgr, configLoader)
+		chains.current = shellctx.GetActiveConfigChain(currentDir, authMgr, configLoader)
 	}
 
 	return chains
@@ -57,7 +57,7 @@ func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache,
 	for _, dir := range cleanupDirs {
 		if entry, found := cacheStorage.Get(dir); found {
 			startTime := time.Now()
-			cleanupCode += dircontext.GenerateCleanupCode(
+			cleanupCode += shellctx.GenerateCleanupCode(
 				entry.Aliases,
 				entry.Functions,
 				entry.EnvVars,
@@ -221,9 +221,9 @@ func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths [
 		HierarchyPaths:      hierarchyPaths,
 		// Store cleanup data only for directories with local config
 		// This avoids duplicating cleanup data for inherited configs
-		Aliases:   aliasKeys,   // nil if !hasLocalConfig
-		Functions: functions,    // nil if !hasLocalConfig
-		EnvVars:   envVars,      // nil if !hasLocalConfig
+		Aliases:   aliasKeys, // nil if !hasLocalConfig
+		Functions: functions, // nil if !hasLocalConfig
+		EnvVars:   envVars,   // nil if !hasLocalConfig
 	}
 
 	if err := comps.cache.Set(mergedEntry); err != nil {
@@ -282,7 +282,7 @@ func Export(params ExportParams) error {
 	timer.Mark("calc_chains")
 
 	// Determine what needs cleanup
-	cleanupDirs := dircontext.CalculateCleanup(chains.prev, chains.current)
+	cleanupDirs := shellctx.CalculateCleanup(chains.prev, chains.current)
 	cleanupCode := generateCleanupCodeForDirs(cleanupDirs, comps.cache, targetShell, log)
 	timer.Mark("cleanup")
 
