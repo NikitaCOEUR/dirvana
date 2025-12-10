@@ -1,0 +1,28 @@
+function __dirvana_hook --on-variable PWD
+  # Don't run if stdin is not a terminal (prevents TUI interference)
+  if not isatty stdin
+    return 0
+  end
+
+  # Minimal hook: all logic is in 'dirvana export' for auto-updates
+  # Capture output and fail silently if dirvana doesn't work
+  # Set DIRVANA_SHELL so export knows which shell to generate code for
+  set -lx DIRVANA_SHELL fish
+  set -l shell_code ({{.BinaryPath}} export --prev "$DIRVANA_PREV_DIR" 2>/dev/null)
+  or return 0
+
+  if test -n "$shell_code"
+    # Fish requires 'source' with a file for functions to persist correctly
+    # Use a temporary file instead of piping to avoid issues with special characters
+    set -l tmp_file (mktemp)
+    printf '%s\n' $shell_code > $tmp_file
+    source $tmp_file
+    rm -f $tmp_file
+  end
+  # Use -g (global) without -x (no export) to match bash/zsh behavior
+  # This keeps DIRVANA_PREV_DIR internal to the shell, not visible to subprocesses
+  set -g DIRVANA_PREV_DIR "$PWD"
+end
+
+# Run on startup
+__dirvana_hook

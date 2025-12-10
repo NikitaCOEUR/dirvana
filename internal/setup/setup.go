@@ -35,8 +35,10 @@ func GetRCFilePath(shell string) (string, error) {
 		return filepath.Join(home, ".bashrc"), nil
 	case cli.ShellZsh:
 		return filepath.Join(home, ".zshrc"), nil
+	case cli.ShellFish:
+		return filepath.Join(home, ".config/fish/config.fish"), nil
 	default:
-		return "", fmt.Errorf("unsupported shell: %s (use bash or zsh)", shell)
+		return "", fmt.Errorf("unsupported shell: %s (use bash, zsh, or fish)", shell)
 	}
 }
 

@@ -56,9 +56,11 @@ func TestNew(t *testing.T) {
 			logger := New(tt.level, tt.output)
 			if logger == nil {
 				t.Fatal("Expected logger to be non-nil")
+				return
 			}
 			if logger.log == nil {
 				t.Fatal("Expected internal log to be non-nil")
+				return
 			}
 		})
 	}
@@ -68,9 +70,11 @@ func TestNew_NilOutput(t *testing.T) {
 	logger := New("info", nil)
 	if logger == nil {
 		t.Fatal("Expected logger to be non-nil")
+		return
 	}
 	if logger.log == nil {
 		t.Fatal("Expected internal log to be non-nil")
+		return
 	}
 }
 

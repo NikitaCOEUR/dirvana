@@ -10,6 +10,7 @@ import (
 const (
 	shellBash = "bash"
 	shellZsh  = "zsh"
+	shellFish = "fish"
 )
 
 // CodeGenerator is an interface for shell-specific completion code generation
@@ -54,6 +55,24 @@ func (z *ZshCodeGenerator) GenerateCompletionFunction(aliases []string) []string
 	return lines
 }
 
+// FishCodeGenerator generates fish-specific shell completion code
+type FishCodeGenerator struct{}
+
+// Name returns the shell name for fish
+func (f *FishCodeGenerator) Name() string {
+	return shellFish
+}
+
+// GenerateCompletionFunction generates fish-specific completion functions
+func (f *FishCodeGenerator) GenerateCompletionFunction(aliases []string) []string {
+	var lines []string
+	for _, alias := range aliases {
+		script := fmt.Sprintf(fishTemplate, alias)
+		lines = append(lines, strings.Split(script, "\n")...)
+	}
+	return lines
+}
+
 // MultiShellCodeGenerator generates completion code for multiple shells
 type MultiShellCodeGenerator struct {
 	generators []CodeGenerator
@@ -76,16 +95,19 @@ func (m *MultiShellCodeGenerator) GenerateCompletionFunction(aliases []string) [
 // NewCompletionGenerator creates appropriate shell code generator for the given shell type
 func NewCompletionGenerator(shell string) CodeGenerator {
 	switch shell {
-	case "bash":
+	case shellBash:
 		return &BashCodeGenerator{}
-	case "zsh":
+	case shellZsh:
 		return &ZshCodeGenerator{}
+	case shellFish:
+		return &FishCodeGenerator{}
 	default:
-		// Both shells
+		// All shells
 		return &MultiShellCodeGenerator{
 			generators: []CodeGenerator{
 				&BashCodeGenerator{},
 				&ZshCodeGenerator{},
+				&FishCodeGenerator{},
 			},
 		}
 	}
@@ -99,6 +121,8 @@ func GenerateHookCode(shell, binaryPath string) (string, error) {
 		tmpl = bashHookTemplate
 	case shellZsh:
 		tmpl = zshHookTemplate
+	case shellFish:
+		tmpl = fishHookTemplate
 	default:
 		tmpl = bashHookTemplate // Default to bash
 	}

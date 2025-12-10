@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
+
+# Test all alias features
+aliases:
+  # Simple string alias
+  testcmd: echo "Dirvana alias works in fish"
+
+  # Alias with pipes and redirection
+  ll: ls -lah
+
+  # Alias with multiple commands
+  gitlog: git log --oneline --graph --all
+
+  # Complex alias with shell features
+  findlarge: find . -type f -size +100k -exec ls -lh {} \;
+
+# Test all function features (Fish syntax)
+functions:
+  # Simple function with parameters (Fish uses $argv)
+  testfunc: |
+    echo "Dirvana function works: $argv[1]"
+
+  # Function with multiple lines and logic (Fish syntax)
+  greet: |
+    if test -z "$argv[1]"
+      echo "Hello, stranger!"
+    else
+      echo "Hello, $argv[1]!"
+    end
+
+  # Function with loops (Fish syntax)
+  countdown: |
+    set count (test -n "$argv[1]"; and echo $argv[1]; or echo 5)
+    while test $count -gt 0
+      echo "$count..."
+      set count (math $count - 1)
+    end
+    echo "Done!"
+
+  # Function that uses environment variables
+  showenv: |
+    echo "Project: $PROJECT_NAME"
+    echo "Environment: $ENVIRONMENT"
+    echo "Build directory: $BUILD_DIR"
+
+# Test all environment variable features
+env:
+  # Static string values
+  PROJECT_NAME: dirvana-test
+  ENVIRONMENT: integration
+  LOG_LEVEL: debug
+
+  # Dynamic values from shell commands
+  CURRENT_USER:
+    sh: whoami
+
+  CURRENT_DIR:
+    sh: pwd
+
+  GIT_BRANCH:
+    sh: git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main"
+
+  TIMESTAMP:
+    sh: date +%s
+
+  # Path-like variables
+  BUILD_DIR: /tmp/build
+  CACHE_DIR: /tmp/cache
+
+  # Numeric values (as strings)
+  MAX_WORKERS: "4"
+  TIMEOUT: "30"
+
+# Configuration flags
+local_only: false
+ignore_global: false

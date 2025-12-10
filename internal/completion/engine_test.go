@@ -198,3 +198,30 @@ func TestEngine_getCompleterType(t *testing.T) {
 	assert.Equal(t, "Env", getCompleterType(env))
 	assert.Equal(t, "Script", getCompleterType(script))
 }
+
+func TestEngine_HasCachedDetection(t *testing.T) {
+	tmpDir := t.TempDir()
+	engine := NewEngine(tmpDir)
+
+	// Initially no cache
+	assert.False(t, engine.HasCachedDetection("testTool"))
+
+	// Add a mock completer that supports the tool
+	mock := &mockCompleter{
+		supportsResult: true,
+		suggestions: []Suggestion{
+			{Value: "option1", Description: "Test option 1"},
+		},
+		err: nil,
+	}
+
+	// Replace the completers with our mock
+	engine.completers = []Completer{mock}
+	engine.completerByName["Mock"] = mock
+
+	// Simulate caching by completing (which caches)
+	_, _ = engine.Complete("testTool", []string{})
+
+	// Now should have cached detection
+	assert.True(t, engine.HasCachedDetection("testTool"))
+}

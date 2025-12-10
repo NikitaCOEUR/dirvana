@@ -85,7 +85,7 @@ $ cd ..
 - **Secure** - Authorization system prevents untrusted configs
 - **Hierarchical** - Merge configurations from parent directories
 - **Simple** - YAML configuration with JSON Schema validation
-- **Compatible** - Works with Bash and Zsh
+- **Compatible** - Works with Bash, Zsh, and Fish
 - **Auto-completion** - Inherits completion from aliased commands
 
 ---
@@ -100,7 +100,7 @@ $ cd ..
 2. **Setup shell hook**
    ```bash
    dirvana setup
-   source ~/.bashrc  # or ~/.zshrc
+   source ~/.bashrc  # or ~/.zshrc, or ~/.config/fish/config.fish
    ```
 
 3. **Create configuration**

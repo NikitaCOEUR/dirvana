@@ -11,7 +11,7 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
-	"github.com/NikitaCOEUR/dirvana/internal/errors"
+	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 )
 
@@ -39,13 +39,13 @@ func AllowWithParams(params AllowParams) error {
 
 	authMgr, err := auth.New(params.AuthPath)
 	if err != nil {
-		return errors.NewAuthorizationError(params.PathToAllow, "failed to initialize auth", err)
+		return derrors.NewAuthorizationError(params.PathToAllow, "failed to initialize auth", err)
 	}
 
 	// Check if already allowed - idempotent operation
 	alreadyAllowed, err := authMgr.IsAllowed(params.PathToAllow)
 	if err != nil {
-		return errors.NewAuthorizationError(params.PathToAllow, "failed to check authorization", err)
+		return derrors.NewAuthorizationError(params.PathToAllow, "failed to check authorization", err)
 	}
 	if alreadyAllowed {
 		log.Debug().Msg("already authorized: " + params.PathToAllow)
@@ -53,7 +53,7 @@ func AllowWithParams(params AllowParams) error {
 	}
 
 	if err := authMgr.Allow(params.PathToAllow); err != nil {
-		return errors.NewAuthorizationError(params.PathToAllow, "failed to authorize", err)
+		return derrors.NewAuthorizationError(params.PathToAllow, "failed to authorize", err)
 	}
 
 	// Invalidate cache for the authorized directory
@@ -73,7 +73,7 @@ func AllowWithParams(params AllowParams) error {
 	// If auto-approve flag is set, approve shell commands immediately
 	if params.AutoApproveShell {
 		if err := approveShellCommandsForPath(params.PathToAllow, authMgr, params.LogLevel); err != nil {
-			return errors.NewShellApprovalError(params.PathToAllow, "failed to auto-approve shell commands", err)
+			return derrors.NewShellApprovalError(params.PathToAllow, "failed to auto-approve shell commands", err)
 		}
 		fmt.Println("✓ Shell commands auto-approved")
 	}
@@ -111,11 +111,11 @@ func RevokeWithParams(params RevokeParams) error {
 
 	authMgr, err := auth.New(params.AuthPath)
 	if err != nil {
-		return errors.NewAuthorizationError(params.PathToRevoke, "failed to initialize auth", err)
+		return derrors.NewAuthorizationError(params.PathToRevoke, "failed to initialize auth", err)
 	}
 
 	if err := authMgr.Revoke(params.PathToRevoke); err != nil {
-		return errors.NewAuthorizationError(params.PathToRevoke, "failed to revoke", err)
+		return derrors.NewAuthorizationError(params.PathToRevoke, "failed to revoke", err)
 	}
 
 	// Invalidate cache for the revoked directory and all its subdirectories
@@ -151,7 +151,7 @@ func approveShellCommandsForPath(path string, authMgr *auth.Auth, logLevel strin
 	// Load config for this directory
 	cfg, err := configLoader.Load(filepath.Join(path, ".dirvana.yml"))
 	if err != nil {
-		return errors.NewConfigurationError(path, "failed to load config", err)
+		return derrors.NewConfigurationError(path, "failed to load config", err)
 	}
 
 	// Get shell environment variables
@@ -165,7 +165,7 @@ func approveShellCommandsForPath(path string, authMgr *auth.Auth, logLevel strin
 
 	// Approve the shell commands
 	if err := authMgr.ApproveShellCommands(path, shellEnv); err != nil {
-		return errors.NewShellApprovalError(path, "failed to approve shell commands", err)
+		return derrors.NewShellApprovalError(path, "failed to approve shell commands", err)
 	}
 
 	return nil
@@ -243,7 +243,7 @@ func promptShellApproval() (bool, error) {
 func List(authPath string) error {
 	authMgr, err := auth.New(authPath)
 	if err != nil {
-		return errors.NewAuthorizationError("", "failed to initialize auth", err)
+		return derrors.NewAuthorizationError("", "failed to initialize auth", err)
 	}
 
 	paths := authMgr.List()

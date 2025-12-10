@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 vars:
   BINARY_NAME: dirvana
@@ -43,6 +43,15 @@ tasks:
       - mkdir -p {{.BUILD_DIR}}
       - go build {{.LDFLAGS}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/dirvana
       - task: generate-schema
+
+  build-dev:
+    desc: Build the binary with dev features (tracing support)
+    deps: [deps]
+    cmds:
+      - echo "Building {{.BINARY_NAME}} (dev mode with tracing)..."
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -tags=dev {{.LDFLAGS}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/dirvana
+      - 'echo "Dev build complete. Use DIRVANA_TRACE=trace.out to capture traces. Analyze with: go tool trace trace.out"'
 
   install:
     desc: Install the binary to GOPATH/bin
@@ -97,6 +106,14 @@ tasks:
       - echo "Running Zsh integration tests..."
       - docker build -t dirvana-test-zsh -f tests/integration/shells/Dockerfile.zsh .
       - docker run --rm dirvana-test-zsh
+      - docker rmi dirvana-test-zsh
+
+  test-integration-fish:
+    desc: Run integration tests for Fish only
+    cmds:
+      - echo "Running Fish integration tests..."
+      - docker build -t dirvana-test-fish -f tests/integration/shells/Dockerfile.fish .
+      - docker run --rm dirvana-test-fish
       - docker rmi dirvana-test-zsh
 
   test-all:
@@ -154,9 +171,9 @@ tasks:
       GO_VER: '{{.GO_VERSION | default "1.25.1"}}'
     cmds:
       - docker build
-          --build-arg GO_VERSION={{.GO_VER}}
-          -t {{.IMAGE_TEST_COMPLETION}}
-          -f tests/completion/Dockerfile .
+        --build-arg GO_VERSION={{.GO_VER}}
+        -t {{.IMAGE_TEST_COMPLETION}}
+        -f tests/completion/Dockerfile .
 
   test-completion:
     desc: Test completion system in Docker (TEST_SHELL=bash|zsh)
@@ -165,9 +182,9 @@ tasks:
       SHELL_TYPE: '{{.TEST_SHELL | default "bash"}}'
     cmds:
       - docker run --rm
-          -v {{.ROOT_DIR}}:/app
-          -e TEST_SHELL={{.SHELL_TYPE}}
-          {{.IMAGE_TEST_COMPLETION}}
+        -v {{.ROOT_DIR}}:/app
+        -e TEST_SHELL={{.SHELL_TYPE}}
+        {{.IMAGE_TEST_COMPLETION}}
 
   test-completion-shell:
     desc: Open interactive shell in completion test container
@@ -176,10 +193,10 @@ tasks:
       SHELL_TYPE: '{{.TEST_SHELL | default "bash"}}'
     cmds:
       - docker run --rm -it
-          -v {{.ROOT_DIR}}:/app
-          -e TEST_SHELL={{.SHELL_TYPE}}
-          --entrypoint {{.SHELL_TYPE}}
-          {{.IMAGE_TEST_COMPLETION}}
+        -v {{.ROOT_DIR}}:/app
+        -e TEST_SHELL={{.SHELL_TYPE}}
+        --entrypoint {{.SHELL_TYPE}}
+        {{.IMAGE_TEST_COMPLETION}}
 
   test-completion-all:
     desc: Test completion in all supported shells

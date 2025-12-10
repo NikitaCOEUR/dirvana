@@ -14,40 +14,75 @@ const (
 	ShellBash = "bash"
 	// ShellZsh represents zsh shell
 	ShellZsh = "zsh"
+	// ShellFish represents fish shell
+	ShellFish = "fish"
 )
 
 // DetectShell determines the shell type based on the flag or environment.
+// Detection priority:
+// 1. Explicit shell flag (if not "auto")
+// 2. DIRVANA_SHELL env var (set by hook, most reliable)
+// 3. Shell-specific version variables (FISH_VERSION, ZSH_VERSION, BASH_VERSION)
+// 4. Parent process detection (Linux/macOS via /proc)
+// 5. SHELL env var (login shell, less reliable)
+// 6. Default to bash
 func DetectShell(shellFlag string) string {
 	if shellFlag != "auto" {
 		return shellFlag
 	}
 
-	// First, try DIRVANA_SHELL env var (set by hook)
+	// Try DIRVANA_SHELL env var (set by hook)
 	if dirvanaShell := os.Getenv("DIRVANA_SHELL"); dirvanaShell != "" {
 		return dirvanaShell
 	}
 
-	// Second, try to detect from parent process (works on Linux/macOS)
+	// Try shell-specific version variables (most reliable runtime detection)
+	if os.Getenv("FISH_VERSION") != "" {
+		return ShellFish
+	}
+	if os.Getenv("ZSH_VERSION") != "" {
+		return ShellZsh
+	}
+	if os.Getenv("BASH_VERSION") != "" {
+		return ShellBash
+	}
+
+	// Try to detect from parent process (works on Linux/macOS)
 	if parentShell := detectShellFromParentProcess(); parentShell != "" {
 		return parentShell
 	}
 
-	// Third, try SHELL env var (usually set to login shell)
-	shell := os.Getenv("SHELL")
-	if strings.Contains(shell, "zsh") {
-		return ShellZsh
-	}
-	if strings.Contains(shell, "bash") {
-		return ShellBash
+	// Try SHELL env var (usually set to login shell, less reliable)
+	if shell := os.Getenv("SHELL"); shell != "" {
+		return parseShellFromPath(shell)
 	}
 
 	// Default to bash
 	return ShellBash
 }
 
+// parseShellFromPath extracts shell type from a path like "/bin/zsh" or "/usr/bin/fish"
+func parseShellFromPath(path string) string {
+	path = strings.ToLower(path)
+	if strings.Contains(path, "fish") {
+		return ShellFish
+	}
+	if strings.Contains(path, "zsh") {
+		return ShellZsh
+	}
+	if strings.Contains(path, "bash") {
+		return ShellBash
+	}
+	return ""
+}
+
 // parseShellFromCmdline parses a command line string to detect the shell type
 // This is a pure function that can be easily tested
 func parseShellFromCmdline(cmdline string) string {
+	cmdline = strings.ToLower(cmdline)
+	if strings.Contains(cmdline, "fish") {
+		return ShellFish
+	}
 	if strings.Contains(cmdline, "zsh") {
 		return ShellZsh
 	}

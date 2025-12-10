@@ -9,9 +9,9 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
-	dircontext "github.com/NikitaCOEUR/dirvana/internal/context"
-	"github.com/NikitaCOEUR/dirvana/internal/errors"
+	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
+	"github.com/NikitaCOEUR/dirvana/internal/shellctx"
 	"github.com/NikitaCOEUR/dirvana/internal/timing"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
@@ -35,18 +35,18 @@ func calculateActiveChains(prevDir, currentDir string, authMgr *auth.Auth, confi
 	chains := activeChains{}
 
 	if prevDir != "" && prevDir != currentDir {
-		chains.prev = dircontext.GetActiveConfigChain(prevDir, authMgr, configLoader)
-		chains.current = dircontext.GetActiveConfigChain(currentDir, authMgr, configLoader)
+		chains.prev = shellctx.GetActiveConfigChain(prevDir, authMgr, configLoader)
+		chains.current = shellctx.GetActiveConfigChain(currentDir, authMgr, configLoader)
 	} else {
 		// Same directory or no previous directory
-		chains.current = dircontext.GetActiveConfigChain(currentDir, authMgr, configLoader)
+		chains.current = shellctx.GetActiveConfigChain(currentDir, authMgr, configLoader)
 	}
 
 	return chains
 }
 
 // generateCleanupCodeForDirs generates cleanup code for directories that need cleanup
-func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache, log *logger.Logger) string {
+func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache, shell string, log *logger.Logger) string {
 	var cleanupCode string
 
 	if len(cleanupDirs) == 0 {
@@ -57,10 +57,11 @@ func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache,
 	for _, dir := range cleanupDirs {
 		if entry, found := cacheStorage.Get(dir); found {
 			startTime := time.Now()
-			cleanupCode += dircontext.GenerateCleanupCode(
+			cleanupCode += shellctx.GenerateCleanupCode(
 				entry.Aliases,
 				entry.Functions,
 				entry.EnvVars,
+				shell,
 			)
 			duration := time.Since(startTime)
 
@@ -220,9 +221,9 @@ func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths [
 		HierarchyPaths:      hierarchyPaths,
 		// Store cleanup data only for directories with local config
 		// This avoids duplicating cleanup data for inherited configs
-		Aliases:   aliasKeys,   // nil if !hasLocalConfig
-		Functions: functions,    // nil if !hasLocalConfig
-		EnvVars:   envVars,      // nil if !hasLocalConfig
+		Aliases:   aliasKeys, // nil if !hasLocalConfig
+		Functions: functions, // nil if !hasLocalConfig
+		EnvVars:   envVars,   // nil if !hasLocalConfig
 	}
 
 	if err := comps.cache.Set(mergedEntry); err != nil {
@@ -261,7 +262,7 @@ func Export(params ExportParams) error {
 	// Get current directory
 	currentDir, err := os.Getwd()
 	if err != nil {
-		return errors.NewExecutionError("export", "failed to get current directory", err)
+		return derrors.NewExecutionError("export", "failed to get current directory", err)
 	}
 
 	log.Debug().Str("dir", currentDir).Str("prev", params.PrevDir).Msg("Exporting shell code")
@@ -273,13 +274,16 @@ func Export(params ExportParams) error {
 	}
 	timer.Mark("init")
 
+	// Detect current shell early (for cleanup and shell-specific code generation)
+	targetShell := detectTargetShell()
+
 	// Calculate active config chains for cleanup logic
 	chains := calculateActiveChains(params.PrevDir, currentDir, comps.auth, comps.config)
 	timer.Mark("calc_chains")
 
 	// Determine what needs cleanup
-	cleanupDirs := dircontext.CalculateCleanup(chains.prev, chains.current)
-	cleanupCode := generateCleanupCodeForDirs(cleanupDirs, comps.cache, log)
+	cleanupDirs := shellctx.CalculateCleanup(chains.prev, chains.current)
+	cleanupCode := generateCleanupCodeForDirs(cleanupDirs, comps.cache, targetShell, log)
 	timer.Mark("cleanup")
 
 	// If no active configs in current directory, just output cleanup and return
@@ -291,9 +295,6 @@ func Export(params ExportParams) error {
 		}
 		return nil
 	}
-
-	// Detect current shell early (for error messages and shell-specific code generation)
-	targetShell := detectTargetShell()
 
 	// Check if current directory has a local config but is not in the active chain
 	checkUnauthorizedConfig(currentDir, chains.current, targetShell, log)
@@ -344,7 +345,7 @@ func Export(params ExportParams) error {
 			return err
 		}
 		if !approved {
-			return errors.NewShellApprovalError(currentDir, "shell commands not approved", nil)
+			return derrors.NewShellApprovalError(currentDir, "shell commands not approved", nil)
 		}
 		// Save approval
 		if err := comps.auth.ApproveShellCommands(currentDir, shellEnv); err != nil {

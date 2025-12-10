@@ -1,4 +1,5 @@
-package errors
+//nolint:revive // Package name intentionally matches stdlib for internal consistency
+package derrors
 
 import (
 	"errors"

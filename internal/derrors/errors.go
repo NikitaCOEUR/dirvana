@@ -1,7 +1,7 @@
-// Package errors provides custom error types for Dirvana.
+// Package derrors provides custom error types for Dirvana.
 // These error types enable better error handling and more informative error messages
 // throughout the application.
-package errors
+package derrors
 
 import (
 	"fmt"
