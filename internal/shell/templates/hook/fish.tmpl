@@ -7,7 +7,7 @@ function __dirvana_hook --on-variable PWD
   # Minimal hook: all logic is in 'dirvana export' for auto-updates
   # Capture output and fail silently if dirvana doesn't work
   # Set DIRVANA_SHELL so export knows which shell to generate code for
-  set -lx DIRVANA_SHELL fish
+  set -gx DIRVANA_SHELL fish
   set -l shell_code ({{.BinaryPath}} export --prev "$DIRVANA_PREV_DIR" 2>/dev/null)
   or return 0
 
