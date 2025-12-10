@@ -98,6 +98,16 @@ func Exec(params ExecParams) error {
 			}
 		}
 
+		// Check if this is a completion call
+		if len(params.Args) > 0 && (params.Args[0] == "__complete" || params.Args[0] == "completion") {
+			if aliasConf.Completion != nil {
+				if s, ok := aliasConf.Completion.(string); ok && s != "" {
+					command = s
+					log.Debug().Str("alias", params.Alias).Str("completion_command", command).Msg("Using completion command for __complete or completion")
+				}
+			}
+		}
+
 		log.Debug().Str("alias", params.Alias).Str("command", command).Msg("Resolving alias")
 	} else {
 		// Handle function
