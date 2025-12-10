@@ -5,7 +5,7 @@ __dirvana_hook() {
   # Minimal hook: all logic is in 'dirvana export' for auto-updates
   # Capture output and fail silently if dirvana doesn't work
   local shell_code
-  shell_code=$({{.BinaryPath}} export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null) || return 0
+  DIRVANA_SHELL=zsh shell_code=$({{.BinaryPath}} export --prev "${DIRVANA_PREV_DIR:-}" 2>/dev/null) || return 0
 
   [[ -n "$shell_code" ]] && eval "$shell_code"
   DIRVANA_PREV_DIR="$PWD"
