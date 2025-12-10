@@ -141,9 +141,9 @@ func resolveAliasCommand(params ExecParams, aliasConf config.AliasConfig, curren
 // executeCommand executes the resolved command via shell
 func executeCommand(params ExecParams, command string, log *logger.Logger) error {
 	// Detect which shell to use
-	shell := os.Getenv("SHELL")
+	shell := os.Getenv("DIRVANA_SHELL")
 	if shell == "" {
-		shell = "bash" // Fallback to bash (will be found via PATH)
+		shell = "sh" // Fallback to sh (will be found via PATH)
 	}
 
 	// Find shell executable path
@@ -175,24 +175,49 @@ func executeCommand(params ExecParams, command string, log *logger.Logger) error
 	return derrors.NewExecutionError(command, "failed to execute command", err)
 }
 
+// getShellFlags returns the optimization flags for the given shell type
+func getShellFlags(shellType string) []string {
+	switch shellType {
+	case ShellFish:
+		return []string{"--no-config"}
+	case ShellBash, ShellZsh:
+		return []string{"--norc", "--noprofile"}
+	default:
+		return []string{}
+	}
+}
+
+// getArgSyntax returns the argument syntax for the given shell type
+func getArgSyntax(shellType string) string {
+	if shellType == ShellFish {
+		return " $argv"
+	}
+	return ` "$@"`
+}
+
+// needsExtraShellArg returns true if the shell needs an extra shell argument in argv
+func needsExtraShellArg(shellType string) bool {
+	return shellType != ShellFish
+}
+
 // buildShellArgs builds the argument list for shell execution
 func buildShellArgs(shell, shellType, command string, args []string) []string {
-	// Bash/Zsh: shell -c 'command "$@"' shell args...
-	// Fish: shell -c 'command $argv' args...
+	flags := getShellFlags(shellType)
+	argSyntax := getArgSyntax(shellType)
+	needsExtra := needsExtraShellArg(shellType)
+
 	var argv []string
+	argv = append(argv, shell)
+	argv = append(argv, flags...)
+
 	if len(args) > 0 {
-		if shellType == ShellFish {
-			// Fish uses $argv for positional arguments
-			argv = []string{shell, "-c", command + " $argv"}
-			argv = append(argv, args...)
-		} else {
-			// Bash/Zsh: Use "$@" for argument passing
-			argv = []string{shell, "-c", command + ` "$@"`, shell}
-			argv = append(argv, args...)
+		argv = append(argv, "-c", command+argSyntax)
+		if needsExtra {
+			argv = append(argv, shell)
 		}
+		argv = append(argv, args...)
 	} else {
-		// No user arguments, just execute the command
-		argv = []string{shell, "-c", command}
+		argv = append(argv, "-c", command)
 	}
 	return argv
 }
