@@ -116,9 +116,9 @@ func TestZshCodeGenerator_GenerateCompletionFunction_MultipleAliases(t *testing.
 	assert.Contains(t, script, "compdef __dirvana_complete_zsh g")
 	assert.Contains(t, script, "compdef __dirvana_complete_zsh d")
 
-	// Should have the function repeated for each alias
+	// Should have the function defined once
 	count := strings.Count(script, "__dirvana_complete_zsh()")
-	assert.Equal(t, 3, count, "should have function definition for each alias")
+	assert.Equal(t, 1, count, "should have function definition once")
 }
 
 func TestMultiShellCodeGenerator_Name(t *testing.T) {

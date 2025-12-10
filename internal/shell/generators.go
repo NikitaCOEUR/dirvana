@@ -48,10 +48,16 @@ func (z *ZshCodeGenerator) Name() string {
 // GenerateCompletionFunction generates zsh-specific completion functions
 func (z *ZshCodeGenerator) GenerateCompletionFunction(aliases []string) []string {
 	var lines []string
+
+	// Add the common completion function once
+	lines = append(lines, strings.Split(zshFunctionTemplate, "\n")...)
+
+	// Add completion registration for each alias
 	for _, alias := range aliases {
 		script := fmt.Sprintf(zshTemplate, alias)
 		lines = append(lines, strings.Split(script, "\n")...)
 	}
+
 	return lines
 }
 
@@ -66,10 +72,16 @@ func (f *FishCodeGenerator) Name() string {
 // GenerateCompletionFunction generates fish-specific completion functions
 func (f *FishCodeGenerator) GenerateCompletionFunction(aliases []string) []string {
 	var lines []string
+
+	// Add the common completion function once
+	lines = append(lines, strings.Split(fishFunctionTemplate, "\n")...)
+
+	// Add completion registration for each alias
 	for _, alias := range aliases {
 		script := fmt.Sprintf(fishTemplate, alias)
 		lines = append(lines, strings.Split(script, "\n")...)
 	}
+
 	return lines
 }
 
