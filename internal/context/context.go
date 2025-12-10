@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+const (
+	shellFish = "fish"
+)
+
 // AuthChecker defines the interface for checking directory authorization
 type AuthChecker interface {
 	IsAllowed(path string) (bool, error)
@@ -66,7 +70,7 @@ func generateAliasCleanup(aliases []string, shell string) []string {
 
 	var lines []string
 	for _, alias := range aliases {
-		if shell == "fish" {
+		if shell == shellFish {
 			// Fish uses 'functions -e' to remove functions/aliases
 			lines = append(lines, "functions -e "+alias+" 2>/dev/null; or true")
 		} else {
@@ -82,7 +86,7 @@ func generateAliasCleanup(aliases []string, shell string) []string {
 func generateFunctionCleanup(functions []string, shell string) []string {
 	var lines []string
 	for _, fn := range functions {
-		if shell == "fish" {
+		if shell == shellFish {
 			// Fish uses 'functions -e' to remove functions
 			lines = append(lines, "functions -e "+fn+" 2>/dev/null; or true")
 		} else {
@@ -97,7 +101,7 @@ func generateFunctionCleanup(functions []string, shell string) []string {
 func generateEnvCleanup(envVars []string, shell string) []string {
 	var lines []string
 	for _, env := range envVars {
-		if shell == "fish" {
+		if shell == shellFish {
 			// Fish uses 'set -e' to unset variables
 			lines = append(lines, "set -e "+env)
 		} else {

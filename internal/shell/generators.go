@@ -95,11 +95,11 @@ func (m *MultiShellCodeGenerator) GenerateCompletionFunction(aliases []string) [
 // NewCompletionGenerator creates appropriate shell code generator for the given shell type
 func NewCompletionGenerator(shell string) CodeGenerator {
 	switch shell {
-	case "bash":
+	case shellBash:
 		return &BashCodeGenerator{}
-	case "zsh":
+	case shellZsh:
 		return &ZshCodeGenerator{}
-	case "fish":
+	case shellFish:
 		return &FishCodeGenerator{}
 	default:
 		// All shells

@@ -171,7 +171,7 @@ func (s *ExternalHookStrategy) NeedsUpdate() bool {
 // GetMessage returns a user-friendly message
 func (s *ExternalHookStrategy) GetMessage() string {
 	if s.message == "" {
-		return "✓ Dirvana hook is up to date"
+		return MsgHookUpToDate
 	}
 	return s.message
 }

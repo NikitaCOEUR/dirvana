@@ -24,6 +24,11 @@ type InstallStrategy interface {
 	GetRCFile() string
 }
 
+// Common messages used across strategies
+const (
+	MsgHookUpToDate = "✓ Dirvana hook is up to date"
+)
+
 // SelectInstallStrategy selects the best installation strategy for the given shell
 func SelectInstallStrategy(shell string) (InstallStrategy, error) {
 	// Fish requires special handling due to is-interactive block

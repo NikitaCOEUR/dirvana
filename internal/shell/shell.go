@@ -83,12 +83,12 @@ func (g *Generator) generateWithWrappers(aliases map[string]config.AliasConfig, 
 
 	// For zsh and fish, we need to use functions instead of aliases for completion to work
 	// For bash, aliases work fine
-	useShellFunctions := (g.Shell == "zsh" || g.Shell == "fish")
+	useShellFunctions := (g.Shell == shellZsh || g.Shell == shellFish)
 
 	// Generate simple alias/function wrappers
 	if len(aliases) > 0 {
 		if useShellFunctions {
-			if g.Shell == "fish" {
+			if g.Shell == shellFish {
 				parts = append(parts, "\n# Aliases (using dirvana exec wrapper as functions)")
 				keys := sortedKeysFromAliases(aliases)
 				for _, key := range keys {
@@ -127,7 +127,7 @@ func (g *Generator) generateWithWrappers(aliases map[string]config.AliasConfig, 
 		keys := sortedKeys(functions)
 		for _, key := range keys {
 			body := functions[key]
-			if g.Shell == "fish" {
+			if g.Shell == shellFish {
 				// Fish syntax: function name; ...; end
 				parts = append(parts, fmt.Sprintf("function %s\n%s\nend", key, indent(body)))
 			} else {
@@ -143,7 +143,7 @@ func (g *Generator) generateWithWrappers(aliases map[string]config.AliasConfig, 
 		keys := sortedKeys(staticEnv)
 		for _, key := range keys {
 			value := staticEnv[key]
-			if g.Shell == "fish" {
+			if g.Shell == shellFish {
 				// Fish syntax: set -gx VAR value
 				parts = append(parts, fmt.Sprintf("set -gx %s '%s'", key, escapeValue(value)))
 			} else {
@@ -159,7 +159,7 @@ func (g *Generator) generateWithWrappers(aliases map[string]config.AliasConfig, 
 		keys := sortedKeys(shellEnv)
 		for _, key := range keys {
 			shellCmd := shellEnv[key]
-			if g.Shell == "fish" {
+			if g.Shell == shellFish {
 				// Fish syntax: set -gx VAR (command)
 				parts = append(parts, fmt.Sprintf("set -gx %s (%s)", key, shellCmd))
 			} else {

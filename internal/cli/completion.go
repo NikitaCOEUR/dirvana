@@ -23,6 +23,75 @@ type CompletionParams struct {
 	CWord     int      // Index of word being completed (COMP_CWORD)
 }
 
+// resolveCompletionCommand looks up the actual command for an alias and its completion override
+func resolveCompletionCommand(aliasName, currentDir, cachePath, authPath string, log *logger.Logger) (command, completionCmd string, err error) {
+	ctx := context.Background()
+
+	// Get merged command maps from the full hierarchy
+	var commandMap, completionMap map[string]string
+	trace.WithRegion(ctx, "getMergedCommandMaps", func() {
+		commandMap, completionMap, err = getMergedCommandMaps(currentDir, cachePath, authPath)
+	})
+	if err != nil {
+		return "", "", err
+	}
+
+	if len(commandMap) == 0 {
+		return "", "", fmt.Errorf("no dirvana context")
+	}
+
+	// Look up the actual command for this alias
+	var found bool
+	command, found = commandMap[aliasName]
+	if !found {
+		return "", "", fmt.Errorf("not a dirvana-managed alias")
+	}
+
+	// Check if there's a completion override
+	completionCmd = command
+	if completionMap != nil {
+		if override, ok := completionMap[aliasName]; ok {
+			completionCmd = override
+		}
+	}
+
+	log.Debug().
+		Str("alias", aliasName).
+		Str("command", command).
+		Str("completion_cmd", completionCmd).
+		Msg("Resolving completion command")
+
+	return command, completionCmd, nil
+}
+
+// prepareCompletionArgs prepares the arguments for completion based on shell state
+func prepareCompletionArgs(params CompletionParams, log *logger.Logger) []string {
+	args := params.Words[1:] // Remove the alias name (first word)
+
+	// Cobra/kubectl and other tools expect at least one argument for completion
+	if len(args) == 0 {
+		args = append(args, "")
+		log.Debug().Msg("Added empty arg for initial completion")
+		return args
+	}
+
+	// If COMP_CWORD points beyond existing words, we're completing a new empty word
+	if params.CWord >= len(params.Words) && args[len(args)-1] != "" {
+		args = append(args, "")
+		log.Debug().Int("cword", params.CWord).Int("words_len", len(params.Words)).Msg("Added empty word for completion beyond last word")
+	}
+
+	return args
+}
+
+// getCurrentWord returns the word currently being completed
+func getCurrentWord(params CompletionParams) string {
+	if params.CWord > 0 && params.CWord < len(params.Words) {
+		return params.Words[params.CWord]
+	}
+	return ""
+}
+
 // Completion generates shell completions for dirvana-managed aliases
 // This is called by the shell completion function with the current command line state
 func Completion(params CompletionParams) error {
@@ -52,43 +121,12 @@ func Completion(params CompletionParams) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Get merged command maps from the full hierarchy
-	// This respects global config, ignore_global, local_only, and authorization
-	var commandMap, completionMap map[string]string
-	trace.WithRegion(ctx, "getMergedCommandMaps", func() {
-		commandMap, completionMap, err = getMergedCommandMaps(currentDir, params.CachePath, params.AuthPath)
-	})
+	// Resolve the command and completion command for this alias
+	command, completionCmd, err := resolveCompletionCommand(aliasName, currentDir, params.CachePath, params.AuthPath, log)
 	if err != nil {
-		// Failed to load config, no completions
+		// Failed to resolve or not a dirvana alias
 		return nil
 	}
-
-	if len(commandMap) == 0 {
-		// No dirvana context, no completions
-		return nil
-	}
-
-	// Look up the actual command for this alias
-	command, found := commandMap[aliasName]
-	if !found {
-		// Not a dirvana-managed alias
-		return nil
-	}
-
-	// Check if there's a completion override
-	// (e.g., k -> kubecolor for exec, but kubectl for completion)
-	completionCmd := command
-	if completionMap != nil {
-		if override, ok := completionMap[aliasName]; ok {
-			completionCmd = override
-		}
-	}
-
-	log.Debug().
-		Str("alias", aliasName).
-		Str("command", command).
-		Str("completion_cmd", completionCmd).
-		Msg("Resolving completion command")
 
 	// For functions, we don't have smart completions
 	if strings.HasPrefix(command, "__dirvana_function__") {
@@ -103,13 +141,10 @@ func Completion(params CompletionParams) error {
 
 	baseCmd := cmdParts[0]
 
-	// Create completion engine early to check detection cache
-	// If we have a cache hit, we know the command exists (was working < 24h ago)
+	// Create completion engine and verify command exists
 	cacheDir := filepath.Dir(params.CachePath)
 	engine := completion.NewEngine(cacheDir)
 
-	// Check if command exists - skip LookPath if we have a detection cache hit
-	// (if tool is in detection cache, it was working recently)
 	if !engine.HasCachedDetection(baseCmd) {
 		var lookPathErr error
 		trace.WithRegion(ctx, "exec.LookPath", func() {
@@ -123,30 +158,9 @@ func Completion(params CompletionParams) error {
 		log.Debug().Str("cmd", baseCmd).Msg("Skipping LookPath (detection cache hit)")
 	}
 
-	// Prepare arguments for completion
-	args := params.Words[1:] // Remove the alias name (first word)
-
-	// Cobra/kubectl and other tools expect at least one argument for completion
-	// If args is empty (only typed the command), add an empty string to get subcommand completions
-	if len(args) == 0 {
-		args = append(args, "")
-		log.Debug().Msg("Added empty arg for initial completion")
-	}
-
-	// If COMP_CWORD points beyond existing words, we're completing a new empty word
-	if params.CWord >= len(params.Words) {
-		// Only add if we haven't already added one above
-		if len(args) > 0 && args[len(args)-1] != "" {
-			args = append(args, "")
-			log.Debug().Int("cword", params.CWord).Int("words_len", len(params.Words)).Msg("Added empty word for completion beyond last word")
-		}
-	}
-
-	// Get current word being completed
-	var currentWord string
-	if params.CWord > 0 && params.CWord < len(params.Words) {
-		currentWord = params.Words[params.CWord]
-	}
+	// Prepare completion arguments
+	args := prepareCompletionArgs(params, log)
+	currentWord := getCurrentWord(params)
 
 	log.Debug().
 		Str("base_cmd", baseCmd).
@@ -154,7 +168,7 @@ func Completion(params CompletionParams) error {
 		Int("args_count", len(args)).
 		Msg("Starting completion")
 
-	// Get suggestions from the completion engine (already created above)
+	// Get suggestions from the completion engine
 	var result *completion.Result
 	trace.WithRegion(ctx, "engine.Complete", func() {
 		result, err = engine.Complete(baseCmd, args)
@@ -169,7 +183,7 @@ func Completion(params CompletionParams) error {
 		Str("source", result.Source).
 		Msg("Got completions")
 
-	// Filter suggestions by current word prefix
+	// Filter and sort suggestions
 	filtered := engine.Filter(result.Suggestions, currentWord)
 
 	log.Debug().
@@ -177,14 +191,11 @@ func Completion(params CompletionParams) error {
 		Str("prefix", currentWord).
 		Msg("Filtered completions")
 
-	// Sort suggestions alphabetically for stable ordering
-	// Some tools (like packer) return suggestions in random order
 	sort.Slice(filtered, func(i, j int) bool {
 		return filtered[i].Value < filtered[j].Value
 	})
 
-	// Output suggestions in the format: value\tdescription
-	// Shell will parse this and show both value and description
+	// Output suggestions
 	for _, suggestion := range filtered {
 		if suggestion.Description != "" {
 			fmt.Printf("%s\t%s\n", suggestion.Value, suggestion.Description)

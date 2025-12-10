@@ -13,12 +13,12 @@ func Init() func() {
 }
 
 // Region creates a trace region. In release builds, this is a no-op.
-func Region(ctx context.Context, regionType string) func() {
+func Region(_ context.Context, _ string) func() {
 	return func() {}
 }
 
 // StartRegion starts a named region. In release builds, this is a no-op.
-func StartRegion(ctx context.Context, regionType string) {
+func StartRegion(_ context.Context, _ string) {
 }
 
 // EndRegion ends the current region. In release builds, this is a no-op.
@@ -26,11 +26,11 @@ func EndRegion() {
 }
 
 // Log logs a message to the trace. In release builds, this is a no-op.
-func Log(ctx context.Context, category, message string) {
+func Log(_ context.Context, _, _ string) {
 }
 
 // WithRegion executes a function within a trace region. In release builds, just calls f.
-func WithRegion(ctx context.Context, regionType string, f func()) {
+func WithRegion(_ context.Context, _ string, f func()) {
 	f()
 }
 

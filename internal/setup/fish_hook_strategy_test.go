@@ -14,12 +14,12 @@ func TestFishHookStrategy_Install(t *testing.T) {
 	// Create temp directory for test
 	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
 
 	// Override home directory
 	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	require.NoError(t, os.Setenv("HOME", tmpDir))
+	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -57,12 +57,12 @@ func TestFishHookStrategy_InsertIntoExistingBlock(t *testing.T) {
 	// Create temp directory for test
 	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
 
 	// Override home directory
 	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	require.NoError(t, os.Setenv("HOME", tmpDir))
+	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -105,12 +105,12 @@ func TestFishHookStrategy_Uninstall(t *testing.T) {
 	// Create temp directory for test
 	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
 
 	// Override home directory
 	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	require.NoError(t, os.Setenv("HOME", tmpDir))
+	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -143,12 +143,12 @@ func TestFishHookStrategy_NeedsUpdate(t *testing.T) {
 	// Create temp directory for test
 	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
 
 	// Override home directory
 	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	require.NoError(t, os.Setenv("HOME", tmpDir))
+	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -175,12 +175,12 @@ func TestFishHookStrategy_IdempotentInstall(t *testing.T) {
 	// Create temp directory for test
 	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
 
 	// Override home directory
 	oldHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
-	defer os.Setenv("HOME", oldHome)
+	require.NoError(t, os.Setenv("HOME", tmpDir))
+	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
