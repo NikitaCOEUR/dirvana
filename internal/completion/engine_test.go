@@ -204,11 +204,24 @@ func TestEngine_HasCachedDetection(t *testing.T) {
 	engine := NewEngine(tmpDir)
 
 	// Initially no cache
-	assert.False(t, engine.HasCachedDetection("git"))
+	assert.False(t, engine.HasCachedDetection("testTool"))
+
+	// Add a mock completer that supports the tool
+	mock := &mockCompleter{
+		supportsResult: true,
+		suggestions: []Suggestion{
+			{Value: "option1", Description: "Test option 1"},
+		},
+		err: nil,
+	}
+
+	// Replace the completers with our mock
+	engine.completers = []Completer{mock}
+	engine.completerByName["Mock"] = mock
 
 	// Simulate caching by completing (which caches)
-	_, _ = engine.Complete("git", []string{})
+	_, _ = engine.Complete("testTool", []string{})
 
 	// Now should have cached detection
-	assert.True(t, engine.HasCachedDetection("git"))
+	assert.True(t, engine.HasCachedDetection("testTool"))
 }

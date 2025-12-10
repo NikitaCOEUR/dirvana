@@ -9,7 +9,7 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
-	"github.com/NikitaCOEUR/dirvana/internal/errors"
+	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 	"github.com/NikitaCOEUR/dirvana/internal/shellctx"
 	"github.com/NikitaCOEUR/dirvana/internal/timing"
@@ -262,7 +262,7 @@ func Export(params ExportParams) error {
 	// Get current directory
 	currentDir, err := os.Getwd()
 	if err != nil {
-		return errors.NewExecutionError("export", "failed to get current directory", err)
+		return derrors.NewExecutionError("export", "failed to get current directory", err)
 	}
 
 	log.Debug().Str("dir", currentDir).Str("prev", params.PrevDir).Msg("Exporting shell code")
@@ -345,7 +345,7 @@ func Export(params ExportParams) error {
 			return err
 		}
 		if !approved {
-			return errors.NewShellApprovalError(currentDir, "shell commands not approved", nil)
+			return derrors.NewShellApprovalError(currentDir, "shell commands not approved", nil)
 		}
 		// Save approval
 		if err := comps.auth.ApproveShellCommands(currentDir, shellEnv); err != nil {

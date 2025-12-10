@@ -10,7 +10,7 @@ import (
 
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/condition"
-	"github.com/NikitaCOEUR/dirvana/internal/errors"
+	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 )
 
@@ -30,18 +30,18 @@ func Exec(params ExecParams) error {
 	// Get current directory
 	currentDir, err := os.Getwd()
 	if err != nil {
-		return errors.NewExecutionError(params.Alias, "failed to get current directory", err)
+		return derrors.NewExecutionError(params.Alias, "failed to get current directory", err)
 	}
 
 	// Get merged alias configs and functions from the full hierarchy
 	// This respects global config, ignore_global, local_only, and authorization
 	aliases, functions, err := getMergedAliasConfigs(currentDir, params.CachePath, params.AuthPath)
 	if err != nil {
-		return errors.NewConfigurationError(currentDir, "failed to load configuration", err)
+		return derrors.NewConfigurationError(currentDir, "failed to load configuration", err)
 	}
 
 	if len(aliases) == 0 && len(functions) == 0 {
-		return errors.NewNotFoundError(params.Alias, fmt.Sprintf("no dirvana context found for alias '%s'", params.Alias))
+		return derrors.NewNotFoundError(params.Alias, fmt.Sprintf("no dirvana context found for alias '%s'", params.Alias))
 	}
 
 	// Check if alias exists
@@ -49,7 +49,7 @@ func Exec(params ExecParams) error {
 	functionBody, foundFunction := functions[params.Alias]
 
 	if !foundAlias && !foundFunction {
-		return errors.NewNotFoundError(params.Alias, fmt.Sprintf("alias '%s' not found in dirvana context", params.Alias))
+		return derrors.NewNotFoundError(params.Alias, fmt.Sprintf("alias '%s' not found in dirvana context", params.Alias))
 	}
 
 	var command string
@@ -65,7 +65,7 @@ func Exec(params ExecParams) error {
 			// Parse the When struct into a Condition
 			cond, err := condition.Parse(aliasConf.When)
 			if err != nil {
-				return errors.NewConditionError(params.Alias, "failed to parse conditions", err)
+				return derrors.NewConditionError(params.Alias, "failed to parse conditions", err)
 			}
 
 			// Create evaluation context
@@ -77,7 +77,7 @@ func Exec(params ExecParams) error {
 			// Evaluate the condition
 			ok, msg, err := cond.Evaluate(ctx)
 			if err != nil {
-				return errors.NewConditionError(params.Alias, "failed to evaluate conditions", err)
+				return derrors.NewConditionError(params.Alias, "failed to evaluate conditions", err)
 			}
 
 			if !ok {
@@ -91,7 +91,7 @@ func Exec(params ExecParams) error {
 					command = aliasConf.Else
 				} else {
 					// No fallback, return error
-					return errors.NewConditionError(params.Alias, fmt.Sprintf("condition not met:\n%s", msg), nil)
+					return derrors.NewConditionError(params.Alias, fmt.Sprintf("condition not met:\n%s", msg), nil)
 				}
 			} else {
 				log.Debug().Str("alias", params.Alias).Msg("Conditions met")
@@ -115,7 +115,7 @@ func Exec(params ExecParams) error {
 	// Find shell executable path
 	execPath, err := exec.LookPath(shell)
 	if err != nil {
-		return errors.NewExecutionError(params.Alias, fmt.Sprintf("shell not found: %s", shell), err)
+		return derrors.NewExecutionError(params.Alias, fmt.Sprintf("shell not found: %s", shell), err)
 	}
 
 	// Detect shell type to use appropriate argument syntax
@@ -173,7 +173,7 @@ func Exec(params ExecParams) error {
 	err = syscall.Exec(execPath, argv, os.Environ())
 
 	// If we reach here, syscall.Exec failed (extremely rare)
-	return errors.NewExecutionError(command, "failed to execute command", err)
+	return derrors.NewExecutionError(command, "failed to execute command", err)
 }
 
 // buildEnvMap creates a map of environment variables for condition evaluation
