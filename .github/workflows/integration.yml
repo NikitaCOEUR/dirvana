@@ -53,16 +53,39 @@ jobs:
       - name: Run Zsh integration tests
         run: docker run --rm dirvana-test-zsh
 
+  test-fish:
+    name: Test Fish Shell
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          check-latest: true
+
+      - name: Build binary
+        run: go build -o bin/dirvana ./cmd/dirvana
+
+      - name: Build Docker image
+        run: docker build -t dirvana-test-fish -f tests/integration/shells/Dockerfile.fish .
+
+      - name: Run Fish integration tests
+        run: docker run --rm dirvana-test-fish
+
   summary:
     name: Integration Tests Summary
     runs-on: ubuntu-latest
-    needs: [test-bash, test-zsh]
+    needs: [test-bash, test-zsh, test-fish]
     if: always()
     steps:
       - name: Check results
         run: |
           if [ "${{ needs.test-bash.result }}" = "success" ] && \
-             [ "${{ needs.test-zsh.result }}" = "success" ]; then
+             [ "${{ needs.test-zsh.result }}" = "success" ] && \
+             [ "${{ needs.test-fish.result }}" = "success" ]; then
             echo "✅ All integration tests passed!"
           else
             echo "❌ Some integration tests failed"

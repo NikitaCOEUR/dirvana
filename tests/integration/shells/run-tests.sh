@@ -14,7 +14,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
-SHELLS=("bash" "zsh")
+SHELLS=("bash" "zsh" "fish")
 FAILED=0
 
 for shell in "${SHELLS[@]}"; do
