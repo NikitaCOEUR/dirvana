@@ -22,7 +22,7 @@ function __dirvana_complete_fish
   set -l cword (math (count $words) - 1)
 
   # Call dirvana completion with all words from command line
-  set -l suggestions (env DIRVANA_COMP_CWORD=$cword dirvana completion -- $words 2>/dev/null)
+  set -l suggestions (env DIRVANA_SHELL=fish DIRVANA_COMP_CWORD=$cword dirvana completion -- $words 2>/dev/null)
 
   # Check if we got any suggestions
   if test (count $suggestions) -eq 0
