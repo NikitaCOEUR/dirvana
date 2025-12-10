@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
@@ -117,15 +118,46 @@ func Exec(params ExecParams) error {
 		return errors.NewExecutionError(params.Alias, fmt.Sprintf("shell not found: %s", shell), err)
 	}
 
+	// Detect shell type to use appropriate argument syntax
+	shellType := parseShellFromPath(shell)
+	if shellType == "" {
+		// Fallback: try to detect from environment
+		shellType = DetectShell("auto")
+	}
+
 	// Build argv for shell execution
-	// Use: shell -c 'command "$@"' shell args...
-	// The first arg after the command becomes $0 (we use shell name)
-	// The remaining args become $1, $2, $3, etc. which are captured by "$@"
+	// Bash/Zsh: shell -c 'command "$@"' shell args...
+	// Fish: Different approach - fish -c doesn't support positional args the same way
 	var argv []string
 	if len(params.Args) > 0 {
-		// Append "$@" to command to receive user arguments
-		argv = []string{shell, "-c", command + ` "$@"`, shell}
-		argv = append(argv, params.Args...)
+		if shellType == ShellFish {
+			// Fish doesn't support "$@" style argument passing with -c
+			// We need to build the command inline or use a different approach
+			// For now, use bash as a fallback for Fish when executing commands with args
+			// This is a temporary workaround until we find a better solution
+			bashPath, err := exec.LookPath("bash")
+			if err == nil {
+				// Use bash as execution shell, even if user shell is fish
+				execPath = bashPath // Update execPath to bash
+				argv = []string{bashPath, "-c", command + ` "$@"`, "bash"}
+				argv = append(argv, params.Args...)
+				log.Debug().Msg("Using bash for command execution (fish doesn't support arg passing with -c)")
+			} else {
+				// No bash available, construct command with quoted args
+				// This is less safe but should work for simple cases
+				quotedArgs := ""
+				for _, arg := range params.Args {
+					// Basic quoting - escape single quotes
+					escaped := "'" + escapeForShell(arg) + "'"
+					quotedArgs += " " + escaped
+				}
+				argv = []string{shell, "-c", command + quotedArgs}
+			}
+		} else {
+			// Bash/Zsh: Use "$@" for argument passing
+			argv = []string{shell, "-c", command + ` "$@"`, shell}
+			argv = append(argv, params.Args...)
+		}
 	} else {
 		// No user arguments, just execute the command
 		argv = []string{shell, "-c", command}
@@ -159,6 +191,14 @@ func buildEnvMap() map[string]string {
 		}
 	}
 	return envMap
+}
+
+// escapeForShell escapes a string for safe use in shell commands
+// This is a basic implementation - for production use, consider more robust escaping
+func escapeForShell(s string) string {
+	// Replace single quotes with '\''
+	// This closes the quote, adds an escaped quote, then reopens the quote
+	return strings.ReplaceAll(s, "'", `'\''`)
 }
 
 // findCacheEntry searches for a cache entry in the current directory or parent directories

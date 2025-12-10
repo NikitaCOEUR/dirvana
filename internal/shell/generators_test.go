@@ -181,9 +181,19 @@ func TestNewCompletionGenerator_Zsh(t *testing.T) {
 	assert.True(t, ok, "should return ZshCodeGenerator")
 }
 
+func TestNewCompletionGenerator_Fish(t *testing.T) {
+	gen := NewCompletionGenerator("fish")
+	assert.NotNil(t, gen)
+	assert.Equal(t, "fish", gen.Name())
+
+	// Verify it's actually a FishCodeGenerator
+	_, ok := gen.(*FishCodeGenerator)
+	assert.True(t, ok, "should return FishCodeGenerator")
+}
+
 func TestNewCompletionGenerator_Multi(t *testing.T) {
 	// Any unknown shell should return multi-shell generator
-	testCases := []string{"", "unknown", "fish", "both"}
+	testCases := []string{"", "unknown", "both"}
 
 	for _, tc := range testCases {
 		t.Run(tc, func(t *testing.T) {
@@ -195,8 +205,8 @@ func TestNewCompletionGenerator_Multi(t *testing.T) {
 			multiGen, ok := gen.(*MultiShellCodeGenerator)
 			assert.True(t, ok, "should return MultiShellCodeGenerator")
 
-			// Verify it has both bash and zsh generators
-			assert.Len(t, multiGen.generators, 2)
+			// Verify it has bash, zsh, and fish generators
+			assert.Len(t, multiGen.generators, 3)
 		})
 	}
 }
@@ -209,6 +219,7 @@ func TestNewCompletionGenerator_Integration(t *testing.T) {
 	}{
 		{"bash", []string{"k", "g"}},
 		{"zsh", []string{"k", "g"}},
+		{"fish", []string{"k", "g"}},
 		{"multi", []string{"k", "g"}},
 	}
 

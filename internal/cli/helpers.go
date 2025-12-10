@@ -130,6 +130,11 @@ func getMergedAliasConfigs(currentDir string, cachePath string, authPath string)
 		return nil, nil, err
 	}
 
+	// If no config was loaded, return empty maps
+	if mergedConfig == nil {
+		return make(map[string]config.AliasConfig), make(map[string]string), nil
+	}
+
 	// Return aliases and functions
 	aliases = mergedConfig.GetAliases()
 	functions = mergedConfig.Functions
@@ -198,6 +203,11 @@ func getMergedCommandMaps(currentDir string, cachePath string, authPath string) 
 	})
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// If no config was loaded, return empty maps
+	if mergedConfig == nil {
+		return make(map[string]string), make(map[string]string), nil
 	}
 
 	// Build command maps from the merged config

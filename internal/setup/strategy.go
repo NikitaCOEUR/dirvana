@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/NikitaCOEUR/dirvana/internal/cli"
 )
 
 // InstallStrategy defines the interface for different hook installation strategies
@@ -24,6 +26,11 @@ type InstallStrategy interface {
 
 // SelectInstallStrategy selects the best installation strategy for the given shell
 func SelectInstallStrategy(shell string) (InstallStrategy, error) {
+	// Fish requires special handling due to is-interactive block
+	if shell == cli.ShellFish {
+		return NewFishHookStrategy()
+	}
+
 	// Try drop-in strategy first (cleanest approach)
 	dropIn, err := NewDropInStrategy(shell)
 	if err == nil && dropIn.IsSupported() {
