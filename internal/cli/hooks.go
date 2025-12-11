@@ -9,6 +9,7 @@ import (
 	shellpkg "github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
+// Supported shells
 const (
 	// ShellBash represents bash shell
 	ShellBash = "bash"

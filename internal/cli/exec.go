@@ -140,23 +140,16 @@ func resolveAliasCommand(params ExecParams, aliasConf config.AliasConfig, curren
 
 // executeCommand executes the resolved command via shell
 func executeCommand(params ExecParams, command string, log *logger.Logger) error {
-	// Detect which shell to use
-	shell := os.Getenv("DIRVANA_SHELL")
-	if shell == "" {
-		shell = "sh" // Fallback to sh (will be found via PATH)
-	}
+	// Detect shell type
+	shellType := DetectShell("auto")
+
+	// Map shell type to executable name
+	shell := getShellExecutable(shellType)
 
 	// Find shell executable path
 	execPath, err := exec.LookPath(shell)
 	if err != nil {
 		return derrors.NewExecutionError(params.Alias, fmt.Sprintf("shell not found: %s", shell), err)
-	}
-
-	// Detect shell type to use appropriate argument syntax
-	shellType := parseShellFromPath(shell)
-	if shellType == "" {
-		// Fallback: try to detect from environment
-		shellType = DetectShell("auto")
 	}
 
 	// Build argv for shell execution
@@ -175,13 +168,31 @@ func executeCommand(params ExecParams, command string, log *logger.Logger) error
 	return derrors.NewExecutionError(command, "failed to execute command", err)
 }
 
+// getShellExecutable returns the executable name for the given shell type
+func getShellExecutable(shellType string) string {
+	switch shellType {
+	case ShellBash:
+		return "bash"
+	case ShellZsh:
+		return "zsh"
+	case ShellFish:
+		return "fish"
+	default:
+		// DetectShell always returns at least ShellBash, but keep bash as fallback for safety
+		// Note: sh (dash/busybox) is not supported as it doesn't support required flags
+		return "bash"
+	}
+}
+
 // getShellFlags returns the optimization flags for the given shell type
 func getShellFlags(shellType string) []string {
 	switch shellType {
 	case ShellFish:
 		return []string{"--no-config"}
-	case ShellBash, ShellZsh:
+	case ShellBash:
 		return []string{"--norc", "--noprofile"}
+	case ShellZsh:
+		return []string{"--no-rcs"}
 	default:
 		return []string{}
 	}
