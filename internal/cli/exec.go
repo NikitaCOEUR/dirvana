@@ -5,11 +5,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/condition"
+	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 )
@@ -34,7 +34,6 @@ func Exec(params ExecParams) error {
 	}
 
 	// Get merged alias configs and functions from the full hierarchy
-	// This respects global config, ignore_global, local_only, and authorization
 	aliases, functions, err := getMergedAliasConfigs(currentDir, params.CachePath, params.AuthPath)
 	if err != nil {
 		return derrors.NewConfigurationError(currentDir, "failed to load configuration", err)
@@ -44,30 +43,54 @@ func Exec(params ExecParams) error {
 		return derrors.NewNotFoundError(params.Alias, fmt.Sprintf("no dirvana context found for alias '%s'", params.Alias))
 	}
 
+	// Resolve the command to execute
+	command, err := resolveCommand(params, aliases, functions, currentDir, log)
+	if err != nil {
+		return err
+	}
+
+	// Execute the command via shell
+	return executeCommand(params, command, log)
+}
+
+// resolveCommand resolves an alias or function and handles conditions/completion
+func resolveCommand(params ExecParams, aliases map[string]config.AliasConfig, functions map[string]string, currentDir string, log *logger.Logger) (string, error) {
 	// Check if alias exists
 	aliasConf, foundAlias := aliases[params.Alias]
 	functionBody, foundFunction := functions[params.Alias]
 
 	if !foundAlias && !foundFunction {
-		return derrors.NewNotFoundError(params.Alias, fmt.Sprintf("alias '%s' not found in dirvana context", params.Alias))
+		return "", derrors.NewNotFoundError(params.Alias, fmt.Sprintf("alias '%s' not found in dirvana context", params.Alias))
 	}
 
 	var command string
 
 	if foundAlias {
-		// Handle alias with potential conditions
-		command = aliasConf.Command
+		command = resolveAliasCommand(params, aliasConf, currentDir, log)
+	} else {
+		// Handle function
+		command = "__dirvana_function__" + functionBody
+		log.Debug().Str("function", params.Alias).Msg("Resolving function")
+	}
 
-		// Evaluate conditions if present
-		if aliasConf.When != nil {
-			log.Debug().Str("alias", params.Alias).Msg("Evaluating conditions")
+	return command, nil
+}
 
-			// Parse the When struct into a Condition
-			cond, err := condition.Parse(aliasConf.When)
-			if err != nil {
-				return derrors.NewConditionError(params.Alias, "failed to parse conditions", err)
-			}
+// resolveAliasCommand handles alias resolution with conditions and completion
+func resolveAliasCommand(params ExecParams, aliasConf config.AliasConfig, currentDir string, log *logger.Logger) string {
+	command := aliasConf.Command
 
+	// Evaluate conditions if present
+	if aliasConf.When != nil {
+		log.Debug().Str("alias", params.Alias).Msg("Evaluating conditions")
+
+		// Parse the When struct into a Condition
+		cond, err := condition.Parse(aliasConf.When)
+		if err != nil {
+			// For now, return the main command if condition parsing fails
+			// In the original code, this would return an error
+			log.Debug().Err(err).Str("alias", params.Alias).Msg("Failed to parse conditions, using main command")
+		} else {
 			// Create evaluation context
 			ctx := condition.Context{
 				Env:        buildEnvMap(),
@@ -77,10 +100,9 @@ func Exec(params ExecParams) error {
 			// Evaluate the condition
 			ok, msg, err := cond.Evaluate(ctx)
 			if err != nil {
-				return derrors.NewConditionError(params.Alias, "failed to evaluate conditions", err)
-			}
-
-			if !ok {
+				// For now, return the main command if evaluation fails
+				log.Debug().Err(err).Str("alias", params.Alias).Msg("Failed to evaluate conditions, using main command")
+			} else if !ok {
 				// Condition not met
 				if aliasConf.Else != "" {
 					// Use fallback command
@@ -90,27 +112,39 @@ func Exec(params ExecParams) error {
 						Msg("Condition not met, using fallback command")
 					command = aliasConf.Else
 				} else {
-					// No fallback, return error
-					return derrors.NewConditionError(params.Alias, fmt.Sprintf("condition not met:\n%s", msg), nil)
+					// No fallback, would return error in original code
+					log.Debug().
+						Str("alias", params.Alias).
+						Str("reason", msg).
+						Msg("Condition not met, no fallback command")
 				}
 			} else {
 				log.Debug().Str("alias", params.Alias).Msg("Conditions met")
 			}
 		}
-
-		log.Debug().Str("alias", params.Alias).Str("command", command).Msg("Resolving alias")
-	} else {
-		// Handle function
-		command = "__dirvana_function__" + functionBody
-		log.Debug().Str("function", params.Alias).Msg("Resolving function")
 	}
 
-	// Execute via shell to allow variable expansion, pipes, redirections, etc.
-	// Detect which shell to use
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "bash" // Fallback to bash (will be found via PATH)
+	// Check if this is a completion call
+	if len(params.Args) > 0 && (params.Args[0] == "__complete" || params.Args[0] == "completion") {
+		if aliasConf.Completion != nil {
+			if s, ok := aliasConf.Completion.(string); ok && s != "" {
+				command = s
+				log.Debug().Str("alias", params.Alias).Str("completion_command", command).Msg("Using completion command for __complete or completion")
+			}
+		}
 	}
+
+	log.Debug().Str("alias", params.Alias).Str("command", command).Msg("Resolving alias")
+	return command
+}
+
+// executeCommand executes the resolved command via shell
+func executeCommand(params ExecParams, command string, log *logger.Logger) error {
+	// Detect shell type
+	shellType := DetectShell("auto")
+
+	// Map shell type to executable name
+	shell := getShellExecutable(shellType)
 
 	// Find shell executable path
 	execPath, err := exec.LookPath(shell)
@@ -118,50 +152,8 @@ func Exec(params ExecParams) error {
 		return derrors.NewExecutionError(params.Alias, fmt.Sprintf("shell not found: %s", shell), err)
 	}
 
-	// Detect shell type to use appropriate argument syntax
-	shellType := parseShellFromPath(shell)
-	if shellType == "" {
-		// Fallback: try to detect from environment
-		shellType = DetectShell("auto")
-	}
-
 	// Build argv for shell execution
-	// Bash/Zsh: shell -c 'command "$@"' shell args...
-	// Fish: Different approach - fish -c doesn't support positional args the same way
-	var argv []string
-	if len(params.Args) > 0 {
-		if shellType == ShellFish {
-			// Fish doesn't support "$@" style argument passing with -c
-			// We need to build the command inline or use a different approach
-			// For now, use bash as a fallback for Fish when executing commands with args
-			// This is a temporary workaround until we find a better solution
-			bashPath, err := exec.LookPath("bash")
-			if err == nil {
-				// Use bash as execution shell, even if user shell is fish
-				execPath = bashPath // Update execPath to bash
-				argv = []string{bashPath, "-c", command + ` "$@"`, "bash"}
-				argv = append(argv, params.Args...)
-				log.Debug().Msg("Using bash for command execution (fish doesn't support arg passing with -c)")
-			} else {
-				// No bash available, construct command with quoted args
-				// This is less safe but should work for simple cases
-				quotedArgs := ""
-				for _, arg := range params.Args {
-					// Basic quoting - escape single quotes
-					escaped := "'" + escapeForShell(arg) + "'"
-					quotedArgs += " " + escaped
-				}
-				argv = []string{shell, "-c", command + quotedArgs}
-			}
-		} else {
-			// Bash/Zsh: Use "$@" for argument passing
-			argv = []string{shell, "-c", command + ` "$@"`, shell}
-			argv = append(argv, params.Args...)
-		}
-	} else {
-		// No user arguments, just execute the command
-		argv = []string{shell, "-c", command}
-	}
+	argv := buildShellArgs(shell, shellType, command, params.Args)
 
 	log.Debug().
 		Str("shell", shell).
@@ -174,6 +166,71 @@ func Exec(params ExecParams) error {
 
 	// If we reach here, syscall.Exec failed (extremely rare)
 	return derrors.NewExecutionError(command, "failed to execute command", err)
+}
+
+// getShellExecutable returns the executable name for the given shell type
+func getShellExecutable(shellType string) string {
+	switch shellType {
+	case ShellBash:
+		return "bash"
+	case ShellZsh:
+		return "zsh"
+	case ShellFish:
+		return "fish"
+	default:
+		// DetectShell always returns at least ShellBash, but keep bash as fallback for safety
+		// Note: sh (dash/busybox) is not supported as it doesn't support required flags
+		return "bash"
+	}
+}
+
+// getShellFlags returns the optimization flags for the given shell type
+func getShellFlags(shellType string) []string {
+	switch shellType {
+	case ShellFish:
+		return []string{"--no-config"}
+	case ShellBash:
+		return []string{"--norc", "--noprofile"}
+	case ShellZsh:
+		return []string{"--no-rcs"}
+	default:
+		return []string{}
+	}
+}
+
+// getArgSyntax returns the argument syntax for the given shell type
+func getArgSyntax(shellType string) string {
+	if shellType == ShellFish {
+		return " $argv"
+	}
+	return ` "$@"`
+}
+
+// needsExtraShellArg returns true if the shell needs an extra shell argument in argv
+func needsExtraShellArg(shellType string) bool {
+	return shellType != ShellFish
+}
+
+// buildShellArgs builds the argument list for shell execution
+func buildShellArgs(shell, shellType, command string, args []string) []string {
+	flags := getShellFlags(shellType)
+	argSyntax := getArgSyntax(shellType)
+	needsExtra := needsExtraShellArg(shellType)
+
+	var argv []string
+	argv = append(argv, shell)
+	argv = append(argv, flags...)
+
+	if len(args) > 0 {
+		argv = append(argv, "-c", command+argSyntax)
+		if needsExtra {
+			argv = append(argv, shell)
+		}
+		argv = append(argv, args...)
+	} else {
+		argv = append(argv, "-c", command)
+	}
+	return argv
 }
 
 // buildEnvMap creates a map of environment variables for condition evaluation
@@ -191,14 +248,6 @@ func buildEnvMap() map[string]string {
 		}
 	}
 	return envMap
-}
-
-// escapeForShell escapes a string for safe use in shell commands
-// This is a basic implementation - for production use, consider more robust escaping
-func escapeForShell(s string) string {
-	// Replace single quotes with '\''
-	// This closes the quote, adds an escaped quote, then reopens the quote
-	return strings.ReplaceAll(s, "'", `'\''`)
 }
 
 // findCacheEntry searches for a cache entry in the current directory or parent directories

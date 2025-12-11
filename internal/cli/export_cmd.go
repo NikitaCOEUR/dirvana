@@ -82,7 +82,7 @@ func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache,
 func detectTargetShell() string {
 	targetShell := DetectShell("auto")
 
-	if targetShell == "bash" {
+	if targetShell == ShellBash {
 		// Check if it's a real detection or just the default fallback
 		if os.Getenv("DIRVANA_SHELL") == "" &&
 			detectShellFromParentProcess() == "" &&

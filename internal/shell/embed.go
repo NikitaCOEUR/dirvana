@@ -14,6 +14,12 @@ var zshTemplate string
 //go:embed templates/completion/fish.tmpl
 var fishTemplate string
 
+//go:embed templates/completion/fish_function.tmpl
+var fishFunctionTemplate string
+
+//go:embed templates/completion/zsh_function.tmpl
+var zshFunctionTemplate string
+
 // Embedded shell hook templates
 //
 //go:embed templates/hook/bash.tmpl

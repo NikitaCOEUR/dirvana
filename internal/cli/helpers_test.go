@@ -124,28 +124,43 @@ func TestBuildCompletionMap(t *testing.T) {
 		},
 		"gs": {
 			Command:    "git status",
-			Completion: nil, // Auto-detect
+			Completion: nil, // Auto-detect -> uses command
 		},
 		"test": {
 			Command:    "echo test",
-			Completion: false, // Disabled
+			Completion: false, // Disabled -> no entry
 		},
 		"empty": {
 			Command:    "echo empty",
-			Completion: "", // Empty string
+			Completion: "", // Empty string -> uses command
+		},
+		"object": {
+			Command: "docker",
+			Completion: config.CompletionConfig{
+				Bash: "docker",
+			}, // Object -> uses command
 		},
 	}
 
 	completionMap := buildCompletionMap(aliases)
 
-	// Should only include "kc" with explicit string completion
-	assert.Len(t, completionMap, 1)
+	// Should include all except "test" (completion: false)
+	assert.Len(t, completionMap, 4)
+
+	// Explicit string completion
 	assert.Equal(t, "kubectl", completionMap["kc"])
 
-	// Others should not be in the map
-	assert.NotContains(t, completionMap, "gs")
+	// No completion -> uses command
+	assert.Equal(t, "git status", completionMap["gs"])
+
+	// Empty string -> uses command
+	assert.Equal(t, "echo empty", completionMap["empty"])
+
+	// Object completion -> uses command
+	assert.Equal(t, "docker", completionMap["object"])
+
+	// Disabled -> no entry
 	assert.NotContains(t, completionMap, "test")
-	assert.NotContains(t, completionMap, "empty")
 }
 
 func TestBuildCompletionMap_Empty(t *testing.T) {
@@ -485,4 +500,39 @@ func TestValidateMergedCache_NewConfigAdded(t *testing.T) {
 	validEntry, isValid := validateMergedCache(cacheEntry, childDir, loader, authMgr, version.Version)
 	assert.False(t, isValid)
 	assert.Nil(t, validEntry)
+}
+
+func TestBuildCommandMap(t *testing.T) {
+	aliases := map[string]config.AliasConfig{
+		"simple": {
+			Command: "echo hello",
+		},
+		"complex": {
+			Command: "git status",
+		},
+	}
+
+	functions := map[string]string{
+		"myfunc": "echo func",
+	}
+
+	commandMap := buildCommandMap(aliases, functions)
+
+	assert.Equal(t, "echo hello", commandMap["simple"])
+	assert.Equal(t, "git status", commandMap["complex"])
+	assert.Equal(t, "__dirvana_function__myfunc", commandMap["myfunc"])
+}
+
+func TestBuildCompletionMap_EmptyCompletionString(t *testing.T) {
+	aliases := map[string]config.AliasConfig{
+		"empty_completion": {
+			Command:    "echo test",
+			Completion: "",
+		},
+	}
+
+	completionMap := buildCompletionMap(aliases)
+
+	// Empty string should use command
+	assert.Equal(t, "echo test", completionMap["empty_completion"])
 }

@@ -18,9 +18,14 @@ func TestBashTemplate_Embedded(t *testing.T) {
 func TestZshTemplate_Embedded(t *testing.T) {
 	// Test that zsh template is embedded and not empty
 	assert.NotEmpty(t, zshTemplate, "zsh template should be embedded")
-	assert.Contains(t, zshTemplate, "__dirvana_complete_zsh", "should contain zsh completion function")
 	assert.Contains(t, zshTemplate, "compdef", "should register compdef")
-	assert.Contains(t, zshTemplate, "_describe", "should use _describe")
+}
+
+func TestZshFunctionTemplate_Embedded(t *testing.T) {
+	// Test that zsh function template is embedded and not empty
+	assert.NotEmpty(t, zshFunctionTemplate, "zsh function template should be embedded")
+	assert.Contains(t, zshFunctionTemplate, "__dirvana_complete_zsh", "should contain zsh completion function")
+	assert.Contains(t, zshFunctionTemplate, "_describe", "should use _describe")
 }
 
 func TestBashTemplate_HasPlaceholder(t *testing.T) {
@@ -45,8 +50,8 @@ func TestBashTemplate_HasShebang(t *testing.T) {
 	assert.Contains(t, lines[0], "bash", "shebang should specify bash")
 }
 
-func TestZshTemplate_HasShebang(t *testing.T) {
-	lines := strings.Split(zshTemplate, "\n")
+func TestZshFunctionTemplate_HasShebang(t *testing.T) {
+	lines := strings.Split(zshFunctionTemplate, "\n")
 	assert.True(t, strings.HasPrefix(lines[0], "#!/"), "should have shebang")
 	assert.Contains(t, lines[0], "zsh", "shebang should specify zsh")
 }
@@ -57,9 +62,9 @@ func TestBashTemplate_HasFallback(t *testing.T) {
 	assert.Contains(t, bashTemplate, "compopt -o filenames", "should enable filenames option")
 }
 
-func TestZshTemplate_HasFallback(t *testing.T) {
-	// Zsh template should have file completion fallback
-	assert.Contains(t, zshTemplate, "_files", "should have _files fallback")
+func TestZshFunctionTemplate_HasFallback(t *testing.T) {
+	// Zsh function template should have file completion fallback
+	assert.Contains(t, zshFunctionTemplate, "_files", "should have _files fallback")
 }
 
 func TestBashTemplate_FormatsDescriptions(t *testing.T) {
