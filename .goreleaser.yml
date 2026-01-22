@@ -57,21 +57,6 @@ changelog:
       - '^build:'
       - '^style:'
       - typo
-  groups:
-    - title: 'Features'
-      regexp: '^feat:'
-      order: 0
-    - title: 'Bug Fixes'
-      regexp: '^fix:'
-      order: 1
-    - title: 'Performance Improvements'
-      regexp: '^perf:'
-      order: 2
-    - title: 'Refactoring'
-      regexp: '^refactor:'
-      order: 3
-    - title: 'Others'
-      order: 999
 
 release:
   github:
@@ -80,22 +65,8 @@ release:
   draft: false
   prerelease: auto
   mode: replace
+  name_template: "🧘 Dirvana {{ .Tag }} - Reach Directory Nirvana"
   header: |
-    ## Dirvana {{ .Tag }}
-
-    ### Installation
-
-    #### Using go install
-    ```bash
-    go install github.com/NikitaCOEUR/dirvana/cmd/dirvana@{{ .Tag }}
-    ```
-
-    #### Download binary
-    Download the appropriate binary for your platform from the assets below.
-
+    ## What's Changed
   footer: |
     **Full Changelog**: https://github.com/NikitaCOEUR/dirvana/compare/{{ .PreviousTag }}...{{ .Tag }}
-
-    ---
-
-    Thank you to all contributors! 🎉
