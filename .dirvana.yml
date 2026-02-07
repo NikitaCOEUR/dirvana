@@ -5,7 +5,7 @@ conditions:
     when:
       all:
         - var: PROJECT_NAME # Test if ENV var PROJECT_NAME is set as example
-        - command: kubectl  # Test if command kubectl is available
+        - command: kubectl # Test if command kubectl is available
 
 # Shell aliases
 aliases:
@@ -30,9 +30,9 @@ aliases:
   h: helm
   p: packer
   t: task
-  tf: terraform
-
-
+  tf:
+    command: task terraform --
+    completion: terraform
 
 # Shell functions
 functions:
