@@ -2,6 +2,20 @@
 # Fish completions
 
 function __dirvana_complete_fish
+  # Get underlying command name (passed as argument)
+  set -l underlying_cmd ""
+  if test (count $argv) -gt 0
+    set underlying_cmd $argv[1]
+  end
+
+  # If underlying command has native fish completions, skip dirvana's
+  # to avoid duplicates (complete -w already provides them)
+  if test -n "$underlying_cmd"
+    if complete -p $underlying_cmd 2>/dev/null | string length -q
+      return 0
+    end
+  end
+
   # Get the current command line (all tokens except current word being completed)
   set -l cmd (commandline -opc)
 

@@ -14,9 +14,13 @@ func TestBashCodeGenerator_Name(t *testing.T) {
 
 func TestBashCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 	gen := &BashCodeGenerator{}
-	aliases := []string{"k", "g", "d"}
+	aliasCommands := map[string]string{
+		"k": "kubectl",
+		"g": "git",
+		"d": "docker",
+	}
 
-	lines := gen.GenerateCompletionFunction(aliases)
+	lines := gen.GenerateCompletionFunction(aliasCommands)
 
 	// Should have content
 	assert.NotEmpty(t, lines)
@@ -30,8 +34,13 @@ func TestBashCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 	// Should contain the completion function
 	assert.Contains(t, script, "__dirvana_complete")
 
-	// Should register completion for all aliases in one command
-	assert.Contains(t, script, "complete -o nosort -F __dirvana_complete k g d")
+	// Should contain the register helper
+	assert.Contains(t, script, "__dirvana_register_completion")
+
+	// Should register completion for each alias with underlying command
+	assert.Contains(t, script, "__dirvana_register_completion d docker")
+	assert.Contains(t, script, "__dirvana_register_completion g git")
+	assert.Contains(t, script, "__dirvana_register_completion k kubectl")
 
 	// Should have bash-specific features
 	assert.Contains(t, script, "COMPREPLY")
@@ -40,25 +49,42 @@ func TestBashCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 
 func TestBashCodeGenerator_GenerateCompletionFunction_SingleAlias(t *testing.T) {
 	gen := &BashCodeGenerator{}
-	aliases := []string{"kubectl"}
+	aliasCommands := map[string]string{"k": "kubectl"}
 
-	lines := gen.GenerateCompletionFunction(aliases)
+	lines := gen.GenerateCompletionFunction(aliasCommands)
 	script := strings.Join(lines, "\n")
 
 	// Should register completion for the single alias
-	assert.Contains(t, script, "complete -o nosort -F __dirvana_complete kubectl")
+	assert.Contains(t, script, "__dirvana_register_completion k kubectl")
 }
 
 func TestBashCodeGenerator_GenerateCompletionFunction_NoAliases(t *testing.T) {
 	gen := &BashCodeGenerator{}
-	aliases := []string{}
+	aliasCommands := map[string]string{}
 
-	lines := gen.GenerateCompletionFunction(aliases)
+	lines := gen.GenerateCompletionFunction(aliasCommands)
 	script := strings.Join(lines, "\n")
 
-	// Should still generate the function but without aliases in complete command
+	// Should still generate the function but without registration calls
 	assert.Contains(t, script, "__dirvana_complete")
-	assert.Contains(t, script, "complete -o nosort -F __dirvana_complete ")
+	assert.NotContains(t, script, "__dirvana_register_completion k")
+}
+
+func TestBashCodeGenerator_GenerateCompletionFunction_FunctionFallback(t *testing.T) {
+	gen := &BashCodeGenerator{}
+	// Functions have empty underlying command
+	aliasCommands := map[string]string{
+		"k":      "kubectl",
+		"myfunc": "",
+	}
+
+	lines := gen.GenerateCompletionFunction(aliasCommands)
+	script := strings.Join(lines, "\n")
+
+	// Alias with underlying command
+	assert.Contains(t, script, "__dirvana_register_completion k kubectl")
+	// Function with no underlying command (empty second arg = dirvana fallback)
+	assert.Contains(t, script, "__dirvana_register_completion myfunc ")
 }
 
 func TestZshCodeGenerator_Name(t *testing.T) {
@@ -68,9 +94,12 @@ func TestZshCodeGenerator_Name(t *testing.T) {
 
 func TestZshCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 	gen := &ZshCodeGenerator{}
-	aliases := []string{"k", "g"}
+	aliasCommands := map[string]string{
+		"k": "kubectl",
+		"g": "git",
+	}
 
-	lines := gen.GenerateCompletionFunction(aliases)
+	lines := gen.GenerateCompletionFunction(aliasCommands)
 
 	// Should have content
 	assert.NotEmpty(t, lines)
@@ -78,15 +107,18 @@ func TestZshCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 	// Join to check full script
 	script := strings.Join(lines, "\n")
 
-	// Should contain zsh shebang (appears multiple times, once per alias)
+	// Should contain zsh shebang
 	assert.Contains(t, script, "#!/usr/bin/env zsh")
 
-	// Should contain the completion function (appears multiple times)
+	// Should contain the completion function
 	assert.Contains(t, script, "__dirvana_complete_zsh")
 
-	// Should register completion for each alias separately
-	assert.Contains(t, script, "compdef __dirvana_complete_zsh k")
-	assert.Contains(t, script, "compdef __dirvana_complete_zsh g")
+	// Should contain the register helper
+	assert.Contains(t, script, "__dirvana_register_completion")
+
+	// Should register completion for each alias with underlying command
+	assert.Contains(t, script, "__dirvana_register_completion g git")
+	assert.Contains(t, script, "__dirvana_register_completion k kubectl")
 
 	// Should have zsh-specific features
 	assert.Contains(t, script, "_describe")
@@ -95,30 +127,50 @@ func TestZshCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 
 func TestZshCodeGenerator_GenerateCompletionFunction_SingleAlias(t *testing.T) {
 	gen := &ZshCodeGenerator{}
-	aliases := []string{"kubectl"}
+	aliasCommands := map[string]string{"k": "kubectl"}
 
-	lines := gen.GenerateCompletionFunction(aliases)
+	lines := gen.GenerateCompletionFunction(aliasCommands)
 	script := strings.Join(lines, "\n")
 
 	// Should register completion for the single alias
-	assert.Contains(t, script, "compdef __dirvana_complete_zsh kubectl")
+	assert.Contains(t, script, "__dirvana_register_completion k kubectl")
 }
 
 func TestZshCodeGenerator_GenerateCompletionFunction_MultipleAliases(t *testing.T) {
 	gen := &ZshCodeGenerator{}
-	aliases := []string{"k", "g", "d"}
+	aliasCommands := map[string]string{
+		"k": "kubectl",
+		"g": "git",
+		"d": "docker",
+	}
 
-	lines := gen.GenerateCompletionFunction(aliases)
+	lines := gen.GenerateCompletionFunction(aliasCommands)
 	script := strings.Join(lines, "\n")
 
-	// Should have separate compdef for each alias
-	assert.Contains(t, script, "compdef __dirvana_complete_zsh k")
-	assert.Contains(t, script, "compdef __dirvana_complete_zsh g")
-	assert.Contains(t, script, "compdef __dirvana_complete_zsh d")
+	// Should have separate registration for each alias
+	assert.Contains(t, script, "__dirvana_register_completion d docker")
+	assert.Contains(t, script, "__dirvana_register_completion g git")
+	assert.Contains(t, script, "__dirvana_register_completion k kubectl")
 
 	// Should have the function defined once
 	count := strings.Count(script, "__dirvana_complete_zsh()")
 	assert.Equal(t, 1, count, "should have function definition once")
+}
+
+func TestZshCodeGenerator_GenerateCompletionFunction_FunctionFallback(t *testing.T) {
+	gen := &ZshCodeGenerator{}
+	aliasCommands := map[string]string{
+		"k":      "kubectl",
+		"myfunc": "",
+	}
+
+	lines := gen.GenerateCompletionFunction(aliasCommands)
+	script := strings.Join(lines, "\n")
+
+	// Alias with underlying command
+	assert.Contains(t, script, "__dirvana_register_completion k kubectl")
+	// Function with no underlying command
+	assert.Contains(t, script, "__dirvana_register_completion myfunc ")
 }
 
 func TestMultiShellCodeGenerator_Name(t *testing.T) {
@@ -133,9 +185,12 @@ func TestMultiShellCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 			&ZshCodeGenerator{},
 		},
 	}
-	aliases := []string{"k", "g"}
+	aliasCommands := map[string]string{
+		"k": "kubectl",
+		"g": "git",
+	}
 
-	lines := gen.GenerateCompletionFunction(aliases)
+	lines := gen.GenerateCompletionFunction(aliasCommands)
 
 	// Should have content
 	assert.NotEmpty(t, lines)
@@ -153,12 +208,11 @@ func TestMultiShellCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 
 	// Should have bash-specific features
 	assert.Contains(t, script, "COMPREPLY")
-	assert.Contains(t, script, "complete -o nosort -F __dirvana_complete k g")
+	assert.Contains(t, script, "__dirvana_register_completion g git")
+	assert.Contains(t, script, "__dirvana_register_completion k kubectl")
 
 	// Should have zsh-specific features
 	assert.Contains(t, script, "_describe")
-	assert.Contains(t, script, "compdef __dirvana_complete_zsh k")
-	assert.Contains(t, script, "compdef __dirvana_complete_zsh g")
 }
 
 func TestNewCompletionGenerator_Bash(t *testing.T) {
@@ -214,19 +268,19 @@ func TestNewCompletionGenerator_Multi(t *testing.T) {
 func TestNewCompletionGenerator_Integration(t *testing.T) {
 	// Test that each generator can actually generate valid completion code
 	testCases := []struct {
-		shell   string
-		aliases []string
+		shell        string
+		aliasCommands map[string]string
 	}{
-		{"bash", []string{"k", "g"}},
-		{"zsh", []string{"k", "g"}},
-		{"fish", []string{"k", "g"}},
-		{"multi", []string{"k", "g"}},
+		{"bash", map[string]string{"k": "kubectl", "g": "git"}},
+		{"zsh", map[string]string{"k": "kubectl", "g": "git"}},
+		{"fish", map[string]string{"k": "kubectl", "g": "git"}},
+		{"multi", map[string]string{"k": "kubectl", "g": "git"}},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.shell, func(t *testing.T) {
 			gen := NewCompletionGenerator(tc.shell)
-			lines := gen.GenerateCompletionFunction(tc.aliases)
+			lines := gen.GenerateCompletionFunction(tc.aliasCommands)
 
 			// Should generate non-empty output
 			assert.NotEmpty(t, lines)
@@ -240,7 +294,7 @@ func TestNewCompletionGenerator_Integration(t *testing.T) {
 			assert.Contains(t, script, "dirvana_complete")
 
 			// Should contain at least one alias
-			for _, alias := range tc.aliases {
+			for alias := range tc.aliasCommands {
 				assert.Contains(t, script, alias)
 			}
 		})
@@ -328,19 +382,53 @@ func TestFishCodeGenerator_Name(t *testing.T) {
 func TestFishCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 	gen := &FishCodeGenerator{}
 
-	// Test with single alias
-	lines := gen.GenerateCompletionFunction([]string{"kubectl"})
+	// Test with single alias that has underlying command
+	aliasCommands := map[string]string{"k": "kubectl"}
+	lines := gen.GenerateCompletionFunction(aliasCommands)
 	assert.NotEmpty(t, lines)
 	script := strings.Join(lines, "\n")
 	assert.Contains(t, script, "function __dirvana_complete_fish")
-	assert.Contains(t, script, "complete -c kubectl")
+	assert.Contains(t, script, "complete -c k -f")
+	assert.Contains(t, script, "complete -c k -w kubectl")
+	assert.Contains(t, script, "complete -c k -a '(__dirvana_complete_fish kubectl)'")
 
 	// Test with multiple aliases
-	lines = gen.GenerateCompletionFunction([]string{"kubectl", "docker"})
+	aliasCommands = map[string]string{"k": "kubectl", "d": "docker"}
+	lines = gen.GenerateCompletionFunction(aliasCommands)
 	assert.NotEmpty(t, lines)
 	script = strings.Join(lines, "\n")
-	assert.Contains(t, script, "complete -c kubectl")
-	assert.Contains(t, script, "complete -c docker")
+	assert.Contains(t, script, "complete -c d -f")
+	assert.Contains(t, script, "complete -c d -w docker")
+	assert.Contains(t, script, "complete -c k -f")
+	assert.Contains(t, script, "complete -c k -w kubectl")
+}
+
+func TestFishCodeGenerator_GenerateCompletionFunction_FunctionFallback(t *testing.T) {
+	gen := &FishCodeGenerator{}
+
+	// Function with no underlying command should not have -w
+	aliasCommands := map[string]string{"myfunc": ""}
+	lines := gen.GenerateCompletionFunction(aliasCommands)
+	script := strings.Join(lines, "\n")
+
+	assert.NotContains(t, script, "complete -c myfunc -w")
+	assert.Contains(t, script, "complete -c myfunc -f")
+	assert.Contains(t, script, "complete -c myfunc -a '(__dirvana_complete_fish)'")
+}
+
+func TestFishCodeGenerator_GenerateCompletionFunction_NativeDetection(t *testing.T) {
+	gen := &FishCodeGenerator{}
+
+	// When underlying command is set, the fish function should receive it
+	aliasCommands := map[string]string{"k": "kubectl"}
+	lines := gen.GenerateCompletionFunction(aliasCommands)
+	script := strings.Join(lines, "\n")
+
+	// Should pass underlying command to __dirvana_complete_fish for native detection
+	assert.Contains(t, script, "__dirvana_complete_fish kubectl")
+
+	// The function template should have native detection logic
+	assert.Contains(t, script, "underlying_cmd")
 }
 
 func TestGenerateHookCode_Fish(t *testing.T) {
