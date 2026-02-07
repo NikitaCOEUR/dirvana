@@ -93,6 +93,20 @@ type Config struct {
 	ConfigDir    string                 // Directory containing the config file (not persisted in YAML)
 }
 
+// sprigFuncMap is initialized once and reused across all template expansions.
+// sprig.TxtFuncMap() allocates ~9.5KB per call; caching it avoids repeated work.
+var (
+	sprigOnce    sync.Once
+	sprigFuncMap template.FuncMap
+)
+
+func getSprigFuncMap() template.FuncMap {
+	sprigOnce.Do(func() {
+		sprigFuncMap = sprig.TxtFuncMap()
+	})
+	return sprigFuncMap
+}
+
 // expandTemplate expands a template string using Sprig functions and Dirvana variables
 // Available variables in templates (aligned with Taskfile conventions):
 //   - {{.DIRVANA_DIR}} - Directory containing the .dirvana.yml file
@@ -111,8 +125,8 @@ func (c *Config) expandTemplate(tmplStr string) string {
 		"USER_WORKING_DIR": cwd,
 	}
 
-	// Create template with Sprig functions
-	tmpl, err := template.New("dirvana").Funcs(sprig.TxtFuncMap()).Parse(tmplStr)
+	// Create template with cached Sprig functions
+	tmpl, err := template.New("dirvana").Funcs(getSprigFuncMap()).Parse(tmplStr)
 	if err != nil {
 		// If template parsing fails, return original string
 		// This allows non-template strings to pass through
