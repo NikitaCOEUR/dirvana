@@ -12,13 +12,7 @@ func TestBashTemplate_Embedded(t *testing.T) {
 	assert.NotEmpty(t, bashTemplate, "bash template should be embedded")
 	assert.Contains(t, bashTemplate, "__dirvana_complete", "should contain completion function")
 	assert.Contains(t, bashTemplate, "COMPREPLY", "should contain bash completion variable")
-	assert.Contains(t, bashTemplate, "complete -o nosort", "should register completion")
-}
-
-func TestZshTemplate_Embedded(t *testing.T) {
-	// Test that zsh template is embedded and not empty
-	assert.NotEmpty(t, zshTemplate, "zsh template should be embedded")
-	assert.Contains(t, zshTemplate, "compdef", "should register compdef")
+	assert.Contains(t, bashTemplate, "__dirvana_register_completion", "should contain register helper")
 }
 
 func TestZshFunctionTemplate_Embedded(t *testing.T) {
@@ -26,22 +20,14 @@ func TestZshFunctionTemplate_Embedded(t *testing.T) {
 	assert.NotEmpty(t, zshFunctionTemplate, "zsh function template should be embedded")
 	assert.Contains(t, zshFunctionTemplate, "__dirvana_complete_zsh", "should contain zsh completion function")
 	assert.Contains(t, zshFunctionTemplate, "_describe", "should use _describe")
+	assert.Contains(t, zshFunctionTemplate, "__dirvana_register_completion", "should contain register helper")
 }
 
-func TestBashTemplate_HasPlaceholder(t *testing.T) {
-	// Test that template has placeholder for aliases
-	assert.Contains(t, bashTemplate, "%s", "should have placeholder for aliases")
-
-	// Test that placeholder is in the complete command
-	assert.Contains(t, bashTemplate, "complete -o nosort -F __dirvana_complete %s", "complete command should have placeholder")
-}
-
-func TestZshTemplate_HasPlaceholder(t *testing.T) {
-	// Test that template has placeholder for alias
-	assert.Contains(t, zshTemplate, "%s", "should have placeholder for alias")
-
-	// Test that placeholder is in the compdef command
-	assert.Contains(t, zshTemplate, "compdef __dirvana_complete_zsh %s", "compdef command should have placeholder")
+func TestBashTemplate_HasRegisterHelper(t *testing.T) {
+	// Test that template has the register helper instead of direct %s
+	assert.Contains(t, bashTemplate, "__dirvana_register_completion()", "should have register function definition")
+	assert.Contains(t, bashTemplate, "complete -o nosort -F __dirvana_complete", "should register dirvana completion")
+	assert.NotContains(t, bashTemplate, "%s", "should not have old-style placeholder")
 }
 
 func TestBashTemplate_HasShebang(t *testing.T) {
@@ -81,19 +67,14 @@ func TestBashTemplate_HandlesDirectories(t *testing.T) {
 	assert.Contains(t, bashTemplate, "compopt -o nospace", "should disable space")
 }
 
-func TestTemplates_NoHardcodedAliases(t *testing.T) {
-	// Templates should not have hardcoded alias commands in actual code
-	// (kubectl appears in comments as example, which is fine)
+func TestFishFunctionTemplate_Embedded(t *testing.T) {
+	assert.NotEmpty(t, fishFunctionTemplate, "fish function template should be embedded")
+	assert.Contains(t, fishFunctionTemplate, "__dirvana_complete_fish", "should contain fish completion function")
+	assert.Contains(t, fishFunctionTemplate, "underlying_cmd", "should have native detection logic")
+}
 
-	// Check bash - should not have kubectl as actual alias/command
+func TestTemplates_NoHardcodedAliases(t *testing.T) {
+	// Templates should not have hardcoded alias commands
 	assert.NotContains(t, bashTemplate, "alias kubectl=", "should not hardcode kubectl alias")
 	assert.NotContains(t, bashTemplate, "alias docker=", "should not hardcode docker alias")
-
-	// Check zsh - should not have kubectl as actual command
-	assert.NotContains(t, zshTemplate, "compdef __dirvana_complete_zsh kubectl", "should not hardcode kubectl compdef")
-	assert.NotContains(t, zshTemplate, "compdef __dirvana_complete_zsh docker", "should not hardcode docker compdef")
-
-	// Should have placeholder instead
-	assert.Contains(t, bashTemplate, "complete -o nosort -F __dirvana_complete %s", "should use placeholder")
-	assert.Contains(t, zshTemplate, "compdef __dirvana_complete_zsh %s", "should use placeholder")
 }
