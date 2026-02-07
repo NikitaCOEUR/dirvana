@@ -369,7 +369,7 @@ func Export(params ExportParams) error {
 	}
 
 	// Generate shell code from merged config
-	shellCode := comps.shell.Generate(aliases, mergedConfig.Functions, staticEnv, shellEnv)
+	shellCode := comps.shell.Generate(aliases, mergedConfig.Functions, staticEnv, shellEnv, mergedCompletionMap)
 	timer.Mark("generate_shell")
 
 	// Prepend cleanup code if needed

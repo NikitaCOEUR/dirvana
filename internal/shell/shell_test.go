@@ -7,6 +7,26 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// testCompletionMap mirrors buildCompletionMap from cli/helpers.go for test use.
+// This is intentionally a test-only helper to avoid importing the cli package.
+func testCompletionMap(aliases map[string]config.AliasConfig) map[string]string {
+	m := make(map[string]string)
+	for name, aliasConf := range aliases {
+		if aliasConf.Completion != nil {
+			if cmd, ok := aliasConf.Completion.(string); ok && cmd != "" {
+				m[name] = cmd
+			} else if b, ok := aliasConf.Completion.(bool); ok && !b {
+				continue
+			} else {
+				m[name] = aliasConf.Command
+			}
+		} else {
+			m[name] = aliasConf.Command
+		}
+	}
+	return m
+}
+
 func TestGenerator_Generate(t *testing.T) {
 	g := NewGenerator()
 
@@ -29,7 +49,7 @@ func TestGenerator_Generate(t *testing.T) {
 		"GIT_BRANCH": "git rev-parse --abbrev-ref HEAD",
 	}
 
-	code := g.Generate(aliases, functions, staticEnv, shellEnv)
+	code := g.Generate(aliases, functions, staticEnv, shellEnv, testCompletionMap(aliases))
 
 	// With wrapper architecture, aliases point to dirvana exec
 	assert.Contains(t, code, "alias ll='dirvana exec ll'")
@@ -51,24 +71,26 @@ func TestGenerator_Generate(t *testing.T) {
 func TestGenerator_WithShell(t *testing.T) {
 	g := NewGenerator()
 
-	// Test setting shell to bash
-	g.WithShell("bash")
 	aliases := map[string]config.AliasConfig{
 		"test": {Command: "echo test", Completion: nil},
 	}
-	code := g.Generate(aliases, nil, nil, nil)
+	cm := testCompletionMap(aliases)
+
+	// Test setting shell to bash
+	g.WithShell("bash")
+	code := g.Generate(aliases, nil, nil, nil, cm)
 	// Bash uses simple aliases
 	assert.Contains(t, code, "alias test='dirvana exec test'")
 
 	// Test setting shell to zsh
 	g.WithShell("zsh")
-	code = g.Generate(aliases, nil, nil, nil)
+	code = g.Generate(aliases, nil, nil, nil, cm)
 	// Zsh uses functions
 	assert.Contains(t, code, "test() { dirvana exec test")
 
 	// Test setting shell to fish
 	g.WithShell("fish")
-	code = g.Generate(aliases, nil, nil, nil)
+	code = g.Generate(aliases, nil, nil, nil, cm)
 	// Fish uses functions
 	assert.Contains(t, code, "function test; dirvana exec test $argv; end")
 }
@@ -76,7 +98,7 @@ func TestGenerator_WithShell(t *testing.T) {
 func TestGenerator_GenerateEmpty(t *testing.T) {
 	g := NewGenerator()
 
-	code := g.Generate(nil, nil, nil, nil)
+	code := g.Generate(nil, nil, nil, nil, nil)
 
 	// Should produce valid but minimal shell code
 	assert.NotEmpty(t, code)
@@ -90,7 +112,7 @@ func TestGenerator_GenerateAliasesOnly(t *testing.T) {
 		"ll": {Command: "ls -la", Completion: nil},
 	}
 
-	code := g.Generate(aliases, nil, nil, nil)
+	code := g.Generate(aliases, nil, nil, nil, testCompletionMap(aliases))
 	assert.Contains(t, code, "alias ll='dirvana exec ll'")
 	assert.NotContains(t, code, "export")
 }
@@ -102,7 +124,7 @@ func TestGenerator_GenerateFunctionsOnly(t *testing.T) {
 		"greet": "echo \"Hello\"",
 	}
 
-	code := g.Generate(nil, functions, nil, nil)
+	code := g.Generate(nil, functions, nil, nil, nil)
 	// Functions are now generated as real shell functions with their body inline
 	assert.Contains(t, code, "greet() {")
 	assert.Contains(t, code, "echo \"Hello\"")
@@ -115,7 +137,7 @@ func TestGenerator_GenerateEnvOnly(t *testing.T) {
 		"TEST": "value",
 	}
 
-	code := g.Generate(nil, nil, staticEnv, nil)
+	code := g.Generate(nil, nil, staticEnv, nil, nil)
 	assert.Contains(t, code, "export TEST='value'")
 }
 
@@ -127,7 +149,7 @@ func TestGenerator_GenerateShellEnvOnly(t *testing.T) {
 		"GIT_BRANCH":  "git branch --show-current",
 	}
 
-	code := g.Generate(nil, nil, nil, shellEnv)
+	code := g.Generate(nil, nil, nil, shellEnv, nil)
 	// Shell env vars use command substitution to execute commands
 	assert.Contains(t, code, "export CURRENT_DIR=\"$(pwd)\"")
 	assert.Contains(t, code, "export GIT_BRANCH=\"$(git branch --show-current)\"")
@@ -144,7 +166,7 @@ func TestGenerator_EscapeQuotes(t *testing.T) {
 		"VAR": "value with 'quotes'",
 	}
 
-	code := g.Generate(aliases, nil, staticEnv, nil)
+	code := g.Generate(aliases, nil, staticEnv, nil, testCompletionMap(aliases))
 	// Wrapper architecture still uses the alias
 	assert.Contains(t, code, "alias test='dirvana exec test'")
 	// Env vars should escape quotes
@@ -158,7 +180,7 @@ func TestGenerator_MultilineFunction(t *testing.T) {
 		"complex": "if [ -z \"$1\" ]; then\n  echo \"No args\"\nelse\n  echo \"Args: $@\"\nfi",
 	}
 
-	code := g.Generate(nil, functions, nil, nil)
+	code := g.Generate(nil, functions, nil, nil, nil)
 	// Functions are now generated as real shell functions with their body inline
 	assert.Contains(t, code, "complex() {")
 	assert.Contains(t, code, "if [ -z \"$1\" ]")
@@ -173,7 +195,7 @@ func TestGenerator_SortedOutput(t *testing.T) {
 		"mm": {Command: "mmm", Completion: nil},
 	}
 
-	code := g.Generate(aliases, nil, nil, nil)
+	code := g.Generate(aliases, nil, nil, nil, testCompletionMap(aliases))
 
 	// Check they appear in sorted order (aa before mm before zz)
 	aaPos := indexOf(code, "alias aa=")
@@ -195,7 +217,7 @@ func TestGenerator_EmptyValues(t *testing.T) {
 		"EMPTY_VAR": "",
 	}
 
-	code := g.Generate(aliases, nil, staticEnv, nil)
+	code := g.Generate(aliases, nil, staticEnv, nil, testCompletionMap(aliases))
 
 	// Empty values should still be handled
 	assert.Contains(t, code, "alias empty=")
@@ -209,7 +231,7 @@ func TestGenerator_CompletionInherit(t *testing.T) {
 		"gp": {Command: "git push", Completion: "git"},
 	}
 
-	code := g.Generate(aliases, nil, nil, nil)
+	code := g.Generate(aliases, nil, nil, nil, testCompletionMap(aliases))
 	// With wrapper architecture, aliases point to dirvana exec
 	assert.Contains(t, code, "alias gp='dirvana exec gp'")
 	assert.Contains(t, code, "Using wrapper architecture")
@@ -222,7 +244,7 @@ func TestGenerator_CompletionDisabled(t *testing.T) {
 		"noop": {Command: "echo nothing", Completion: false},
 	}
 
-	code := g.Generate(aliases, nil, nil, nil)
+	code := g.Generate(aliases, nil, nil, nil, testCompletionMap(aliases))
 	// With wrapper architecture, aliases point to dirvana exec
 	assert.Contains(t, code, "alias noop='dirvana exec noop'")
 	assert.Contains(t, code, "Using wrapper architecture")
@@ -241,11 +263,46 @@ func TestGenerator_CompletionCustom(t *testing.T) {
 		},
 	}
 
-	code := g.Generate(aliases, nil, nil, nil)
+	code := g.Generate(aliases, nil, nil, nil, testCompletionMap(aliases))
 	// With wrapper architecture, aliases point to dirvana exec
 	assert.Contains(t, code, "alias deploy='dirvana exec deploy'")
 	assert.Contains(t, code, "Using wrapper architecture")
 	// Custom completions are handled by dirvana completion command now
+}
+
+func TestGenerator_CompletionInherit_UsesCompletionField(t *testing.T) {
+	g := NewGenerator().WithShell("fish")
+
+	aliases := map[string]config.AliasConfig{
+		"tf": {Command: "task terraform --", Completion: "terraform"},
+	}
+
+	code := g.Generate(aliases, nil, nil, nil, testCompletionMap(aliases))
+
+	// Should wrap terraform (from completion field), not task (from command field)
+	assert.Contains(t, code, "complete -c tf -w terraform")
+	assert.NotContains(t, code, "-w task")
+}
+
+func TestGenerator_CompletionDisabled_NoCompletionRegistered(t *testing.T) {
+	g := NewGenerator().WithShell("fish")
+
+	aliases := map[string]config.AliasConfig{
+		"noop": {Command: "echo nothing", Completion: false},
+	}
+
+	code := g.Generate(aliases, nil, nil, nil, testCompletionMap(aliases))
+
+	// Should have the function but no completion registration
+	assert.Contains(t, code, "function noop; dirvana exec noop $argv; end")
+	assert.NotContains(t, code, "complete -c noop")
+}
+
+func TestBaseCommand(t *testing.T) {
+	assert.Equal(t, "git", baseCommand("git status"))
+	assert.Equal(t, "terraform", baseCommand("terraform"))
+	assert.Equal(t, "task", baseCommand("task terraform --"))
+	assert.Equal(t, "", baseCommand(""))
 }
 
 // Helper function to find index of substring

@@ -65,3 +65,15 @@ __dirvana_complete_zsh() {
   # If _describe didn't find matches, return error to trigger other matchers
   return 1
 }
+
+__dirvana_register_completion() {
+    local alias_name="$1" underlying_cmd="$2"
+    if [[ -n "$underlying_cmd" ]]; then
+        # Check if native completion exists (loaded or autoloadable)
+        if (( ${+_comps[$underlying_cmd]} )) || whence -w "_${underlying_cmd}" &>/dev/null 2>&1; then
+            compdef "${alias_name}=${underlying_cmd}" 2>/dev/null
+            return
+        fi
+    fi
+    compdef __dirvana_complete_zsh "$alias_name" 2>/dev/null || true
+}

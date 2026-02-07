@@ -8,12 +8,6 @@ import _ "embed"
 //go:embed templates/completion/bash.tmpl
 var bashTemplate string
 
-//go:embed templates/completion/zsh.tmpl
-var zshTemplate string
-
-//go:embed templates/completion/fish.tmpl
-var fishTemplate string
-
 //go:embed templates/completion/fish_function.tmpl
 var fishFunctionTemplate string
 

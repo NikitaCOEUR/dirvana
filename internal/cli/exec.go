@@ -224,7 +224,9 @@ func buildShellArgs(shell, shellType, command string, args []string) []string {
 	if len(args) > 0 {
 		argv = append(argv, "-c", command+argSyntax)
 		if needsExtra {
-			argv = append(argv, shell)
+			argv = append(argv, shell) // bash/zsh: $0 separator
+		} else {
+			argv = append(argv, "--") // fish: end-of-options marker
 		}
 		argv = append(argv, args...)
 	} else {

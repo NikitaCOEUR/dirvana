@@ -91,4 +91,12 @@ __dirvana_format_descriptions() {
   done
 }
 
-complete -o nosort -F __dirvana_complete %s 2>/dev/null || true
+__dirvana_register_completion() {
+    local alias_name="$1"
+    # For bash, always use dirvana's completion function.
+    # Native completion wrapping (complete -p / sed) is unreliable with bash aliases
+    # because completion functions run the command name in subshells where aliases
+    # don't expand. Zsh uses compdef alias=cmd and fish uses complete -w which
+    # handle this natively, but bash has no equivalent mechanism.
+    complete -o nosort -F __dirvana_complete "$alias_name" 2>/dev/null || true
+}

@@ -16,8 +16,9 @@ const (
 // CodeGenerator is an interface for shell-specific completion code generation
 // Implementations generate shell code for bash, zsh, etc.
 type CodeGenerator interface {
-	// GenerateCompletionFunction generates shell-specific completion code for aliases
-	GenerateCompletionFunction(aliases []string) []string
+	// GenerateCompletionFunction generates shell-specific completion code for aliases.
+	// aliasCommands maps alias name -> underlying command (empty string for functions).
+	GenerateCompletionFunction(aliasCommands map[string]string) []string
 	// Name returns the shell name (bash, zsh, etc.)
 	Name() string
 }
@@ -31,10 +32,13 @@ func (b *BashCodeGenerator) Name() string {
 }
 
 // GenerateCompletionFunction generates bash-specific completion functions
-func (b *BashCodeGenerator) GenerateCompletionFunction(aliases []string) []string {
-	aliasStr := strings.Join(aliases, " ")
-	script := fmt.Sprintf(bashTemplate, aliasStr)
-	return strings.Split(script, "\n")
+func (b *BashCodeGenerator) GenerateCompletionFunction(aliasCommands map[string]string) []string {
+	var lines []string
+	lines = append(lines, strings.Split(bashTemplate, "\n")...)
+	for _, alias := range sortedKeys(aliasCommands) {
+		lines = append(lines, fmt.Sprintf("__dirvana_register_completion %s %s", alias, aliasCommands[alias]))
+	}
+	return lines
 }
 
 // ZshCodeGenerator generates zsh-specific shell completion code
@@ -46,18 +50,12 @@ func (z *ZshCodeGenerator) Name() string {
 }
 
 // GenerateCompletionFunction generates zsh-specific completion functions
-func (z *ZshCodeGenerator) GenerateCompletionFunction(aliases []string) []string {
+func (z *ZshCodeGenerator) GenerateCompletionFunction(aliasCommands map[string]string) []string {
 	var lines []string
-
-	// Add the common completion function once
 	lines = append(lines, strings.Split(zshFunctionTemplate, "\n")...)
-
-	// Add completion registration for each alias
-	for _, alias := range aliases {
-		script := fmt.Sprintf(zshTemplate, alias)
-		lines = append(lines, strings.Split(script, "\n")...)
+	for _, alias := range sortedKeys(aliasCommands) {
+		lines = append(lines, fmt.Sprintf("__dirvana_register_completion %s %s", alias, aliasCommands[alias]))
 	}
-
 	return lines
 }
 
@@ -70,18 +68,21 @@ func (f *FishCodeGenerator) Name() string {
 }
 
 // GenerateCompletionFunction generates fish-specific completion functions
-func (f *FishCodeGenerator) GenerateCompletionFunction(aliases []string) []string {
+func (f *FishCodeGenerator) GenerateCompletionFunction(aliasCommands map[string]string) []string {
 	var lines []string
-
-	// Add the common completion function once
 	lines = append(lines, strings.Split(fishFunctionTemplate, "\n")...)
-
-	// Add completion registration for each alias
-	for _, alias := range aliases {
-		script := fmt.Sprintf(fishTemplate, alias)
-		lines = append(lines, strings.Split(script, "\n")...)
+	for _, alias := range sortedKeys(aliasCommands) {
+		cmd := aliasCommands[alias]
+		// Standalone -f globally disables file completions for this command.
+		// Without this, -w can inherit file completion behavior from the wrapped command.
+		lines = append(lines, fmt.Sprintf("complete -c %s -f", alias))
+		if cmd != "" {
+			lines = append(lines, fmt.Sprintf("complete -c %s -w %s", alias, cmd))
+			lines = append(lines, fmt.Sprintf("complete -c %s -a '(__dirvana_complete_fish %s)'", alias, cmd))
+		} else {
+			lines = append(lines, fmt.Sprintf("complete -c %s -a '(__dirvana_complete_fish)'", alias))
+		}
 	}
-
 	return lines
 }
 
@@ -96,10 +97,10 @@ func (m *MultiShellCodeGenerator) Name() string {
 }
 
 // GenerateCompletionFunction generates completion functions for all configured shells
-func (m *MultiShellCodeGenerator) GenerateCompletionFunction(aliases []string) []string {
+func (m *MultiShellCodeGenerator) GenerateCompletionFunction(aliasCommands map[string]string) []string {
 	var lines []string
 	for _, gen := range m.generators {
-		lines = append(lines, gen.GenerateCompletionFunction(aliases)...)
+		lines = append(lines, gen.GenerateCompletionFunction(aliasCommands)...)
 	}
 	return lines
 }
