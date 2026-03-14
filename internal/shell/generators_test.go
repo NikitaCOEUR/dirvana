@@ -390,7 +390,8 @@ func TestFishCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 	assert.Contains(t, script, "function __dirvana_complete_fish")
 	assert.Contains(t, script, "complete -c k -f")
 	assert.Contains(t, script, "complete -c k -w kubectl")
-	assert.Contains(t, script, "complete -c k -a '(__dirvana_complete_fish kubectl)'")
+	// When underlying command exists, only -w is used (no -a fallback)
+	assert.NotContains(t, script, "complete -c k -a")
 
 	// Test with multiple aliases
 	aliasCommands = map[string]string{"k": "kubectl", "d": "docker"}
@@ -399,8 +400,10 @@ func TestFishCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 	script = strings.Join(lines, "\n")
 	assert.Contains(t, script, "complete -c d -f")
 	assert.Contains(t, script, "complete -c d -w docker")
+	assert.NotContains(t, script, "complete -c d -a")
 	assert.Contains(t, script, "complete -c k -f")
 	assert.Contains(t, script, "complete -c k -w kubectl")
+	assert.NotContains(t, script, "complete -c k -a")
 }
 
 func TestFishCodeGenerator_GenerateCompletionFunction_FunctionFallback(t *testing.T) {
@@ -424,11 +427,9 @@ func TestFishCodeGenerator_GenerateCompletionFunction_NativeDetection(t *testing
 	lines := gen.GenerateCompletionFunction(aliasCommands)
 	script := strings.Join(lines, "\n")
 
-	// Should pass underlying command to __dirvana_complete_fish for native detection
-	assert.Contains(t, script, "__dirvana_complete_fish kubectl")
-
-	// The function template should have native detection logic
-	assert.Contains(t, script, "underlying_cmd")
+	// When underlying command exists, only -w is used (native fish completion)
+	assert.Contains(t, script, "complete -c k -w kubectl")
+	assert.NotContains(t, script, "complete -c k -a")
 }
 
 func TestGenerateHookCode_Fish(t *testing.T) {

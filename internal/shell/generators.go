@@ -77,8 +77,13 @@ func (f *FishCodeGenerator) GenerateCompletionFunction(aliasCommands map[string]
 		// Without this, -w can inherit file completion behavior from the wrapped command.
 		lines = append(lines, fmt.Sprintf("complete -c %s -f", alias))
 		if cmd != "" {
+			// Use fish's native wrapping only. complete -w triggers fish's
+			// autoloading and provides zero-cost in-memory completion delegation.
+			// We intentionally don't add a dirvana fallback (-a) here because
+			// fish evaluates ALL completion providers on every TAB, and the
+			// command substitution fork for the fallback adds ~5-10ms overhead
+			// even when it returns empty (which it does when native completions exist).
 			lines = append(lines, fmt.Sprintf("complete -c %s -w %s", alias, cmd))
-			lines = append(lines, fmt.Sprintf("complete -c %s -a '(__dirvana_complete_fish %s)'", alias, cmd))
 		} else {
 			lines = append(lines, fmt.Sprintf("complete -c %s -a '(__dirvana_complete_fish)'", alias))
 		}
