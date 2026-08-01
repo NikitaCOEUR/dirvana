@@ -38,13 +38,7 @@ func Edit(global bool) error {
 		}
 
 		// Look for existing config file
-		for _, name := range config.SupportedConfigNames {
-			path := filepath.Join(currentDir, name)
-			if _, err := os.Stat(path); err == nil {
-				configPath = path
-				break
-			}
-		}
+		configPath = config.FindConfigInDir(currentDir)
 
 		// If no config exists, use default name
 		if configPath == "" {

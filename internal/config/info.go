@@ -47,7 +47,7 @@ func GetHierarchyInfo(currentDir string, authMgr *auth.Auth) (*HierarchyInfo, er
 	}
 
 	// Find all config files in the hierarchy
-	allConfigFiles, _ := FindConfigFiles(currentDir)
+	allConfigFiles := FindConfigFiles(currentDir)
 
 	// Check global config
 	globalPath, err := GetGlobalConfigPath()

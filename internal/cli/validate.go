@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/NikitaCOEUR/dirvana/internal/config"
 )
@@ -18,13 +17,7 @@ func Validate(configPath string) error {
 		}
 
 		// Try to find a config file
-		for _, name := range config.SupportedConfigNames {
-			path := filepath.Join(currentDir, name)
-			if _, err := os.Stat(path); err == nil {
-				configPath = path
-				break
-			}
-		}
+		configPath = config.FindConfigInDir(currentDir)
 
 		if configPath == "" {
 			return fmt.Errorf("no config file found in current directory")

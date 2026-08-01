@@ -3,8 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -273,15 +271,7 @@ func computeHierarchyHash(configDirs []string, configLoader *config.Loader) (str
 
 	for _, configDir := range configDirs {
 		// Find config file in this directory
-		var configPath string
-		for _, name := range config.SupportedConfigNames {
-			path := filepath.Join(configDir, name)
-			if _, err := os.Stat(path); err == nil {
-				configPath = path
-				break
-			}
-		}
-
+		configPath := config.FindConfigInDir(configDir)
 		if configPath == "" {
 			continue
 		}

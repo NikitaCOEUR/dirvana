@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -139,15 +138,7 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 	// We iterate through the active chain to cache each config separately
 	for _, configDir := range currentActiveChain {
 		// Find config file in this directory
-		var configPath string
-		for _, name := range config.SupportedConfigNames {
-			path := filepath.Join(configDir, name)
-			if _, err := os.Stat(path); err == nil {
-				configPath = path
-				break
-			}
-		}
-
+		configPath := config.FindConfigInDir(configDir)
 		if configPath == "" {
 			continue
 		}

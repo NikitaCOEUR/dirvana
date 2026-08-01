@@ -34,15 +34,21 @@ var SupportedConfigNames = []string{
 	".dirvana.json",
 }
 
-// HasLocalConfig checks if a directory has a local configuration file
-func HasLocalConfig(dir string) bool {
+// FindConfigInDir returns the path of the config file in dir, or "" if none exists.
+// When several supported names are present, the first match in SupportedConfigNames wins.
+func FindConfigInDir(dir string) string {
 	for _, name := range SupportedConfigNames {
 		path := filepath.Join(dir, name)
 		if _, err := os.Stat(path); err == nil {
-			return true
+			return path
 		}
 	}
-	return false
+	return ""
+}
+
+// HasLocalConfig checks if a directory has a local configuration file
+func HasLocalConfig(dir string) bool {
+	return FindConfigInDir(dir) != ""
 }
 
 const (
@@ -380,7 +386,7 @@ func New() *Loader {
 // FindConfigs finds all config directories from root to the given directory
 // Implements ConfigProvider interface from context package
 func (l *Loader) FindConfigs(dir string) []string {
-	configFiles, _ := FindConfigFiles(dir)
+	configFiles := FindConfigFiles(dir)
 	var dirs []string
 	for _, configFile := range configFiles {
 		dirs = append(dirs, filepath.Dir(configFile))
@@ -391,16 +397,7 @@ func (l *Loader) FindConfigs(dir string) []string {
 // IsLocalOnly checks if a directory's config has the local_only flag set
 // Implements ConfigProvider interface from context package
 func (l *Loader) IsLocalOnly(dir string) bool {
-	// Try to find config file in this directory
-	var configPath string
-	for _, name := range SupportedConfigNames {
-		path := filepath.Join(dir, name)
-		if _, err := os.Stat(path); err == nil {
-			configPath = path
-			break
-		}
-	}
-
+	configPath := FindConfigInDir(dir)
 	if configPath == "" {
 		return false
 	}
@@ -618,19 +615,14 @@ func GetGlobalConfigPath() (string, error) {
 
 // FindConfigFiles searches for config files from current dir up to root
 // Returns paths in order from root to leaf (for proper merging)
-func FindConfigFiles(startDir string) ([]string, error) {
+func FindConfigFiles(startDir string) []string {
 	var configs []string
 	currentDir := startDir
 
 	// Walk up directory tree
 	for {
-		// Check for config files in current directory
-		for _, name := range SupportedConfigNames {
-			path := filepath.Join(currentDir, name)
-			if _, err := os.Stat(path); err == nil {
-				configs = append(configs, path)
-				break // Only one config per directory
-			}
+		if path := FindConfigInDir(currentDir); path != "" {
+			configs = append(configs, path)
 		}
 
 		// Move up to parent directory
@@ -647,7 +639,7 @@ func FindConfigFiles(startDir string) ([]string, error) {
 		configs[i], configs[j] = configs[j], configs[i]
 	}
 
-	return configs, nil
+	return configs
 }
 
 // LoadHierarchyWithAuth loads and merges all configs from global to current directory
@@ -672,10 +664,7 @@ func (l *Loader) LoadHierarchyWithAuth(dir string, auth AuthChecker) (*Config, [
 	}
 
 	// Find local config files (from root to current directory)
-	configFiles, err := FindConfigFiles(dir)
-	if err != nil {
-		return nil, nil, err
-	}
+	configFiles := FindConfigFiles(dir)
 
 	// If no local configs and no global config, return empty config
 	if len(configFiles) == 0 && merged == nil {

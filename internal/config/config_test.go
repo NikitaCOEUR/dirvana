@@ -202,8 +202,7 @@ func TestFindConfigFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(rootDir, ".dirvana.yml"), []byte("aliases:\n  root: echo root"), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(childDir, ".dirvana.yml"), []byte("aliases:\n  child: echo child"), 0644))
 
-	files, err := FindConfigFiles(grandchildDir)
-	require.NoError(t, err)
+	files := FindConfigFiles(grandchildDir)
 
 	// Should find configs from child and root (in order from root to child)
 	assert.Len(t, files, 2)
@@ -213,8 +212,7 @@ func TestFindConfigFiles(t *testing.T) {
 
 func TestFindConfigFiles_NoConfigs(t *testing.T) {
 	tmpDir := t.TempDir()
-	files, err := FindConfigFiles(tmpDir)
-	require.NoError(t, err)
+	files := FindConfigFiles(tmpDir)
 	assert.Empty(t, files)
 }
 
