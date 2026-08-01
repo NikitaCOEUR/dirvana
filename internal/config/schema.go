@@ -4,7 +4,9 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 
+	"github.com/knadh/koanf/parsers/toml"
 	"github.com/xeipuuv/gojsonschema"
 	"gopkg.in/yaml.v3"
 )
@@ -24,11 +26,13 @@ func ValidateWithSchema(path string, content []byte) (*ValidationResult, error) 
 		Errors: []ValidationError{},
 	}
 
-	// Determine file format and convert to JSON-compatible structure
+	// Determine file format and convert to JSON-compatible structure.
+	// All formats are parsed into a generic map so the schema sees the
+	// document as written, not a round-trip through typed config structs.
 	var data interface{}
 
-	switch {
-	case len(path) > 4 && (path[len(path)-4:] == ".yml" || path[len(path)-5:] == ".yaml"):
+	switch filepath.Ext(path) {
+	case ".yml", ".yaml":
 		if err := yaml.Unmarshal(content, &data); err != nil {
 			result.Valid = false
 			result.Errors = append(result.Errors, ValidationError{
@@ -37,7 +41,7 @@ func ValidateWithSchema(path string, content []byte) (*ValidationResult, error) 
 			})
 			return result, nil
 		}
-	case len(path) > 5 && path[len(path)-5:] == ".json":
+	case ".json":
 		if err := json.Unmarshal(content, &data); err != nil {
 			result.Valid = false
 			result.Errors = append(result.Errors, ValidationError{
@@ -46,10 +50,8 @@ func ValidateWithSchema(path string, content []byte) (*ValidationResult, error) 
 			})
 			return result, nil
 		}
-	case len(path) > 5 && path[len(path)-5:] == ".toml":
-		// For TOML, use the existing loader
-		loader := New()
-		cfg, err := loader.Load(path)
+	case ".toml":
+		parsed, err := toml.Parser().Unmarshal(content)
 		if err != nil {
 			result.Valid = false
 			result.Errors = append(result.Errors, ValidationError{
@@ -58,15 +60,7 @@ func ValidateWithSchema(path string, content []byte) (*ValidationResult, error) 
 			})
 			return result, nil
 		}
-
-		// Convert config to map
-		data = map[string]interface{}{
-			"aliases":       cfg.Aliases,
-			"functions":     cfg.Functions,
-			"env":           cfg.Env,
-			"local_only":    cfg.LocalOnly,
-			"ignore_global": cfg.IgnoreGlobal,
-		}
+		data = parsed
 	default:
 		return nil, fmt.Errorf("unsupported file format")
 	}
