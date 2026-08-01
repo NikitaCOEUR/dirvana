@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
 )
 
 const currentAuthVersion = 2
@@ -95,7 +97,7 @@ func New(path string) (*Auth, error) {
 	}
 
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), fsutil.StateDirPerm); err != nil {
 		return nil, err
 	}
 
@@ -210,7 +212,7 @@ func (a *Auth) persist() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(a.path, data, 0600)
+	return fsutil.AtomicWrite(a.path, data, fsutil.StateFilePerm)
 }
 
 // normalizePath removes trailing slashes and cleans the path

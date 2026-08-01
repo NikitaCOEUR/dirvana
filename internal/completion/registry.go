@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -346,17 +347,17 @@ func saveCachedRegistry(cacheDir, version string, data []byte) (*RegistryConfig,
 	hash := computeHash(data)
 
 	// Create cache dir if needed
-	if err := os.MkdirAll(filepath.Dir(registryPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(registryPath), fsutil.StateDirPerm); err != nil {
 		return nil, fmt.Errorf("failed to create cache dir: %w", err)
 	}
 
 	// Save registry to cache
-	if err := os.WriteFile(registryPath, data, 0644); err != nil {
+	if err := fsutil.AtomicWrite(registryPath, data, fsutil.StateFilePerm); err != nil {
 		return nil, fmt.Errorf("failed to cache registry: %w", err)
 	}
 
 	// Save hash
-	_ = os.WriteFile(hashPath, []byte(hash), 0644)
+	_ = fsutil.AtomicWrite(hashPath, []byte(hash), fsutil.StateFilePerm)
 
 	// Parse registry
 	var config RegistryConfig
@@ -408,13 +409,15 @@ func DownloadCompletionScript(cacheDir, tool, shell string, registry *RegistryCo
 		}
 	}
 
-	// Save script (always to bash location, regardless of shell parameter)
+	// Save script (always to bash location, regardless of shell parameter).
+	// Scripts are sourced through bash -c, never executed directly,
+	// so no execute bit is needed.
 	scriptPath := GetCompletionScriptPath(cacheDir, tool, "bash")
-	if err := os.MkdirAll(filepath.Dir(scriptPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(scriptPath), fsutil.StateDirPerm); err != nil {
 		return fmt.Errorf("failed to create script dir: %w", err)
 	}
 
-	if err := os.WriteFile(scriptPath, data, 0644); err != nil {
+	if err := fsutil.AtomicWrite(scriptPath, data, fsutil.StateFilePerm); err != nil {
 		return fmt.Errorf("failed to save script: %w", err)
 	}
 

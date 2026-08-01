@@ -1,11 +1,8 @@
 package setup
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-
 	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
 )
 
 // InstallStrategy defines the interface for different hook installation strategies
@@ -46,41 +43,8 @@ func SelectInstallStrategy(shell string) (InstallStrategy, error) {
 	return NewExternalHookStrategy(shell)
 }
 
-// atomicWrite writes data to a file atomically using a temporary file
+// atomicWrite writes an RC or hook file atomically (0644: shell config
+// files are conventionally world-readable)
 func atomicWrite(filename string, data []byte) error {
-	const perm = 0644
-	dir := filepath.Dir(filename)
-	tmpFile, err := os.CreateTemp(dir, ".dirvana-tmp-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
-	}
-	tmpName := tmpFile.Name()
-
-	// Clean up temp file if something goes wrong
-	defer func() {
-		if tmpFile != nil {
-			_ = tmpFile.Close()
-			_ = os.Remove(tmpName)
-		}
-	}()
-
-	if _, err := tmpFile.Write(data); err != nil {
-		return fmt.Errorf("failed to write to temp file: %w", err)
-	}
-
-	if err := tmpFile.Chmod(perm); err != nil {
-		return fmt.Errorf("failed to set permissions: %w", err)
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("failed to close temp file: %w", err)
-	}
-
-	if err := os.Rename(tmpName, filename); err != nil {
-		return fmt.Errorf("failed to rename temp file: %w", err)
-	}
-
-	// Success - don't clean up temp file
-	tmpFile = nil
-	return nil
+	return fsutil.AtomicWrite(filename, data, 0644)
 }

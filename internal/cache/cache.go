@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
 )
 
 // Entry represents a cached configuration entry
@@ -49,7 +51,7 @@ func New(path string) (*Cache, error) {
 
 	// Ensure directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, fsutil.StateDirPerm); err != nil {
 		return nil, err
 	}
 
@@ -197,5 +199,5 @@ func (c *Cache) persist() error {
 		return err
 	}
 
-	return os.WriteFile(c.path, data, 0600)
+	return fsutil.AtomicWrite(c.path, data, fsutil.StateFilePerm)
 }

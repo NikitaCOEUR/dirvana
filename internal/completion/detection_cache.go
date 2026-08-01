@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
 )
 
 // CacheEntry stores completer type with timestamp for TTL
@@ -91,7 +93,7 @@ func (c *DetectionCache) Save() error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(c.path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, fsutil.StateDirPerm); err != nil {
 		return err
 	}
 
@@ -102,7 +104,7 @@ func (c *DetectionCache) Save() error {
 	}
 
 	// Write to file
-	if err := os.WriteFile(c.path, data, 0644); err != nil {
+	if err := fsutil.AtomicWrite(c.path, data, fsutil.StateFilePerm); err != nil {
 		return err
 	}
 
