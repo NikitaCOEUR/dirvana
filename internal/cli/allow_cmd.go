@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -148,8 +147,13 @@ func approveShellCommandsForPath(path string, authMgr *auth.Auth, logLevel strin
 	// Initialize config loader
 	configLoader := config.New()
 
-	// Load config for this directory
-	cfg, err := configLoader.Load(filepath.Join(path, ".dirvana.yml"))
+	// Load config for this directory, whatever its supported filename
+	configPath := config.FindConfigInDir(path)
+	if configPath == "" {
+		log.Debug().Msg("No config file found, nothing to approve")
+		return nil
+	}
+	cfg, err := configLoader.Load(configPath)
 	if err != nil {
 		return derrors.NewConfigurationError(path, "failed to load config", err)
 	}

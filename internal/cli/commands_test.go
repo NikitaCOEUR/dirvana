@@ -652,6 +652,48 @@ func TestPromptShellApproval(t *testing.T) {
 	})
 }
 
+func TestAllowWithParams_AutoApproveShell_AllConfigFormats(t *testing.T) {
+	// Regression: --auto-approve-shell used to hardcode .dirvana.yml and
+	// silently no-op for the other supported config filenames.
+	configs := map[string]string{
+		".dirvana.yml": `env:
+  CURRENT_USER:
+    sh: whoami
+`,
+		".dirvana.yaml": `env:
+  CURRENT_USER:
+    sh: whoami
+`,
+		".dirvana.toml": `[env.CURRENT_USER]
+sh = "whoami"
+`,
+		".dirvana.json": `{"env": {"CURRENT_USER": {"sh": "whoami"}}}`,
+	}
+
+	for filename, content := range configs {
+		t.Run(filename, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			authPath := filepath.Join(tmpDir, "auth.json")
+			projectPath := filepath.Join(tmpDir, "project")
+			require.NoError(t, os.MkdirAll(projectPath, 0755))
+			require.NoError(t, os.WriteFile(filepath.Join(projectPath, filename), []byte(content), 0644))
+
+			err := AllowWithParams(AllowParams{
+				AuthPath:         authPath,
+				PathToAllow:      projectPath,
+				AutoApproveShell: true,
+				LogLevel:         "error",
+			})
+			require.NoError(t, err)
+
+			authMgr, err := auth.New(authPath)
+			require.NoError(t, err)
+			requiresApproval := authMgr.RequiresShellApproval(projectPath, map[string]string{"CURRENT_USER": "whoami"})
+			assert.False(t, requiresApproval, "shell commands in %s should be auto-approved", filename)
+		})
+	}
+}
+
 func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 	t.Run("AutoApproveShellCommands", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -730,15 +772,20 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 		projectPath := filepath.Join(tmpDir, "project")
 		require.NoError(t, os.MkdirAll(projectPath, 0755))
 
-		// No config file - auto-approve should fail gracefully
+		// No config file - nothing to approve, allow still succeeds
 		err := AllowWithParams(AllowParams{
 			AuthPath:         authPath,
 			PathToAllow:      projectPath,
 			AutoApproveShell: true,
 			LogLevel:         "error",
 		})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to load config")
+		require.NoError(t, err)
+
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+		allowed, err := authMgr.IsAllowed(projectPath)
+		require.NoError(t, err)
+		assert.True(t, allowed)
 	})
 
 	t.Run("WithoutAutoApprove", func(t *testing.T) {
