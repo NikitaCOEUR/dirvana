@@ -156,7 +156,7 @@ aliases:
    # Reload your shell or source ~/.bashrc / ~/.zshrc
    ```
 
-3. **Is your dirvana allowed ?**
+3. **Is the directory authorized?**
    ```bash
    dirvana allow
    ```

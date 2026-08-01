@@ -111,7 +111,7 @@ Or simply restart your terminal.
 Check that Dirvana is installed correctly:
 
 ```bash
-dirvana version
+dirvana --version
 ```
 
 You should see the version information.
