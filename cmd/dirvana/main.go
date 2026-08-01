@@ -33,7 +33,7 @@ func main() {
 	}
 
 	cachePath := filepath.Join(cacheHome, "dirvana", "cache.json")
-	authPath := filepath.Join(dataHome, "dirvana", "authorized.json")
+	authPath := filepath.Join(dataHome, "dirvana", "authorized_v2.json")
 
 	app := &cli.Command{
 		Name:                  "dirvana",
