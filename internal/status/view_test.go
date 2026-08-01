@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,12 +20,12 @@ func TestRender_EmptyData(t *testing.T) {
 		AuthPath:            "/test/auth.json",
 		HasAnyConfig:        false,
 		Authorized:          true,
-		Aliases:             make(map[string]config.AliasInfo),
+		Aliases:             make(map[string]AliasInfo),
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
-		EnvShell:            make(map[string]config.EnvShellInfo),
+		EnvShell:            make(map[string]EnvShellInfo),
 		Flags:               make([]string, 0),
-		LocalConfigs:        make([]config.FileInfo, 0),
+		LocalConfigs:        make([]FileInfo, 0),
 		CompletionScripts:   make([]CompletionScriptInfo, 0),
 		CompletionOverrides: make(map[string]string),
 	}
@@ -64,7 +63,7 @@ func TestRender_WithUnauthorizedConfig(t *testing.T) {
 		AuthPath:      "/test/auth.json",
 		HasAnyConfig:  true,
 		Authorized:    false,
-		LocalConfigs: []config.FileInfo{
+		LocalConfigs: []FileInfo{
 			{
 				Path:       "/test/dir/.dirvana.yml",
 				Loaded:     false,
@@ -72,10 +71,10 @@ func TestRender_WithUnauthorizedConfig(t *testing.T) {
 				LocalOnly:  false,
 			},
 		},
-		Aliases:             make(map[string]config.AliasInfo),
+		Aliases:             make(map[string]AliasInfo),
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
-		EnvShell:            make(map[string]config.EnvShellInfo),
+		EnvShell:            make(map[string]EnvShellInfo),
 		Flags:               make([]string, 0),
 		CompletionScripts:   make([]CompletionScriptInfo, 0),
 		CompletionOverrides: make(map[string]string),
@@ -108,7 +107,7 @@ func TestRender_WithAuthorizedConfig(t *testing.T) {
 		AuthPath:      "/test/auth.json",
 		HasAnyConfig:  true,
 		Authorized:    true,
-		LocalConfigs: []config.FileInfo{
+		LocalConfigs: []FileInfo{
 			{
 				Path:       "/test/dir/.dirvana.yml",
 				Loaded:     true,
@@ -116,7 +115,7 @@ func TestRender_WithAuthorizedConfig(t *testing.T) {
 				LocalOnly:  false,
 			},
 		},
-		Aliases: map[string]config.AliasInfo{
+		Aliases: map[string]AliasInfo{
 			"gs": {Command: "git status"},
 			"k":  {Command: "kubectl"},
 		},
@@ -125,7 +124,7 @@ func TestRender_WithAuthorizedConfig(t *testing.T) {
 			"PROJECT_NAME": "dirvana",
 			"BUILD_DIR":    "./build",
 		},
-		EnvShell: map[string]config.EnvShellInfo{
+		EnvShell: map[string]EnvShellInfo{
 			"GIT_BRANCH": {
 				Command:  "git branch --show-current",
 				Approved: true,
@@ -186,7 +185,7 @@ func TestRender_WithConditionalAliases(t *testing.T) {
 		AuthPath:      "/test/auth.json",
 		HasAnyConfig:  true,
 		Authorized:    true,
-		LocalConfigs: []config.FileInfo{
+		LocalConfigs: []FileInfo{
 			{
 				Path:       "/test/dir/.dirvana.yml",
 				Loaded:     true,
@@ -194,7 +193,7 @@ func TestRender_WithConditionalAliases(t *testing.T) {
 				LocalOnly:  false,
 			},
 		},
-		Aliases: map[string]config.AliasInfo{
+		Aliases: map[string]AliasInfo{
 			"simple": {
 				Command: "echo simple",
 				HasWhen: false,
@@ -220,7 +219,7 @@ func TestRender_WithConditionalAliases(t *testing.T) {
 		},
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
-		EnvShell:            make(map[string]config.EnvShellInfo),
+		EnvShell:            make(map[string]EnvShellInfo),
 		Flags:               make([]string, 0),
 		CompletionScripts:   make([]CompletionScriptInfo, 0),
 		CompletionOverrides: make(map[string]string),
@@ -274,12 +273,12 @@ func TestRender_WithGlobalConfig(t *testing.T) {
 		AuthPath:      "/test/auth.json",
 		HasAnyConfig:  true,
 		Authorized:    true,
-		GlobalConfig: &config.GlobalInfo{
+		GlobalConfig: &GlobalInfo{
 			Path:   "/home/user/.config/dirvana/config.yaml",
 			Exists: true,
 			Loaded: true,
 		},
-		LocalConfigs: []config.FileInfo{
+		LocalConfigs: []FileInfo{
 			{
 				Path:       "/test/dir/.dirvana.yml",
 				Loaded:     true,
@@ -287,10 +286,10 @@ func TestRender_WithGlobalConfig(t *testing.T) {
 				LocalOnly:  false,
 			},
 		},
-		Aliases:             make(map[string]config.AliasInfo),
+		Aliases:             make(map[string]AliasInfo),
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
-		EnvShell:            make(map[string]config.EnvShellInfo),
+		EnvShell:            make(map[string]EnvShellInfo),
 		Flags:               make([]string, 0),
 		CompletionScripts:   make([]CompletionScriptInfo, 0),
 		CompletionOverrides: make(map[string]string),
@@ -329,7 +328,7 @@ func TestRender_WithCache(t *testing.T) {
 		AuthPath:      "/test/auth.json",
 		HasAnyConfig:  true,
 		Authorized:    true,
-		LocalConfigs: []config.FileInfo{
+		LocalConfigs: []FileInfo{
 			{
 				Path:       "/test/dir/.dirvana.yml",
 				Loaded:     true,
@@ -342,10 +341,10 @@ func TestRender_WithCache(t *testing.T) {
 		CacheValid:          true,
 		CacheUpdated:        cacheUpdated,
 		CacheLocalOnly:      false,
-		Aliases:             make(map[string]config.AliasInfo),
+		Aliases:             make(map[string]AliasInfo),
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
-		EnvShell:            make(map[string]config.EnvShellInfo),
+		EnvShell:            make(map[string]EnvShellInfo),
 		Flags:               make([]string, 0),
 		CompletionScripts:   make([]CompletionScriptInfo, 0),
 		CompletionOverrides: make(map[string]string),
@@ -399,12 +398,12 @@ func TestRender_WithCompletion(t *testing.T) {
 		CompletionOverrides: map[string]string{
 			"k": "kubectl",
 		},
-		Aliases:       make(map[string]config.AliasInfo),
-		Functions:     make([]string, 0),
-		EnvStatic:     make(map[string]string),
-		EnvShell:      make(map[string]config.EnvShellInfo),
-		Flags:         make([]string, 0),
-		LocalConfigs:  make([]config.FileInfo, 0),
+		Aliases:      make(map[string]AliasInfo),
+		Functions:    make([]string, 0),
+		EnvStatic:    make(map[string]string),
+		EnvShell:     make(map[string]EnvShellInfo),
+		Flags:        make([]string, 0),
+		LocalConfigs: make([]FileInfo, 0),
 	}
 
 	output := Render(data)
