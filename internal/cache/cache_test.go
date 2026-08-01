@@ -28,7 +28,6 @@ func TestCache_Set(t *testing.T) {
 	entry := &Entry{
 		Path:      "/test/path",
 		Hash:      "abc123",
-		ShellCode: "export TEST=1",
 		Timestamp: time.Now(),
 		Version:   "1.0.0",
 		LocalOnly: false,
@@ -41,7 +40,6 @@ func TestCache_Set(t *testing.T) {
 	got, found := c.Get("/test/path")
 	assert.True(t, found)
 	assert.Equal(t, entry.Hash, got.Hash)
-	assert.Equal(t, entry.ShellCode, got.ShellCode)
 }
 
 func TestCache_Get(t *testing.T) {
@@ -95,7 +93,6 @@ func TestCache_Persistence(t *testing.T) {
 	entry := &Entry{
 		Path:      "/test/path",
 		Hash:      "abc123",
-		ShellCode: "export TEST=1",
 		Version:   "1.0.0",
 	}
 	require.NoError(t, c1.Set(entry))
@@ -107,7 +104,6 @@ func TestCache_Persistence(t *testing.T) {
 	got, found := c2.Get("/test/path")
 	assert.True(t, found)
 	assert.Equal(t, entry.Hash, got.Hash)
-	assert.Equal(t, entry.ShellCode, got.ShellCode)
 }
 
 func TestCache_InvalidPath(t *testing.T) {
@@ -146,7 +142,6 @@ func TestCache_IsValid(t *testing.T) {
 	entry := &Entry{
 		Path:      "/test/path",
 		Hash:      "abc123",
-		ShellCode: "export TEST=1",
 		Version:   "1.0.0",
 		Timestamp: time.Now(),
 	}

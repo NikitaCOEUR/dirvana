@@ -166,21 +166,16 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 		aliasKeys := keysFromAliasMap(aliases)
 		functions := keysFromMap(cfg.Functions)
 		envVars := mergeTwoKeyLists(staticEnv, shellEnv)
-		commandMap := buildCommandMap(aliases, cfg.Functions)
-		completionMap := buildCompletionMap(aliases)
 
 		entry := &cache.Entry{
-			Path:          configDir,
-			Hash:          hash,
-			Timestamp:     time.Now(),
-			Version:       version.Version,
-			LocalOnly:     cfg.LocalOnly,
-			Aliases:       aliasKeys,
-			Functions:     functions,
-			EnvVars:       envVars,
-			CommandMap:    commandMap,
-			CompletionMap: completionMap,
-			// ShellCode is not stored for individual configs
+			Path:      configDir,
+			Hash:      hash,
+			Timestamp: time.Now(),
+			Version:   version.Version,
+			LocalOnly: cfg.LocalOnly,
+			Aliases:   aliasKeys,
+			Functions: functions,
+			EnvVars:   envVars,
 		}
 
 		if err := comps.cache.Set(entry); err != nil {

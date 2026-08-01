@@ -18,9 +18,9 @@ func TestClean_All(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add some entries
-	err = c.Set(&cache.Entry{Path: "/path/one", Hash: "hash1", ShellCode: "code1"})
+	err = c.Set(&cache.Entry{Path: "/path/one", Hash: "hash1"})
 	require.NoError(t, err)
-	err = c.Set(&cache.Entry{Path: "/path/two", Hash: "hash2", ShellCode: "code2"})
+	err = c.Set(&cache.Entry{Path: "/path/two", Hash: "hash2"})
 	require.NoError(t, err)
 
 	// Clean all
@@ -57,11 +57,11 @@ func TestClean_Hierarchy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add entries for different paths
-	err = c.Set(&cache.Entry{Path: testDir, Hash: "hash1", ShellCode: "code1"})
+	err = c.Set(&cache.Entry{Path: testDir, Hash: "hash1"})
 	require.NoError(t, err)
-	err = c.Set(&cache.Entry{Path: subDir, Hash: "hash2", ShellCode: "code2"})
+	err = c.Set(&cache.Entry{Path: subDir, Hash: "hash2"})
 	require.NoError(t, err)
-	err = c.Set(&cache.Entry{Path: "/other/path", Hash: "hash3", ShellCode: "code3"})
+	err = c.Set(&cache.Entry{Path: "/other/path", Hash: "hash3"})
 	require.NoError(t, err)
 
 	// Change to test directory

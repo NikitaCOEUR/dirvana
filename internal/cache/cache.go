@@ -13,7 +13,6 @@ import (
 type Entry struct {
 	Path      string    `json:"path"`
 	Hash      string    `json:"hash"`
-	ShellCode string    `json:"shell_code"`
 	Timestamp time.Time `json:"timestamp"`
 	Version   string    `json:"version"`
 	LocalOnly bool      `json:"local_only"`
@@ -21,13 +20,8 @@ type Entry struct {
 	Aliases   []string `json:"aliases,omitempty"`
 	Functions []string `json:"functions,omitempty"`
 	EnvVars   []string `json:"env_vars,omitempty"`
-	// Map of alias/function name to actual command (for dirvana exec)
-	CommandMap map[string]string `json:"command_map,omitempty"`
-	// Map of alias name to completion command (overrides CommandMap for completion)
-	// Example: k -> kubectl (when k executes kubecolor but completes with kubectl)
-	CompletionMap map[string]string `json:"completion_map,omitempty"`
 
-	// NEW: Merged configuration cache for fast completion/exec
+	// Merged configuration cache for fast completion/exec
 	// This stores the merged result after applying hierarchy, auth, global config, etc.
 	MergedCommandMap    map[string]string `json:"merged_command_map,omitempty"`
 	MergedCompletionMap map[string]string `json:"merged_completion_map,omitempty"`

@@ -190,9 +190,6 @@ func TestExec_CommandWithArgs(t *testing.T) {
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"e": "echo hello",
-		},
 	})
 	require.NoError(t, err)
 
@@ -235,9 +232,6 @@ func TestExec_MultiWordCommand(t *testing.T) {
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"ll": "ls -la",
-		},
 	})
 	require.NoError(t, err)
 

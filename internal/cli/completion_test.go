@@ -74,9 +74,6 @@ func TestCompletion_AliasNotFound(t *testing.T) {
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"other": "echo other",
-		},
 	})
 	require.NoError(t, err)
 
@@ -114,12 +111,6 @@ func TestCompletion_WithCompletionOverride(t *testing.T) {
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"k": "kubecolor",
-		},
-		CompletionMap: map[string]string{
-			"k": "kubectl", // Use kubectl for completion even though command is kubecolor
-		},
 	})
 	require.NoError(t, err)
 
@@ -160,9 +151,6 @@ func TestCompletion_BasicFlow(t *testing.T) {
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"e": "echo",
-		},
 	})
 	require.NoError(t, err)
 
@@ -201,9 +189,6 @@ func TestCompletion_FunctionAlias(t *testing.T) {
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"myfunc": "__dirvana_function__myfunc",
-		},
 	})
 	require.NoError(t, err)
 
@@ -241,9 +226,6 @@ func TestCompletion_EmptyCommand(t *testing.T) {
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"empty": "",
-		},
 	})
 	require.NoError(t, err)
 
@@ -280,9 +262,6 @@ func TestCompletion_CommandNotFound(t *testing.T) {
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"notfound": "this-command-does-not-exist-12345",
-		},
 	})
 	require.NoError(t, err)
 
@@ -320,9 +299,6 @@ func TestCompletion_CompletionBeyondLastWord(t *testing.T) {
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"e": "echo",
-		},
 	})
 	require.NoError(t, err)
 
@@ -361,9 +337,6 @@ func TestCompletion_WithCurrentWord(t *testing.T) {
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"e": "echo",
-		},
 	})
 	require.NoError(t, err)
 
@@ -413,9 +386,6 @@ fi
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"mock": scriptPath,
-		},
 	})
 	require.NoError(t, err)
 
@@ -495,9 +465,6 @@ printf ":4\n"
 		Hash:      "hash1",
 		Timestamp: time.Now(),
 		Version:   version.Version,
-		CommandMap: map[string]string{
-			"k": scriptPath,
-		},
 	})
 	require.NoError(t, err)
 
