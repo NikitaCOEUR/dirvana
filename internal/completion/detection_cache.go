@@ -24,21 +24,22 @@ type DetectionCache struct {
 	ttl      time.Duration
 }
 
-// NewDetectionCache creates or loads a detection cache with a 24h TTL
-func NewDetectionCache(cachePath string) (*DetectionCache, error) {
+// NewDetectionCache creates or loads a detection cache with a 24h TTL.
+// A missing, unreadable or corrupt cache file yields an empty cache —
+// detection results are always recomputable, so this never fails.
+func NewDetectionCache(cachePath string) *DetectionCache {
 	c := &DetectionCache{
 		path:  cachePath,
 		cache: make(map[string]CacheEntry),
 		ttl:   24 * time.Hour,
 	}
 
-	// Try to load existing cache
-	if err := c.load(); err != nil && !os.IsNotExist(err) {
-		// Ignore if file doesn't exist, but return other errors
-		return nil, err
+	if err := c.load(); err != nil {
+		// Reset in case of a partially decoded corrupt file
+		c.cache = make(map[string]CacheEntry)
 	}
 
-	return c, nil
+	return c
 }
 
 // Get returns the completer type for a tool, or empty string if not cached or expired

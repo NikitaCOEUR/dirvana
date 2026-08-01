@@ -25,8 +25,7 @@ func NewEngine(cacheDir string) *Engine {
 	script := NewScriptCompleter(cacheDir)
 
 	// Load detection cache
-	cachePath := filepath.Join(cacheDir, "completion-detection.json")
-	detectionCache, _ := NewDetectionCache(cachePath)
+	detectionCache := NewDetectionCache(filepath.Join(cacheDir, "completion-detection.json"))
 
 	return &Engine{
 		completers: []Completer{
