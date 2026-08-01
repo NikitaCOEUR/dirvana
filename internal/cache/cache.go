@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -158,8 +159,9 @@ func isParentOf(parent, child string) bool {
 	if err != nil {
 		return false
 	}
-	// If the relative path doesn't start with "..", child is under parent
-	return len(rel) > 0 && rel[0] != '.' && rel[:2] != ".."
+	// Child is strictly under parent when the relative path is neither
+	// "." (same directory) nor escapes upward with ".."
+	return rel != "." && !strings.HasPrefix(rel, "..")
 }
 
 // IsValid checks if cached entry is valid for given hash and version

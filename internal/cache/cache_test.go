@@ -263,6 +263,20 @@ func TestIsParentOf(t *testing.T) {
 			child:    "/home/user",
 			expected: false,
 		},
+		{
+			// Regression: rel[:2] used to panic when the relative
+			// path was a single character (1-char child basename)
+			name:     "single-character child basename",
+			parent:   "/home/user",
+			child:    "/home/user/a",
+			expected: true,
+		},
+		{
+			name:     "single-character sibling",
+			parent:   "/home/user/a",
+			child:    "/home/user/b",
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
