@@ -9,7 +9,6 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/condition"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/NikitaCOEUR/dirvana/internal/core"
-	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
@@ -30,17 +29,17 @@ func Exec(params ExecParams) error {
 	// Get current directory
 	currentDir, err := os.Getwd()
 	if err != nil {
-		return derrors.NewExecutionError(params.Alias, "failed to get current directory", err)
+		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
 	// Get the merged context from the full hierarchy (cached)
 	dctx, err := core.NewEngine(params.CachePath, params.AuthPath).Load(currentDir)
 	if err != nil {
-		return derrors.NewConfigurationError(currentDir, "failed to load configuration", err)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	if dctx.Empty() {
-		return derrors.NewNotFoundError(params.Alias, fmt.Sprintf("no dirvana context found for alias '%s'", params.Alias))
+		return fmt.Errorf("no dirvana context found for alias '%s'", params.Alias)
 	}
 
 	// Resolve the command to execute
@@ -60,7 +59,7 @@ func resolveCommand(params ExecParams, aliases map[string]config.AliasConfig, fu
 	functionBody, foundFunction := functions[params.Alias]
 
 	if !foundAlias && !foundFunction {
-		return "", derrors.NewNotFoundError(params.Alias, fmt.Sprintf("alias '%s' not found in dirvana context", params.Alias))
+		return "", fmt.Errorf("alias '%s' not found in dirvana context", params.Alias)
 	}
 
 	var command string
@@ -149,7 +148,7 @@ func executeCommand(params ExecParams, command string, log *logger.Logger) error
 	// Find shell executable path
 	execPath, err := exec.LookPath(shellExec)
 	if err != nil {
-		return derrors.NewExecutionError(params.Alias, fmt.Sprintf("shell not found: %s", shellExec), err)
+		return fmt.Errorf("shell not found: %s: %w", shellExec, err)
 	}
 
 	// Build argv for shell execution
@@ -165,7 +164,7 @@ func executeCommand(params ExecParams, command string, log *logger.Logger) error
 	err = syscall.Exec(execPath, argv, os.Environ())
 
 	// If we reach here, syscall.Exec failed (extremely rare)
-	return derrors.NewExecutionError(command, "failed to execute command", err)
+	return fmt.Errorf("failed to execute command: %w", err)
 }
 
 // buildEnvMap creates a map of environment variables for condition evaluation
