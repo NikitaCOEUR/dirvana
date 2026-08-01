@@ -117,7 +117,10 @@ func TestDropInStrategy_Install(t *testing.T) {
 		t.Fatalf("Failed to read drop-in file: %v", err)
 	}
 
-	expectedHookCode := cli.GenerateHookCode("bash")
+	expectedHookCode, err := cli.GenerateHookCode("bash")
+	if err != nil {
+		t.Fatalf("GenerateHookCode failed: %v", err)
+	}
 	if string(dropInContent) != expectedHookCode {
 		t.Error("Drop-in file content doesn't match expected")
 	}
@@ -249,7 +252,10 @@ func TestDropInStrategy_NeedsUpdate(t *testing.T) {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	currentHook := cli.GenerateHookCode("bash")
+	currentHook, err := cli.GenerateHookCode("bash")
+	if err != nil {
+		t.Fatalf("GenerateHookCode failed: %v", err)
+	}
 	err = os.WriteFile(dropInFile, []byte(currentHook), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in file: %v", err)
@@ -388,7 +394,10 @@ func TestDropInStrategy_GetMessage_UpToDate(t *testing.T) {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	currentHook := cli.GenerateHookCode("bash")
+	currentHook, err := cli.GenerateHookCode("bash")
+	if err != nil {
+		t.Fatalf("GenerateHookCode failed: %v", err)
+	}
 	err = os.WriteFile(dropInFile, []byte(currentHook), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in file: %v", err)
@@ -487,7 +496,10 @@ func TestDropInStrategy_Install_AlreadyUpToDate(t *testing.T) {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	expectedHookCode := cli.GenerateHookCode("bash")
+	expectedHookCode, err := cli.GenerateHookCode("bash")
+	if err != nil {
+		t.Fatalf("GenerateHookCode failed: %v", err)
+	}
 	err = os.WriteFile(dropInFile, []byte(expectedHookCode), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in file: %v", err)

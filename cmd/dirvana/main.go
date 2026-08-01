@@ -219,7 +219,10 @@ func main() {
 				},
 				Action: func(_ context.Context, cmd *cli.Command) error {
 					shell := dircli.DetectShell(cmd.String("shell"))
-					hookCode := dircli.GenerateHookCode(shell)
+					hookCode, err := dircli.GenerateHookCode(shell)
+					if err != nil {
+						return fmt.Errorf("failed to generate hook code: %w", err)
+					}
 
 					fmt.Println("# Add this to your shell config file:")
 					fmt.Printf("# For %s: add to ~/.%src\n\n", shell, shell)

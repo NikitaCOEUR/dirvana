@@ -43,7 +43,10 @@ func TestExternalHookStrategy_Install(t *testing.T) {
 		t.Fatalf("Failed to read hook file: %v", err)
 	}
 
-	expectedHookCode := cli.GenerateHookCode("bash")
+	expectedHookCode, err := cli.GenerateHookCode("bash")
+	if err != nil {
+		t.Fatalf("GenerateHookCode failed: %v", err)
+	}
 	if string(hookContent) != expectedHookCode {
 		t.Error("Hook file content doesn't match expected")
 	}

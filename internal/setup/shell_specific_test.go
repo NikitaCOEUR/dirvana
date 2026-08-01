@@ -12,7 +12,8 @@ import (
 
 // TestZshHookContent verifies that zsh-specific hook code is correctly generated
 func TestZshHookContent(t *testing.T) {
-	hookCode := cli.GenerateHookCode("zsh")
+	hookCode, err := cli.GenerateHookCode("zsh")
+	require.NoError(t, err)
 
 	// Must have zsh-specific features
 	assert.Contains(t, hookCode, "__dirvana_hook()", "Must define __dirvana_hook function")
@@ -32,7 +33,8 @@ func TestZshHookContent(t *testing.T) {
 
 // TestBashHookContent verifies that bash-specific hook code is correctly generated
 func TestBashHookContent(t *testing.T) {
-	hookCode := cli.GenerateHookCode("bash")
+	hookCode, err := cli.GenerateHookCode("bash")
+	require.NoError(t, err)
 
 	// Must have bash-specific features
 	assert.Contains(t, hookCode, "__dirvana_hook()", "Must define __dirvana_hook function")

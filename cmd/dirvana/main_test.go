@@ -97,7 +97,8 @@ func TestGenerateHookCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			code := dircli.GenerateHookCode(tt.shell)
+			code, err := dircli.GenerateHookCode(tt.shell)
+			require.NoError(t, err)
 			for _, expected := range tt.want {
 				assert.Contains(t, code, expected)
 			}

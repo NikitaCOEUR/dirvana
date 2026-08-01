@@ -47,7 +47,10 @@ func NewExternalHookStrategy(shell string) (*ExternalHookStrategy, error) {
 // Install installs the hook using external file strategy
 func (s *ExternalHookStrategy) Install() error {
 	// Step 1: Create hook file with all logic
-	hookCode := cli.GenerateHookCode(s.shell)
+	hookCode, err := cli.GenerateHookCode(s.shell)
+	if err != nil {
+		return fmt.Errorf("failed to generate hook code: %w", err)
+	}
 
 	if err := os.MkdirAll(filepath.Dir(s.hookPath), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
@@ -164,7 +167,10 @@ func (s *ExternalHookStrategy) NeedsUpdate() bool {
 		return true
 	}
 
-	expectedHook := cli.GenerateHookCode(s.shell)
+	expectedHook, err := cli.GenerateHookCode(s.shell)
+	if err != nil {
+		return true
+	}
 	return string(currentHook) != expectedHook
 }
 

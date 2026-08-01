@@ -43,7 +43,10 @@ func NewFishHookStrategy() (*FishHookStrategy, error) {
 // Install installs the hook for Fish shell
 func (s *FishHookStrategy) Install() error {
 	// Step 1: Create hook file
-	hookCode := cli.GenerateHookCode(cli.ShellFish)
+	hookCode, err := cli.GenerateHookCode(cli.ShellFish)
+	if err != nil {
+		return fmt.Errorf("failed to generate hook code: %w", err)
+	}
 
 	if err := os.MkdirAll(filepath.Dir(s.hookPath), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
@@ -242,7 +245,10 @@ func (s *FishHookStrategy) NeedsUpdate() bool {
 		return true
 	}
 
-	expectedHook := cli.GenerateHookCode(cli.ShellFish)
+	expectedHook, err := cli.GenerateHookCode(cli.ShellFish)
+	if err != nil {
+		return true
+	}
 	return string(currentHook) != expectedHook
 }
 

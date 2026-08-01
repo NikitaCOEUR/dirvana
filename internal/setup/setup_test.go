@@ -464,7 +464,8 @@ func TestInstallHook_UpToDateNoUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	hookPath := filepath.Join(configDir, "hook-bash.sh")
-	hookCode := cli.GenerateHookCode("bash")
+	hookCode, err := cli.GenerateHookCode("bash")
+	require.NoError(t, err)
 	err = os.WriteFile(hookPath, []byte(hookCode), 0644)
 	require.NoError(t, err)
 

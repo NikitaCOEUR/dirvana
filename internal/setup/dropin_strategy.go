@@ -64,7 +64,10 @@ func (s *DropInStrategy) Install() error {
 		return fmt.Errorf("failed to create drop-in directory: %w", err)
 	}
 
-	hookCode := cli.GenerateHookCode(s.shell)
+	hookCode, err := cli.GenerateHookCode(s.shell)
+	if err != nil {
+		return fmt.Errorf("failed to generate hook code: %w", err)
+	}
 	if err := atomicWrite(s.dropInFile, []byte(hookCode)); err != nil {
 		return fmt.Errorf("failed to create drop-in file: %w", err)
 	}
@@ -100,7 +103,10 @@ func (s *DropInStrategy) NeedsUpdate() bool {
 		return true
 	}
 
-	expectedHook := cli.GenerateHookCode(s.shell)
+	expectedHook, err := cli.GenerateHookCode(s.shell)
+	if err != nil {
+		return true
+	}
 	return string(currentHook) != expectedHook
 }
 

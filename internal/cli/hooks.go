@@ -91,22 +91,19 @@ func detectShellFromParentProcess() string {
 	return ""
 }
 
-// getBinaryPath returns the path to the dirvana binary, with fallback
+// getBinaryPath returns the path to the running dirvana binary so that
+// generated hooks work even when dirvana is not on $PATH. Falls back to
+// the bare name if the executable path cannot be resolved.
 func getBinaryPath() string {
-	return "dirvana" // Fallback to just "dirvana", assuming it's in PATH
+	exe, err := os.Executable()
+	if err != nil {
+		return "dirvana"
+	}
+	return exe
 }
 
-// GenerateHookCode generates the shell hook code for the specified shell.
-// This is now a thin wrapper around shell.GenerateHookCode which uses embedded templates.
-func GenerateHookCode(shell string) string {
-	binPath := getBinaryPath()
-
-	// Use the template-based generator from internal/shell
-	code, err := shellpkg.GenerateHookCode(shell, binPath)
-	if err != nil {
-		// Fallback to bash if there's an error
-		code, _ = shellpkg.GenerateHookCode("bash", binPath)
-	}
-
-	return code
+// GenerateHookCode generates the shell hook code for the specified shell
+// using the embedded templates from internal/shell.
+func GenerateHookCode(shell string) (string, error) {
+	return shellpkg.GenerateHookCode(shell, getBinaryPath())
 }

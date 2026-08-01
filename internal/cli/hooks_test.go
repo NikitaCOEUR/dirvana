@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -75,7 +76,7 @@ func TestGenerateHookCode(t *testing.T) {
 				"__dirvana_hook()",
 				"PROMPT_COMMAND",
 				"DIRVANA_PREV_DIR",
-				"dirvana export",
+				"export --prev",
 				"eval",
 			},
 		},
@@ -92,7 +93,8 @@ func TestGenerateHookCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			code := GenerateHookCode(tt.shell)
+			code, err := GenerateHookCode(tt.shell)
+			require.NoError(t, err)
 			for _, expected := range tt.want {
 				assert.Contains(t, code, expected)
 			}
@@ -100,11 +102,19 @@ func TestGenerateHookCode(t *testing.T) {
 	}
 }
 
+func TestGenerateHookCode_UsesExecutablePath(t *testing.T) {
+	// Hooks must reference the running binary so installs outside $PATH work
+	code, err := GenerateHookCode("bash")
+	require.NoError(t, err)
+	assert.Contains(t, code, getBinaryPath()+" export")
+}
+
 func TestGenerateHookCode_NotEmpty(t *testing.T) {
 	tests := []string{"bash", "zsh"}
 	for _, shell := range tests {
 		t.Run(shell, func(t *testing.T) {
-			code := GenerateHookCode(shell)
+			code, err := GenerateHookCode(shell)
+			require.NoError(t, err)
 			assert.NotEmpty(t, code)
 			lines := strings.Split(code, "\n")
 			assert.Greater(t, len(lines), 3, "Hook should have multiple lines")
@@ -114,11 +124,12 @@ func TestGenerateHookCode_NotEmpty(t *testing.T) {
 
 func TestGenerateHookCode_DefaultShell(t *testing.T) {
 	// Test with an unknown shell - should default to bash behavior
-	code := GenerateHookCode("unknown")
+	code, err := GenerateHookCode("unknown")
+	require.NoError(t, err)
 	assert.NotEmpty(t, code)
 	assert.Contains(t, code, "__dirvana_hook()")
 	assert.Contains(t, code, "PROMPT_COMMAND")
-	assert.Contains(t, code, "dirvana export")
+	assert.Contains(t, code, "export --prev")
 	assert.Contains(t, code, "eval")
 }
 
@@ -375,7 +386,8 @@ func TestGenerateHookCode_ContainsBinaryPath(t *testing.T) {
 	tests := []string{ShellBash, ShellZsh}
 	for _, shell := range tests {
 		t.Run(shell, func(t *testing.T) {
-			code := GenerateHookCode(shell)
+			code, err := GenerateHookCode(shell)
+			require.NoError(t, err)
 
 			// The hook code should reference the binary path
 			// Either the full path or "dirvana" fallback
