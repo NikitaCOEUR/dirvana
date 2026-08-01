@@ -211,26 +211,6 @@ func convertAliasesWithInfo(aliases map[string]AliasConfig) map[string]AliasInfo
 	return result
 }
 
-// Helper to convert aliases (legacy, kept for compatibility)
-func convertAliases(aliases map[string]interface{}) map[string]string {
-	result := make(map[string]string)
-	for name, value := range aliases {
-		var cmd string
-		switch v := value.(type) {
-		case string:
-			cmd = v
-		case map[string]interface{}:
-			if c, ok := v["command"].(string); ok {
-				cmd = c
-			}
-		}
-		if cmd != "" {
-			result[name] = cmd
-		}
-	}
-	return result
-}
-
 // summarizeWhen creates a human-readable summary of a When condition
 func summarizeWhen(when *When) string {
 	if when == nil {

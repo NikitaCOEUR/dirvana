@@ -7,65 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestShouldCleanup(t *testing.T) {
-	tests := []struct {
-		name        string
-		previousDir string
-		currentDir  string
-		want        bool
-	}{
-		{
-			name:        "no previous context",
-			previousDir: "",
-			currentDir:  "/home/user/project",
-			want:        false,
-		},
-		{
-			name:        "same directory",
-			previousDir: "/home/user/project",
-			currentDir:  "/home/user/project",
-			want:        false,
-		},
-		{
-			name:        "entering subdirectory - keep context",
-			previousDir: "/home/user/project",
-			currentDir:  "/home/user/project/src",
-			want:        false,
-		},
-		{
-			name:        "entering deep subdirectory - keep context",
-			previousDir: "/home/user/project",
-			currentDir:  "/home/user/project/src/internal/pkg",
-			want:        false,
-		},
-		{
-			name:        "leaving to parent - cleanup",
-			previousDir: "/home/user/project/src",
-			currentDir:  "/home/user/project",
-			want:        true,
-		},
-		{
-			name:        "leaving to sibling - cleanup",
-			previousDir: "/home/user/project1",
-			currentDir:  "/home/user/project2",
-			want:        true,
-		},
-		{
-			name:        "leaving to completely different path - cleanup",
-			previousDir: "/home/user/project",
-			currentDir:  "/var/www/site",
-			want:        true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := ShouldCleanup(tt.previousDir, tt.currentDir)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestGenerateCleanupCode(t *testing.T) {
 	aliases := []string{"ll", "gs", "gd"}
 	functions := []string{"mkcd", "greet"}

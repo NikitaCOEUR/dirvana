@@ -336,7 +336,7 @@ env:
 	require.NoError(t, os.WriteFile(childConfig, []byte(childContent), 0644))
 
 	loader := New()
-	merged, files, err := loader.LoadHierarchy(childDir)
+	merged, files, err := loader.LoadHierarchyWithAuth(childDir, nil)
 	require.NoError(t, err)
 	assert.Len(t, files, 2)
 
@@ -387,7 +387,7 @@ local_only: true
 	require.NoError(t, os.WriteFile(childConfig, []byte(childContent), 0644))
 
 	loader := New()
-	merged, files, err := loader.LoadHierarchy(childDir)
+	merged, files, err := loader.LoadHierarchyWithAuth(childDir, nil)
 	require.NoError(t, err)
 	assert.Len(t, files, 2)
 
@@ -412,7 +412,7 @@ func TestConfig_LoadHierarchy_NoConfigs(t *testing.T) {
 	_ = os.Setenv("XDG_CONFIG_HOME", tmpDir)
 
 	loader := New()
-	merged, files, err := loader.LoadHierarchy(tmpDir)
+	merged, files, err := loader.LoadHierarchyWithAuth(tmpDir, nil)
 	require.NoError(t, err)
 	assert.Nil(t, files)
 	assert.NotNil(t, merged)
@@ -486,7 +486,7 @@ env:
 	require.NoError(t, os.WriteFile(localConfig, []byte(localContent), 0644))
 
 	loader := New()
-	merged, files, err := loader.LoadHierarchy(localDir)
+	merged, files, err := loader.LoadHierarchyWithAuth(localDir, nil)
 	require.NoError(t, err)
 	assert.Len(t, files, 2) // global + local
 
@@ -534,7 +534,7 @@ aliases:
 	require.NoError(t, os.WriteFile(localConfig, []byte(localContent), 0644))
 
 	loader := New()
-	merged, files, err := loader.LoadHierarchy(localDir)
+	merged, files, err := loader.LoadHierarchyWithAuth(localDir, nil)
 	require.NoError(t, err)
 	assert.Len(t, files, 1) // only local, global was ignored
 
@@ -709,7 +709,7 @@ func TestConfig_LoadHierarchyWithAuth_NoAuthChecker(t *testing.T) {
 	loader := New()
 
 	// Both methods should return the same result when no auth checker is used
-	merged1, files1, err1 := loader.LoadHierarchy(tmpDir)
+	merged1, files1, err1 := loader.LoadHierarchyWithAuth(tmpDir, nil)
 	require.NoError(t, err1)
 
 	merged2, files2, err2 := loader.LoadHierarchyWithAuth(tmpDir, nil)

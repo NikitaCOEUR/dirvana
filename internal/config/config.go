@@ -666,12 +666,6 @@ func FindConfigFiles(startDir string) ([]string, error) {
 	return configs, nil
 }
 
-// LoadHierarchy loads and merges all configs from global to current directory
-// Order: global config → root → ... → parent → current
-func (l *Loader) LoadHierarchy(dir string) (*Config, []string, error) {
-	return l.LoadHierarchyWithAuth(dir, nil)
-}
-
 // LoadHierarchyWithAuth loads and merges all configs from global to current directory
 // with authorization checks for each directory in the hierarchy
 // Order: global config → root → ... → parent → current

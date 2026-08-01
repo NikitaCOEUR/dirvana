@@ -2,7 +2,6 @@
 package shellctx
 
 import (
-	"path/filepath"
 	"strings"
 )
 
@@ -19,30 +18,6 @@ type AuthChecker interface {
 type ConfigProvider interface {
 	FindConfigs(dir string) []string
 	IsLocalOnly(dir string) bool
-}
-
-// ShouldCleanup determines if we should clean up the previous context
-// Returns true if we're leaving a dirvana context
-func ShouldCleanup(previousDir, currentDir string) bool {
-	if previousDir == "" {
-		return false // No previous context
-	}
-
-	if previousDir == currentDir {
-		return false // Same directory
-	}
-
-	// Check if current is a subdirectory of previous
-	relPath, err := filepath.Rel(previousDir, currentDir)
-	if err != nil {
-		return true // Different contexts
-	}
-
-	// If relative path doesn't start with "..", we're in a subdirectory
-	isSubdir := !strings.HasPrefix(relPath, "..")
-
-	// Clean up if we're NOT in a subdirectory (we left the context)
-	return !isSubdir
 }
 
 // GenerateCleanupCode generates shell code to unset variables

@@ -138,27 +138,6 @@ func TestGetCompletionOverrides_WithCompletionDisabled(t *testing.T) {
 	assert.Empty(t, result) // completion: false doesn't create override
 }
 
-// TestConvertAliases_WithComplexAliases tests convertAliases with various alias types
-func TestConvertAliases_WithComplexAliases(t *testing.T) {
-	aliases := map[string]interface{}{
-		"simple":        "echo simple",
-		"complex_valid": map[string]interface{}{"command": "echo complex"},
-		"complex_invalid": map[string]interface{}{
-			"command": 123, // Invalid type
-		},
-		"no_command": map[string]interface{}{
-			"other": "value",
-		},
-	}
-
-	result := convertAliases(aliases)
-
-	assert.Equal(t, "echo simple", result["simple"])
-	assert.Equal(t, "echo complex", result["complex_valid"])
-	assert.NotContains(t, result, "complex_invalid") // Should be skipped
-	assert.NotContains(t, result, "no_command")      // Should be skipped
-}
-
 // TestGetFunctionsList tests getFunctionsList
 func TestGetFunctionsList(t *testing.T) {
 	functions := map[string]string{
