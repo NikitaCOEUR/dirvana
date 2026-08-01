@@ -63,8 +63,8 @@ func TestBothShellsUseSameStrategy(t *testing.T) {
 	// Create RC files for both shells
 	bashRC := filepath.Join(tmpDir, ".bashrc")
 	zshRC := filepath.Join(tmpDir, ".zshrc")
-	require.NoError(t, os.WriteFile(bashRC, []byte("# bash\n"), 0644))
-	require.NoError(t, os.WriteFile(zshRC, []byte("# zsh\n"), 0644))
+	require.NoError(t, os.WriteFile(bashRC, []byte("# bash\n"), 0o644))
+	require.NoError(t, os.WriteFile(zshRC, []byte("# zsh\n"), 0o644))
 
 	// Install for bash
 	bashResult, err := InstallHook("bash")

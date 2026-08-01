@@ -195,7 +195,7 @@ done
 		strings.Join(escapeShellWords(compWords), " "),
 		compCword,
 		escapedCompLine, // Now properly escaped
-		tool, tool, // __%s_main
+		tool, tool,      // __%s_main
 		tool, tool, // _%s
 		tool, tool, // __%s
 		tool, tool, // grep pattern

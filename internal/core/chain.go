@@ -29,7 +29,7 @@ func ActiveConfigChain(dir string, auth config.AuthChecker, configProvider Confi
 	}
 
 	var activeChain []string
-	var localOnlyIndex = -1
+	localOnlyIndex := -1
 
 	// Process configs from root to leaf
 	for i, configDir := range configDirs {

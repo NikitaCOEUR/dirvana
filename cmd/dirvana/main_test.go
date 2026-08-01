@@ -110,7 +110,7 @@ func TestSetupCommand_AlreadyInstalled(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
-	require.NoError(t, os.WriteFile(rcFile, []byte("# My bashrc\n"), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte("# My bashrc\n"), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -137,7 +137,7 @@ func TestSetupCommand_NewInstallation(t *testing.T) {
 	existingContent := `# My bashrc
 export PATH=$PATH:/usr/local/bin
 `
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -178,7 +178,7 @@ export PATH=$PATH:/usr/local/bin
 # More config
 alias ll='ls -la'
 `
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -190,7 +190,7 @@ alias ll='ls -la'
 	require.NoError(t, err)
 
 	hookPath := filepath.Join(tmpDir, ".config", "dirvana", "hook-bash.sh")
-	require.NoError(t, os.WriteFile(hookPath, []byte("# outdated hook\n"), 0644))
+	require.NoError(t, os.WriteFile(hookPath, []byte("# outdated hook\n"), 0o644))
 
 	// Install again: hook content differs, must be rewritten
 	result, err := setup.InstallHook("bash")

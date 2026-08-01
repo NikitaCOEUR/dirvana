@@ -74,9 +74,9 @@ if status is-interactive
     starship init fish | source
 end
 `
-	err = os.MkdirAll(filepath.Dir(strategy.rcFile), 0755)
+	err = os.MkdirAll(filepath.Dir(strategy.rcFile), 0o755)
 	require.NoError(t, err)
-	err = os.WriteFile(strategy.rcFile, []byte(existingContent), 0644)
+	err = os.WriteFile(strategy.rcFile, []byte(existingContent), 0o644)
 	require.NoError(t, err)
 
 	// Test installation
@@ -164,7 +164,7 @@ func TestFishHookStrategy_NeedsUpdate(t *testing.T) {
 	assert.False(t, strategy.NeedsUpdate())
 
 	// Modify hook file
-	err = os.WriteFile(strategy.hookPath, []byte("old content"), 0644)
+	err = os.WriteFile(strategy.hookPath, []byte("old content"), 0o644)
 	require.NoError(t, err)
 
 	// Should need update now

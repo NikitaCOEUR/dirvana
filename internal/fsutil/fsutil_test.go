@@ -48,7 +48,7 @@ func TestAtomicWrite_Permissions(t *testing.T) {
 
 	for name, perm := range map[string]os.FileMode{
 		"state file 0600": StateFilePerm,
-		"rc file 0644":    0644,
+		"rc file 0644":    0o644,
 	} {
 		t.Run(name, func(t *testing.T) {
 			testFile := filepath.Join(tmpDir, strings.ReplaceAll(name, " ", "_"))

@@ -129,7 +129,7 @@ ll = "ls -lah"
 [env]
 PROJECT = "test"
 `)
-	require.NoError(t, os.WriteFile(tomlFile, content, 0644))
+	require.NoError(t, os.WriteFile(tomlFile, content, 0o644))
 
 	result, err := ValidateWithSchema(tomlFile, content)
 	require.NoError(t, err)

@@ -24,7 +24,7 @@ func TestGetDetectionCacheInfo_InvalidJSON(t *testing.T) {
 	detectionPath := filepath.Join(tmpDir, "completion-detection.json")
 
 	// Write invalid JSON
-	err := os.WriteFile(detectionPath, []byte("not valid json"), 0644)
+	err := os.WriteFile(detectionPath, []byte("not valid json"), 0o644)
 	require.NoError(t, err)
 
 	result, err := GetDetectionCacheInfo(tmpDir)
@@ -42,7 +42,7 @@ func TestGetDetectionCacheInfo_EmptyJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	detectionPath := filepath.Join(tmpDir, "completion-detection.json")
 
-	err := os.WriteFile(detectionPath, []byte("{}"), 0644)
+	err := os.WriteFile(detectionPath, []byte("{}"), 0o644)
 	require.NoError(t, err)
 
 	result, err := GetDetectionCacheInfo(tmpDir)
@@ -68,7 +68,7 @@ func TestGetRegistryInfo_InvalidYAML(t *testing.T) {
 	registryPath := filepath.Join(tmpDir, "completion-registry-v1.yml")
 
 	// Write invalid YAML
-	err := os.WriteFile(registryPath, []byte("not: valid: yaml: structure"), 0644)
+	err := os.WriteFile(registryPath, []byte("not: valid: yaml: structure"), 0o644)
 	require.NoError(t, err)
 
 	result, err := GetRegistryInfo(tmpDir)
@@ -86,7 +86,7 @@ func TestGetRegistryInfo_EmptyTools(t *testing.T) {
 	tmpDir := t.TempDir()
 	registryPath := filepath.Join(tmpDir, "completion-registry-v1.yml")
 
-	err := os.WriteFile(registryPath, []byte("tools: {}"), 0644)
+	err := os.WriteFile(registryPath, []byte("tools: {}"), 0o644)
 	require.NoError(t, err)
 
 	result, err := GetRegistryInfo(tmpDir)
@@ -109,7 +109,7 @@ func TestGetDownloadedScripts_NoScripts(t *testing.T) {
 func TestGetDownloadedScripts_EmptyDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	scriptsPath := filepath.Join(tmpDir, "completion-scripts", "bash")
-	err := os.MkdirAll(scriptsPath, 0755)
+	err := os.MkdirAll(scriptsPath, 0o755)
 	require.NoError(t, err)
 
 	result, err := GetDownloadedScripts(tmpDir)
@@ -121,15 +121,15 @@ func TestGetDownloadedScripts_EmptyDirectory(t *testing.T) {
 func TestGetDownloadedScripts_WithSubdirectories(t *testing.T) {
 	tmpDir := t.TempDir()
 	scriptsPath := filepath.Join(tmpDir, "completion-scripts", "bash")
-	err := os.MkdirAll(scriptsPath, 0755)
+	err := os.MkdirAll(scriptsPath, 0o755)
 	require.NoError(t, err)
 
 	// Create a subdirectory (should be skipped)
-	err = os.MkdirAll(filepath.Join(scriptsPath, "subdir"), 0755)
+	err = os.MkdirAll(filepath.Join(scriptsPath, "subdir"), 0o755)
 	require.NoError(t, err)
 
 	// Create a file
-	err = os.WriteFile(filepath.Join(scriptsPath, "tool.sh"), []byte("#!/bin/bash"), 0755)
+	err = os.WriteFile(filepath.Join(scriptsPath, "tool.sh"), []byte("#!/bin/bash"), 0o755)
 	require.NoError(t, err)
 
 	result, err := GetDownloadedScripts(tmpDir)

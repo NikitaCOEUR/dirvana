@@ -260,7 +260,7 @@ func TestNewCompletionGenerator_Multi(t *testing.T) {
 func TestNewCompletionGenerator_Integration(t *testing.T) {
 	// Test that each generator can actually generate valid completion code
 	testCases := []struct {
-		shell        string
+		shell         string
 		aliasCommands map[string]string
 	}{
 		{"bash", map[string]string{"k": "kubectl", "g": "git"}},

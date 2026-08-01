@@ -48,7 +48,7 @@ func (s *FishHookStrategy) Install() error {
 		return fmt.Errorf("failed to generate hook code: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(s.hookPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.hookPath), 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -70,7 +70,7 @@ func (s *FishHookStrategy) Install() error {
 %s
 end
 `, sourceLine)
-			if err := os.MkdirAll(filepath.Dir(s.rcFile), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(s.rcFile), 0o755); err != nil {
 				return fmt.Errorf("failed to create fish config directory: %w", err)
 			}
 			if err := atomicWrite(s.rcFile, []byte(content)); err != nil {

@@ -22,7 +22,7 @@ func Init(global bool) error {
 
 		// Create directory if it doesn't exist
 		configDir := filepath.Dir(configPath)
-		if err := os.MkdirAll(configDir, 0755); err != nil {
+		if err := os.MkdirAll(configDir, 0o755); err != nil {
 			return fmt.Errorf("failed to create config directory: %w", err)
 		}
 	} else {
@@ -39,7 +39,7 @@ func Init(global bool) error {
 		return fmt.Errorf("config file already exists: %s", configPath)
 	}
 
-	if err := os.WriteFile(configPath, []byte(sampleConfig), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(sampleConfig), 0o644); err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 

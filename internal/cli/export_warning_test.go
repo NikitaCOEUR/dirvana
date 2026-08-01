@@ -41,7 +41,7 @@ func TestExport_UnauthorizedWarning(t *testing.T) {
 
 	// Create directory structure
 	for _, dir := range []string{dirA, dirB} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("Failed to create directory %s: %v", dir, err)
 		}
 	}
@@ -50,10 +50,10 @@ func TestExport_UnauthorizedWarning(t *testing.T) {
 	configA := testConfigA
 	configB := testConfigB
 
-	if err := os.WriteFile(filepath.Join(dirA, ".dirvana.yml"), []byte(configA), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dirA, ".dirvana.yml"), []byte(configA), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dirB, ".dirvana.yml"), []byte(configB), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dirB, ".dirvana.yml"), []byte(configB), 0o644); err != nil {
 		t.Fatal(err)
 	}
 

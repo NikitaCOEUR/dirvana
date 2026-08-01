@@ -90,9 +90,9 @@ func TestHierarchyHash(t *testing.T) {
 	childDir := filepath.Join(rootDir, "child")
 	grandchildDir := filepath.Join(childDir, "grandchild")
 
-	require.NoError(t, os.MkdirAll(rootDir, 0755))
-	require.NoError(t, os.MkdirAll(childDir, 0755))
-	require.NoError(t, os.MkdirAll(grandchildDir, 0755))
+	require.NoError(t, os.MkdirAll(rootDir, 0o755))
+	require.NoError(t, os.MkdirAll(childDir, 0o755))
+	require.NoError(t, os.MkdirAll(grandchildDir, 0o755))
 
 	// Create config files
 	rootConfigPath := filepath.Join(rootDir, ".dirvana.yml")
@@ -102,8 +102,8 @@ func TestHierarchyHash(t *testing.T) {
   root: echo root
 `
 
-	require.NoError(t, os.WriteFile(rootConfigPath, []byte(rootConfig), 0644))
-	require.NoError(t, os.WriteFile(childConfigPath, []byte(childAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(rootConfigPath, []byte(rootConfig), 0o644))
+	require.NoError(t, os.WriteFile(childConfigPath, []byte(childAliasConfig), 0o644))
 
 	// Create config loader
 	loader := config.New()
@@ -131,7 +131,7 @@ func TestHierarchyHash(t *testing.T) {
 	modifiedChildConfig := `aliases:
   child: echo modified
 `
-	require.NoError(t, os.WriteFile(childConfigPath, []byte(modifiedChildConfig), 0644))
+	require.NoError(t, os.WriteFile(childConfigPath, []byte(modifiedChildConfig), 0o644))
 
 	hierarchyHash3, _, err := HierarchyHash(configDirs, loader)
 	require.NoError(t, err)
@@ -155,8 +155,8 @@ func TestHierarchyHash_NoConfigFiles(t *testing.T) {
 	dir1 := filepath.Join(tmpDir, "dir1")
 	dir2 := filepath.Join(tmpDir, "dir2")
 
-	require.NoError(t, os.MkdirAll(dir1, 0755))
-	require.NoError(t, os.MkdirAll(dir2, 0755))
+	require.NoError(t, os.MkdirAll(dir1, 0o755))
+	require.NoError(t, os.MkdirAll(dir2, 0o755))
 
 	loader := config.New()
 
@@ -173,7 +173,7 @@ func TestHierarchyHash_SingleConfig(t *testing.T) {
 
 	// Create single config
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0o644))
 
 	loader := config.New()
 
@@ -194,10 +194,10 @@ func TestValidateEntry_Valid(t *testing.T) {
 
 	// Create config
 	configDir := filepath.Join(tmpDir, "project")
-	require.NoError(t, os.MkdirAll(configDir, 0755))
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
 
 	configPath := filepath.Join(configDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0o644))
 
 	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
@@ -227,7 +227,7 @@ func TestValidateEntry_InvalidVersion(t *testing.T) {
 	authPath := filepath.Join(tmpDir, "auth.json")
 
 	configDir := filepath.Join(tmpDir, "project")
-	require.NoError(t, os.MkdirAll(configDir, 0755))
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
 
 	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
@@ -249,7 +249,7 @@ func TestValidateEntry_NoMergedSnapshot(t *testing.T) {
 	authPath := filepath.Join(tmpDir, "auth.json")
 
 	configDir := filepath.Join(tmpDir, "project")
-	require.NoError(t, os.MkdirAll(configDir, 0755))
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
 
 	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
@@ -271,7 +271,7 @@ func TestValidateEntry_NoHierarchyHash(t *testing.T) {
 	authPath := filepath.Join(tmpDir, "auth.json")
 
 	configDir := filepath.Join(tmpDir, "project")
-	require.NoError(t, os.MkdirAll(configDir, 0755))
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
 
 	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
@@ -294,10 +294,10 @@ func TestValidateEntry_HierarchyChanged(t *testing.T) {
 
 	// Create config
 	configDir := filepath.Join(tmpDir, "project")
-	require.NoError(t, os.MkdirAll(configDir, 0755))
+	require.NoError(t, os.MkdirAll(configDir, 0o755))
 
 	configPath := filepath.Join(configDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0o644))
 
 	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
@@ -323,7 +323,7 @@ func TestValidateEntry_HierarchyChanged(t *testing.T) {
 	modifiedConfig := `aliases:
   test: echo modified
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(modifiedConfig), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(modifiedConfig), 0o644))
 
 	assert.False(t, validateEntry(entry, configDir, loader, authMgr))
 }
@@ -335,11 +335,11 @@ func TestValidateEntry_NewConfigAdded(t *testing.T) {
 	// Create initial config structure
 	rootDir := filepath.Join(tmpDir, "root")
 	childDir := filepath.Join(rootDir, "child")
-	require.NoError(t, os.MkdirAll(childDir, 0755))
+	require.NoError(t, os.MkdirAll(childDir, 0o755))
 
 	// Only create child config initially
 	childConfigPath := filepath.Join(childDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(childConfigPath, []byte(childAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(childConfigPath, []byte(childAliasConfig), 0o644))
 
 	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
@@ -365,7 +365,7 @@ func TestValidateEntry_NewConfigAdded(t *testing.T) {
 	rootConfig := `aliases:
   root: echo root
 `
-	require.NoError(t, os.WriteFile(rootConfigPath, []byte(rootConfig), 0644))
+	require.NoError(t, os.WriteFile(rootConfigPath, []byte(rootConfig), 0o644))
 
 	// Now the hierarchy includes both root and child:
 	// the entry must be invalid because the hierarchy changed
@@ -378,9 +378,9 @@ func TestEngine_Load_FastPathAndInvalidation(t *testing.T) {
 	authPath := filepath.Join(tmpDir, "auth.json")
 
 	projectDir := filepath.Join(tmpDir, "project")
-	require.NoError(t, os.MkdirAll(projectDir, 0755))
+	require.NoError(t, os.MkdirAll(projectDir, 0o755))
 	configPath := filepath.Join(projectDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0o644))
 
 	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
@@ -415,9 +415,9 @@ func TestEngine_Load_SeesConfigEditsAfterTTL(t *testing.T) {
 	authPath := filepath.Join(tmpDir, "auth.json")
 
 	projectDir := filepath.Join(tmpDir, "project")
-	require.NoError(t, os.MkdirAll(projectDir, 0755))
+	require.NoError(t, os.MkdirAll(projectDir, 0o755))
 	configPath := filepath.Join(projectDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0o644))
 
 	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
@@ -431,7 +431,7 @@ func TestEngine_Load_SeesConfigEditsAfterTTL(t *testing.T) {
 
 	// Edit the config, then expire the cached entry's TTL manually so the
 	// test doesn't have to sleep through cacheValidationTTL
-	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  test: echo edited\n"), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  test: echo edited\n"), 0o644))
 
 	cacheStore, err := cache.New(cachePath)
 	require.NoError(t, err)
@@ -452,7 +452,7 @@ func TestEngine_Load_NoContext(t *testing.T) {
 	authPath := filepath.Join(tmpDir, "auth.json")
 
 	emptyDir := filepath.Join(tmpDir, "empty")
-	require.NoError(t, os.MkdirAll(emptyDir, 0755))
+	require.NoError(t, os.MkdirAll(emptyDir, 0o755))
 
 	ctx, err := NewEngine(cachePath, authPath).Load(emptyDir)
 	require.NoError(t, err)

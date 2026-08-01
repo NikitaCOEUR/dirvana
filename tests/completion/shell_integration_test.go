@@ -108,7 +108,6 @@ func TestShellIntegration_Completion(t *testing.T) {
 			// Run completion test script
 			cmd := exec.Command(scriptPath, tt.alias, configDir)
 			output, err := cmd.CombinedOutput()
-
 			if err != nil {
 				t.Logf("Script output:\n%s", string(output))
 				t.Fatalf("Completion test failed: %v", err)

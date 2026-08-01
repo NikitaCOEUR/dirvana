@@ -169,10 +169,10 @@ func TestDetectShell_FallbackOrder(t *testing.T) {
 
 func TestDetectShell_VersionVariables(t *testing.T) {
 	tests := []struct {
-		name    string
-		envVar  string
-		envVal  string
-		want    string
+		name   string
+		envVar string
+		envVal string
+		want   string
 	}{
 		{
 			name:   "detect fish via FISH_VERSION",

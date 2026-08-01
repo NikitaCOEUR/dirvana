@@ -60,7 +60,7 @@ func (s *DropInStrategy) IsSupported() bool {
 // Install installs the hook using drop-in directory
 func (s *DropInStrategy) Install() error {
 	// Create drop-in directory if needed
-	if err := os.MkdirAll(s.dropInDir, 0755); err != nil {
+	if err := os.MkdirAll(s.dropInDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create drop-in directory: %w", err)
 	}
 

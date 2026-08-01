@@ -90,7 +90,7 @@ func TestRevokeWithParams_FromRevokedDir(t *testing.T) {
 	tmpDir := t.TempDir()
 	authPath := filepath.Join(tmpDir, "auth.json")
 	testDir := filepath.Join(tmpDir, "testdir")
-	require.NoError(t, os.MkdirAll(testDir, 0755))
+	require.NoError(t, os.MkdirAll(testDir, 0o755))
 
 	// First allow the test directory
 	err := Allow(authPath, testDir)
@@ -170,7 +170,7 @@ func TestInit_AlreadyExists(t *testing.T) {
 
 	// Create config file first
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte("test"), 0644)
+	err = os.WriteFile(configPath, []byte("test"), 0o644)
 	require.NoError(t, err)
 
 	// Run init should fail
@@ -208,11 +208,11 @@ func TestInit_Global_AlreadyExists(t *testing.T) {
 
 	// Create global config file first
 	globalConfigDir := filepath.Join(tmpDir, "dirvana")
-	err := os.MkdirAll(globalConfigDir, 0755)
+	err := os.MkdirAll(globalConfigDir, 0o755)
 	require.NoError(t, err)
 
 	globalConfigPath := filepath.Join(globalConfigDir, "global.yml")
-	err = os.WriteFile(globalConfigPath, []byte("test"), 0644)
+	err = os.WriteFile(globalConfigPath, []byte("test"), 0o644)
 	require.NoError(t, err)
 
 	// Run init with global flag should fail
@@ -261,7 +261,7 @@ func TestExport_NotAuthorized(t *testing.T) {
 
 	// Create a config file
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte(testAliasConfig), 0644)
+	err = os.WriteFile(configPath, []byte(testAliasConfig), 0o644)
 	require.NoError(t, err)
 
 	params := ExportParams{
@@ -291,7 +291,7 @@ func TestExport_Authorized(t *testing.T) {
 
 	// Create a config file
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte(testAliasConfig), 0644)
+	err = os.WriteFile(configPath, []byte(testAliasConfig), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -328,7 +328,7 @@ func TestExport_CacheHit(t *testing.T) {
 	configContent := `aliases:
   ll: ls -la
 `
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -359,18 +359,18 @@ func TestExport_WithContextCleanup(t *testing.T) {
 	// Create parent and child directories
 	parentDir := filepath.Join(tmpDir, "parent")
 	childDir := filepath.Join(tmpDir, "child")
-	require.NoError(t, os.MkdirAll(parentDir, 0755))
-	require.NoError(t, os.MkdirAll(childDir, 0755))
+	require.NoError(t, os.MkdirAll(parentDir, 0o755))
+	require.NoError(t, os.MkdirAll(childDir, 0o755))
 
 	// Create configs
 	parentConfig := filepath.Join(parentDir, ".dirvana.yml")
 	parentContent := `aliases:
   parent: echo parent
 `
-	require.NoError(t, os.WriteFile(parentConfig, []byte(parentContent), 0644))
+	require.NoError(t, os.WriteFile(parentConfig, []byte(parentContent), 0o644))
 
 	childConfig := filepath.Join(childDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(childConfig, []byte(childAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(childConfig, []byte(childAliasConfig), 0o644))
 
 	// Authorize both directories
 	require.NoError(t, Allow(authPath, parentDir))
@@ -425,7 +425,7 @@ env:
   GIT_BRANCH:
     sh: git branch --show-current
 `
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -486,7 +486,7 @@ func TestExport_WithFunctions(t *testing.T) {
   mkcd: |
     mkdir -p "$1" && cd "$1"
 `
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -675,8 +675,8 @@ sh = "whoami"
 			tmpDir := t.TempDir()
 			authPath := filepath.Join(tmpDir, "auth.json")
 			projectPath := filepath.Join(tmpDir, "project")
-			require.NoError(t, os.MkdirAll(projectPath, 0755))
-			require.NoError(t, os.WriteFile(filepath.Join(projectPath, filename), []byte(content), 0644))
+			require.NoError(t, os.MkdirAll(projectPath, 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(projectPath, filename), []byte(content), 0o644))
 
 			err := AllowWithParams(AllowParams{
 				AuthPath:         authPath,
@@ -699,7 +699,7 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0755))
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
 		// Create a config file with shell commands
 		configContent := `env:
@@ -709,7 +709,7 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
     sh: pwd
 `
 		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 		// Allow with auto-approve
 		err := AllowWithParams(AllowParams{
@@ -740,14 +740,14 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0755))
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
 		// Create a config file without shell commands
 		configContent := `env:
   STATIC_VAR: "value"
 `
 		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 		// Allow with auto-approve (should not fail even without shell commands)
 		err := AllowWithParams(AllowParams{
@@ -770,7 +770,7 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0755))
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
 		// No config file - nothing to approve, allow still succeeds
 		err := AllowWithParams(AllowParams{
@@ -792,7 +792,7 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0755))
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
 		// Create a config file with shell commands
 		configContent := `env:
@@ -800,7 +800,7 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
     sh: echo test
 `
 		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 		// Allow without auto-approve
 		err := AllowWithParams(AllowParams{
@@ -830,7 +830,7 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0755))
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
 		// Save original directory
 		originalDir, err := os.Getwd()
@@ -869,7 +869,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0755))
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
 		// Create auth manager and allow directory
 		authMgr, err := auth.New(authPath)
@@ -884,7 +884,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
     sh: pwd
 `
 		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 		// Approve shell commands
 		err = approveShellCommandsForPath(projectPath, authMgr, "error")
@@ -903,7 +903,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0755))
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
 		authMgr, err := auth.New(authPath)
 		require.NoError(t, err)
@@ -934,7 +934,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0755))
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
 		authMgr, err := auth.New(authPath)
 		require.NoError(t, err)
@@ -944,7 +944,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
   STATIC: "value"
 `
 		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 		// Should succeed even without shell commands
 		err = approveShellCommandsForPath(projectPath, authMgr, "error")
@@ -955,14 +955,14 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0755))
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
 		authMgr, err := auth.New(authPath)
 		require.NoError(t, err)
 
 		// Invalid YAML
 		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte("invalid: [yaml"), 0644))
+		require.NoError(t, os.WriteFile(configPath, []byte("invalid: [yaml"), 0o644))
 
 		err = approveShellCommandsForPath(projectPath, authMgr, "error")
 		require.Error(t, err)
@@ -973,7 +973,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0755))
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
 		// Create auth manager but DON'T allow the directory
 		// This should cause ApproveShellCommands to fail
@@ -986,7 +986,7 @@ func TestApproveShellCommandsForPath(t *testing.T) {
     sh: whoami
 `
 		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 		// Try to approve shell commands without allowing directory first
 		err = approveShellCommandsForPath(projectPath, authMgr, "error")
@@ -1045,7 +1045,7 @@ functions:
   test_func: |
     echo "test function"
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -1094,7 +1094,7 @@ func TestCacheMergedConfig_WithoutLocalConfig(t *testing.T) {
 
 	// Create a subdirectory WITHOUT a config file
 	subDir := filepath.Join(tmpDir, "subdir")
-	require.NoError(t, os.MkdirAll(subDir, 0755))
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
 
 	// Create a config in the parent only
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
@@ -1103,7 +1103,7 @@ func TestCacheMergedConfig_WithoutLocalConfig(t *testing.T) {
 env:
   TEST_VAR: value
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory

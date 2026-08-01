@@ -11,8 +11,8 @@ import (
 
 func TestParseCobraOutput_WithDirectives(t *testing.T) {
 	tests := []struct {
-		name              string
-		input             string
+		name                string
+		input               string
 		expectedSuggestions []Suggestion
 		expectedDirective   int
 	}{
@@ -27,8 +27,8 @@ func TestParseCobraOutput_WithDirectives(t *testing.T) {
 			expectedDirective: 8,
 		},
 		{
-			name:  "directive FilterDirs (16)",
-			input: ":16",
+			name:                "directive FilterDirs (16)",
+			input:               ":16",
 			expectedSuggestions: []Suggestion{},
 			expectedDirective:   16,
 		},
@@ -84,15 +84,15 @@ func TestCobraCompleter_CompleteFilesWithExtensions(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create files
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.json"), []byte("{}"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.yaml"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.yml"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.json"), []byte("{}"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.yaml"), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.yml"), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte(""), 0o644))
 
 	// Create subdirectory
 	subdir := filepath.Join(tmpDir, "subdir")
-	require.NoError(t, os.Mkdir(subdir, 0755))
+	require.NoError(t, os.Mkdir(subdir, 0o755))
 
 	// Change to temp directory
 	oldWd, err := os.Getwd()
@@ -135,11 +135,11 @@ func TestCobraCompleter_CompleteDirectories(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create directories
-	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, "dir1"), 0755))
-	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, "dir2"), 0755))
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, "dir1"), 0o755))
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, "dir2"), 0o755))
 
 	// Create files (should be excluded)
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte(""), 0o644))
 
 	// Change to temp directory
 	oldWd, err := os.Getwd()
@@ -168,9 +168,9 @@ func TestCobraCompleter_CompleteFilesWithPrefix(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create files with common prefix
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "test1.json"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "test2.json"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "other.json"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "test1.json"), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "test2.json"), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "other.json"), []byte(""), 0o644))
 
 	oldWd, err := os.Getwd()
 	require.NoError(t, err)
@@ -200,9 +200,9 @@ func TestCobraCompleter_SkipsHiddenFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create hidden and visible files
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".hidden.json"), []byte(""), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "visible.json"), []byte(""), 0644))
-	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, ".hidden_dir"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".hidden.json"), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "visible.json"), []byte(""), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, ".hidden_dir"), 0o755))
 
 	oldWd, err := os.Getwd()
 	require.NoError(t, err)
@@ -253,8 +253,8 @@ func TestCobraCompleter_NavigatesSubdirectories(t *testing.T) {
 
 	// Create subdirectory with files
 	subdir := filepath.Join(tmpDir, "subdir")
-	require.NoError(t, os.Mkdir(subdir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(subdir, "nested.json"), []byte(""), 0644))
+	require.NoError(t, os.Mkdir(subdir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(subdir, "nested.json"), []byte(""), 0o644))
 
 	oldWd, err := os.Getwd()
 	require.NoError(t, err)

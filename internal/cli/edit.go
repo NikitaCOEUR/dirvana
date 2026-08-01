@@ -25,7 +25,7 @@ func Edit(global bool) error {
 		if _, err := os.Stat(configPath); os.IsNotExist(err) {
 			// Create directory if it doesn't exist
 			configDir := filepath.Dir(configPath)
-			if err := os.MkdirAll(configDir, 0755); err != nil {
+			if err := os.MkdirAll(configDir, 0o755); err != nil {
 				return fmt.Errorf("failed to create config directory: %w", err)
 			}
 			// Note: Will be created with default content below
@@ -48,7 +48,7 @@ func Edit(global bool) error {
 
 	// If config doesn't exist, create default one
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		if err := os.WriteFile(configPath, []byte(sampleConfig), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(sampleConfig), 0o644); err != nil {
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 		if global {

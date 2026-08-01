@@ -145,9 +145,9 @@ func TestGetLocalRegistryPath(t *testing.T) {
 	t.Run("finds registry in current directory", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		registryPath := filepath.Join(tmpDir, "registry", "v1", "completion-scripts.yml")
-		err := os.MkdirAll(filepath.Dir(registryPath), 0755)
+		err := os.MkdirAll(filepath.Dir(registryPath), 0o755)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, []byte("test"), 0644)
+		err = os.WriteFile(registryPath, []byte("test"), 0o644)
 		require.NoError(t, err)
 
 		// Change to tmpDir to test
@@ -246,7 +246,7 @@ func TestTryLoadLocalRegistry(t *testing.T) {
 		// Create a temporary local registry
 		tmpDir := t.TempDir()
 		registryPath := filepath.Join(tmpDir, "registry", "v1", "completion-scripts.yml")
-		err := os.MkdirAll(filepath.Dir(registryPath), 0755)
+		err := os.MkdirAll(filepath.Dir(registryPath), 0o755)
 		require.NoError(t, err)
 
 		registryData := RegistryConfig{
@@ -256,7 +256,7 @@ func TestTryLoadLocalRegistry(t *testing.T) {
 		}
 		data, err := yaml.Marshal(registryData)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, data, 0644)
+		err = os.WriteFile(registryPath, data, 0o644)
 		require.NoError(t, err)
 
 		// Change to tmpDir
@@ -310,9 +310,9 @@ func TestTryLoadCachedRegistry(t *testing.T) {
 		data, err := yaml.Marshal(registryData)
 		require.NoError(t, err)
 
-		err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+		err = os.MkdirAll(filepath.Dir(registryPath), 0o755)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, data, 0644)
+		err = os.WriteFile(registryPath, data, 0o644)
 		require.NoError(t, err)
 
 		config, ok := tryLoadCachedRegistry(registryPath)
@@ -329,9 +329,9 @@ func TestTryLoadCachedRegistry(t *testing.T) {
 		data, err := yaml.Marshal(registryData)
 		require.NoError(t, err)
 
-		err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+		err = os.MkdirAll(filepath.Dir(registryPath), 0o755)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, data, 0644)
+		err = os.WriteFile(registryPath, data, 0o644)
 		require.NoError(t, err)
 
 		// Make file old
@@ -365,9 +365,9 @@ func TestTryLoadExpiredCache(t *testing.T) {
 		data, err := yaml.Marshal(registryData)
 		require.NoError(t, err)
 
-		err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+		err = os.MkdirAll(filepath.Dir(registryPath), 0o755)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, data, 0644)
+		err = os.WriteFile(registryPath, data, 0o644)
 		require.NoError(t, err)
 
 		config, ok := tryLoadExpiredCache(registryPath)
@@ -408,9 +408,9 @@ func TestLoadRegistry(t *testing.T) {
 		require.NoError(t, err)
 
 		registryPath := getRegistryPath(tmpDir, "v1")
-		err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+		err = os.MkdirAll(filepath.Dir(registryPath), 0o755)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, data, 0644)
+		err = os.WriteFile(registryPath, data, 0o644)
 		require.NoError(t, err)
 
 		// Load registry
@@ -444,9 +444,9 @@ func TestLoadRegistry(t *testing.T) {
 		require.NoError(t, err)
 
 		registryPath := getRegistryPath(tmpDir, "v1")
-		err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+		err = os.MkdirAll(filepath.Dir(registryPath), 0o755)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, data, 0644)
+		err = os.WriteFile(registryPath, data, 0o644)
 		require.NoError(t, err)
 
 		reg := NewRegistry(tmpDir)
@@ -484,9 +484,9 @@ func TestLoadRegistry(t *testing.T) {
 		require.NoError(t, err)
 
 		registryPath := getRegistryPath(tmpDir, "v1")
-		err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+		err = os.MkdirAll(filepath.Dir(registryPath), 0o755)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, data, 0644)
+		err = os.WriteFile(registryPath, data, 0o644)
 		require.NoError(t, err)
 
 		reg := NewRegistry(tmpDir)
@@ -504,7 +504,7 @@ func TestLoadRegistry(t *testing.T) {
 		registryData.Description = "TTL expired - reloaded"
 		data, err = yaml.Marshal(registryData)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, data, 0644)
+		err = os.WriteFile(registryPath, data, 0o644)
 		require.NoError(t, err)
 
 		// Should reload from file since cache expired
@@ -533,9 +533,9 @@ func TestLoadRegistry(t *testing.T) {
 		require.NoError(t, err)
 
 		registryPath := getRegistryPath(tmpDir, "v1")
-		err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+		err = os.MkdirAll(filepath.Dir(registryPath), 0o755)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, data, 0644)
+		err = os.WriteFile(registryPath, data, 0o644)
 		require.NoError(t, err)
 
 		// Set file modification time to past (expired)
@@ -570,9 +570,9 @@ func TestLoadRegistry(t *testing.T) {
 		data, err := yaml.Marshal(registryData)
 		require.NoError(t, err)
 
-		err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+		err = os.MkdirAll(filepath.Dir(registryPath), 0o755)
 		require.NoError(t, err)
-		err = os.WriteFile(registryPath, data, 0644)
+		err = os.WriteFile(registryPath, data, 0o644)
 		require.NoError(t, err)
 
 		// Change to directory for local detection
@@ -913,9 +913,9 @@ func BenchmarkLoadRegistry(b *testing.B) {
 	require.NoError(b, err)
 
 	registryPath := getRegistryPath(tmpDir, "v1")
-	err = os.MkdirAll(filepath.Dir(registryPath), 0755)
+	err = os.MkdirAll(filepath.Dir(registryPath), 0o755)
 	require.NoError(b, err)
-	err = os.WriteFile(registryPath, data, 0644)
+	err = os.WriteFile(registryPath, data, 0o644)
 	require.NoError(b, err)
 
 	b.ResetTimer()

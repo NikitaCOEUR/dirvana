@@ -22,7 +22,7 @@ env:
   GIT_BRANCH:
     sh: git branch --show-current
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	result, err := Validate(configPath)
 	require.NoError(t, err)
@@ -43,7 +43,7 @@ func TestValidate_InvalidSyntax(t *testing.T) {
   ll: ls -la
   invalid yaml here [[[
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	result, err := Validate(configPath)
 	require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestValidate_NameConflict(t *testing.T) {
 functions:
   test: echo function
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	result, err := Validate(configPath)
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestValidate_EmptyAlias(t *testing.T) {
   ll: ls -la
   empty: ""
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	result, err := Validate(configPath)
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestValidate_EmptyFunction(t *testing.T) {
   greet: echo hello
   empty: ""
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	result, err := Validate(configPath)
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ func TestValidate_EmptyShellCommand(t *testing.T) {
   VAR2:
     sh: ""
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	result, err := Validate(configPath)
 	require.NoError(t, err)
@@ -126,7 +126,7 @@ func TestValidate_MultilineShellCommand(t *testing.T) {
   VAR:
     sh: "line1\nline2"
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	result, err := Validate(configPath)
 	require.NoError(t, err)
@@ -147,7 +147,7 @@ env:
   VAR:
     sh: ""
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	result, err := Validate(configPath)
 	require.NoError(t, err)

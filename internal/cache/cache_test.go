@@ -91,9 +91,9 @@ func TestCache_Persistence(t *testing.T) {
 	require.NoError(t, err)
 
 	entry := &Entry{
-		Path:      "/test/path",
-		Hash:      "abc123",
-		Version:   "1.0.0",
+		Path:    "/test/path",
+		Hash:    "abc123",
+		Version: "1.0.0",
 	}
 	require.NoError(t, c1.Set(entry))
 

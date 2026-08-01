@@ -46,5 +46,5 @@ func SelectInstallStrategy(shellName string) (InstallStrategy, error) {
 // atomicWrite writes an RC or hook file atomically (0644: shell config
 // files are conventionally world-readable)
 func atomicWrite(filename string, data []byte) error {
-	return fsutil.AtomicWrite(filename, data, 0644)
+	return fsutil.AtomicWrite(filename, data, 0o644)
 }

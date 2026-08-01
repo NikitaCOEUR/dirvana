@@ -81,11 +81,11 @@ func TestCollectAll_WithUnauthorizedConfig(t *testing.T) {
   gs: git status
   k: kubectl
 `
-	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
+	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Create empty auth file (no authorization)
-	err = os.WriteFile(authPath, []byte("{}"), 0644)
+	err = os.WriteFile(authPath, []byte("{}"), 0o644)
 	require.NoError(t, err)
 
 	// Change to temporary directory
@@ -135,7 +135,7 @@ env:
   BUILD_DIR: ./build
 local_only: true
 `
-	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
+	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Create auth and authorize the directory using the API
@@ -196,7 +196,7 @@ func TestCollectAll_WithCache(t *testing.T) {
   gs: git status
 `
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Create auth and authorize the directory using the API
@@ -221,7 +221,7 @@ func TestCollectAll_WithCache(t *testing.T) {
 		},
 	}
 	cacheData, _ := json.Marshal(cacheContent)
-	err = os.WriteFile(cachePath, cacheData, 0644)
+	err = os.WriteFile(cachePath, cacheData, 0o644)
 	require.NoError(t, err)
 
 	// Change to temporary directory
@@ -249,7 +249,7 @@ func TestCollectAll_WithCompletion(t *testing.T) {
 	tmpDir, err := filepath.EvalSymlinks(tmpDir)
 	require.NoError(t, err)
 	cacheDir := filepath.Join(tmpDir, ".cache")
-	err = os.MkdirAll(cacheDir, 0755)
+	err = os.MkdirAll(cacheDir, 0o755)
 	require.NoError(t, err)
 
 	cachePath := filepath.Join(cacheDir, "cache.json")
@@ -263,7 +263,7 @@ func TestCollectAll_WithCompletion(t *testing.T) {
 		"go":      map[string]any{"completer_type": "Flag"},
 	}
 	detectionData, _ := json.Marshal(detectionContent)
-	err = os.WriteFile(detectionPath, detectionData, 0644)
+	err = os.WriteFile(detectionPath, detectionData, 0o644)
 	require.NoError(t, err)
 
 	// Create registry with proper name
@@ -274,18 +274,18 @@ func TestCollectAll_WithCompletion(t *testing.T) {
   helm:
     url: https://example.com/helm.sh
 `
-	err = os.WriteFile(registryPath, []byte(registryContent), 0644)
+	err = os.WriteFile(registryPath, []byte(registryContent), 0o644)
 	require.NoError(t, err)
 
 	// Create downloaded scripts in proper directory structure
 	scriptsDir := filepath.Join(cacheDir, "completion-scripts", "bash")
-	err = os.MkdirAll(scriptsDir, 0755)
+	err = os.MkdirAll(scriptsDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(scriptsDir, "kubectl.sh"), []byte("#!/bin/bash\n# kubectl completion"), 0755)
+	err = os.WriteFile(filepath.Join(scriptsDir, "kubectl.sh"), []byte("#!/bin/bash\n# kubectl completion"), 0o755)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(scriptsDir, "helm.sh"), []byte("#!/bin/bash\n# helm completion"), 0755)
+	err = os.WriteFile(filepath.Join(scriptsDir, "helm.sh"), []byte("#!/bin/bash\n# helm completion"), 0o755)
 	require.NoError(t, err)
 
 	// Change to temporary directory
@@ -338,7 +338,7 @@ func TestCollectAll_WithCompletionOverrides(t *testing.T) {
   g:
     command: git
 `
-	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
+	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Create auth and authorize the directory using the API
@@ -375,14 +375,14 @@ func TestCollectAll_WithGlobalConfig(t *testing.T) {
 
 	// Create global config directory
 	globalDir := filepath.Join(tmpDir, ".config", "dirvana")
-	err = os.MkdirAll(globalDir, 0755)
+	err = os.MkdirAll(globalDir, 0o755)
 	require.NoError(t, err)
 
 	globalConfigPath := filepath.Join(globalDir, "global.yml")
 	globalContent := `aliases:
   ll: ls -la
 `
-	err = os.WriteFile(globalConfigPath, []byte(globalContent), 0644)
+	err = os.WriteFile(globalConfigPath, []byte(globalContent), 0o644)
 	require.NoError(t, err)
 
 	// Set XDG_CONFIG_HOME to use our temp directory
@@ -395,7 +395,7 @@ func TestCollectAll_WithGlobalConfig(t *testing.T) {
 	localContent := `aliases:
   gs: git status
 `
-	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(localContent), 0644)
+	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(localContent), 0o644)
 	require.NoError(t, err)
 
 	// Create auth and authorize the directory using the API
@@ -444,7 +444,7 @@ eval "$(dirvana export)"
 
 # More content below
 `
-		err := os.WriteFile(rcFile, []byte(content), 0644)
+		err := os.WriteFile(rcFile, []byte(content), 0o644)
 		require.NoError(t, err)
 
 		result := checkRCFileForHook(rcFile)
@@ -459,7 +459,7 @@ eval "$(dirvana export)"
 source ~/.dirvana/hook-bash.sh
 alias ll='ls -la'
 `
-		err := os.WriteFile(rcFile, []byte(content), 0644)
+		err := os.WriteFile(rcFile, []byte(content), 0o644)
 		require.NoError(t, err)
 
 		result := checkRCFileForHook(rcFile)
@@ -473,7 +473,7 @@ alias ll='ls -la'
 		content := `# ZSH config
 source ~/.dirvana/hook-zsh.sh
 `
-		err := os.WriteFile(rcFile, []byte(content), 0644)
+		err := os.WriteFile(rcFile, []byte(content), 0o644)
 		require.NoError(t, err)
 
 		result := checkRCFileForHook(rcFile)
@@ -485,7 +485,7 @@ source ~/.dirvana/hook-zsh.sh
 		rcFile := filepath.Join(tmpDir, ".bashrc")
 
 		content := `eval "$(dirvana export)"`
-		err := os.WriteFile(rcFile, []byte(content), 0644)
+		err := os.WriteFile(rcFile, []byte(content), 0o644)
 		require.NoError(t, err)
 
 		result := checkRCFileForHook(rcFile)
@@ -500,7 +500,7 @@ source ~/.dirvana/hook-zsh.sh
 alias ll='ls -la'
 # Just regular bashrc content
 `
-		err := os.WriteFile(rcFile, []byte(content), 0644)
+		err := os.WriteFile(rcFile, []byte(content), 0o644)
 		require.NoError(t, err)
 
 		result := checkRCFileForHook(rcFile)
@@ -524,7 +524,7 @@ alias ll='ls -la'
 		}
 		content += "# Dirvana hook at the end\n"
 
-		err := os.WriteFile(rcFile, []byte(content), 0644)
+		err := os.WriteFile(rcFile, []byte(content), 0o644)
 		require.NoError(t, err)
 
 		// Should still find it (proves line-by-line scanning works)

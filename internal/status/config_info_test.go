@@ -205,7 +205,7 @@ func TestGetHierarchyInfo_WithLocalConfig(t *testing.T) {
   test: echo test
 `
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Change to tmpDir
@@ -246,7 +246,7 @@ func TestGetHierarchyInfo_WithUnauthorizedConfig(t *testing.T) {
   test: echo test
 `
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Change to tmpDir
@@ -287,7 +287,7 @@ func TestGetHierarchyInfo_WithLocalOnly(t *testing.T) {
 local_only: true
 `
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Change to tmpDir
@@ -318,14 +318,14 @@ func TestGetHierarchyInfo_WithGlobalConfig(t *testing.T) {
 
 	// Create global config directory
 	globalDir := filepath.Join(tmpDir, ".config", "dirvana")
-	err = os.MkdirAll(globalDir, 0755)
+	err = os.MkdirAll(globalDir, 0o755)
 	require.NoError(t, err)
 
 	globalConfigPath := filepath.Join(globalDir, "global.yml")
 	globalContent := `aliases:
   global_alias: echo global
 `
-	err = os.WriteFile(globalConfigPath, []byte(globalContent), 0644)
+	err = os.WriteFile(globalConfigPath, []byte(globalContent), 0o644)
 	require.NoError(t, err)
 
 	// Set XDG_CONFIG_HOME to use our temp directory
@@ -338,7 +338,7 @@ func TestGetHierarchyInfo_WithGlobalConfig(t *testing.T) {
 	configContent := `aliases:
   local_alias: echo local
 `
-	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
+	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize
@@ -378,20 +378,20 @@ func TestGetHierarchyInfo_WithMultipleConfigs(t *testing.T) {
 
 	// Create parent config
 	parentDir := filepath.Join(tmpDir, "parent")
-	err = os.MkdirAll(parentDir, 0755)
+	err = os.MkdirAll(parentDir, 0o755)
 	require.NoError(t, err)
 
 	parentConfig := filepath.Join(parentDir, ".dirvana.yml")
-	err = os.WriteFile(parentConfig, []byte("aliases:\n  parent: echo parent\n"), 0644)
+	err = os.WriteFile(parentConfig, []byte("aliases:\n  parent: echo parent\n"), 0o644)
 	require.NoError(t, err)
 
 	// Create child config
 	childDir := filepath.Join(parentDir, "child")
-	err = os.MkdirAll(childDir, 0755)
+	err = os.MkdirAll(childDir, 0o755)
 	require.NoError(t, err)
 
 	childConfig := filepath.Join(childDir, ".dirvana.yml")
-	err = os.WriteFile(childConfig, []byte("aliases:\n  child: echo child\n"), 0644)
+	err = os.WriteFile(childConfig, []byte("aliases:\n  child: echo child\n"), 0o644)
 	require.NoError(t, err)
 
 	// Authorize both directories

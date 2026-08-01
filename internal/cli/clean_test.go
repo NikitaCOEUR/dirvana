@@ -50,7 +50,7 @@ func TestClean_Hierarchy(t *testing.T) {
 	// Create test directory structure
 	testDir := filepath.Join(tmpDir, "test")
 	subDir := filepath.Join(testDir, "sub")
-	require.NoError(t, os.MkdirAll(subDir, 0755))
+	require.NoError(t, os.MkdirAll(subDir, 0o755))
 
 	// Create cache with entries in hierarchy
 	c, err := cache.New(cachePath)

@@ -52,7 +52,7 @@ func (s *ExternalHookStrategy) Install() error {
 		return fmt.Errorf("failed to generate hook code: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(s.hookPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.hookPath), 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 

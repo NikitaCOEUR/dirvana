@@ -68,7 +68,7 @@ func TestEdit_OpensExistingConfig(t *testing.T) {
 
 	// Create existing config
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0o644))
 
 	// Set a valid editor that just exits (for testing)
 	t.Setenv("EDITOR", "true")
@@ -136,13 +136,13 @@ func TestEdit_Global_OpensExistingConfig(t *testing.T) {
 
 	// Create global config directory and file
 	globalConfigDir := filepath.Join(tmpDir, "dirvana")
-	err := os.MkdirAll(globalConfigDir, 0755)
+	err := os.MkdirAll(globalConfigDir, 0o755)
 	require.NoError(t, err)
 
 	globalConfigPath := filepath.Join(globalConfigDir, "global.yml")
 	testConfig := `aliases:
   test: echo test`
-	require.NoError(t, os.WriteFile(globalConfigPath, []byte(testConfig), 0644))
+	require.NoError(t, os.WriteFile(globalConfigPath, []byte(testConfig), 0o644))
 
 	// Set a valid editor that just exits (for testing)
 	t.Setenv("EDITOR", "true")

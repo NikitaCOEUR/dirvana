@@ -159,14 +159,14 @@ echo "yaml"
 echo ":8"
 `
 		scriptPath := filepath.Join(tmpDir, "mock-cobra-ext")
-		require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0755))
+		require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0o755))
 
 		// Create some test files
 		testDir := filepath.Join(tmpDir, "testfiles")
-		require.NoError(t, os.MkdirAll(testDir, 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.json"), []byte(""), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.yaml"), []byte(""), 0644))
-		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.txt"), []byte(""), 0644))
+		require.NoError(t, os.MkdirAll(testDir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.json"), []byte(""), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.yaml"), []byte(""), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.txt"), []byte(""), 0o644))
 
 		// Change to test directory
 		oldWd, err := os.Getwd()
@@ -196,14 +196,14 @@ echo ":8"
 echo ":16"
 `
 		scriptPath := filepath.Join(tmpDir, "mock-cobra-dirs")
-		require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0755))
+		require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0o755))
 
 		// Create test structure with dirs and files
 		testDir := filepath.Join(tmpDir, "testdirs")
-		require.NoError(t, os.MkdirAll(testDir, 0755))
-		require.NoError(t, os.Mkdir(filepath.Join(testDir, "dir1"), 0755))
-		require.NoError(t, os.Mkdir(filepath.Join(testDir, "dir2"), 0755))
-		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.txt"), []byte(""), 0644))
+		require.NoError(t, os.MkdirAll(testDir, 0o755))
+		require.NoError(t, os.Mkdir(filepath.Join(testDir, "dir1"), 0o755))
+		require.NoError(t, os.Mkdir(filepath.Join(testDir, "dir2"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(testDir, "file.txt"), []byte(""), 0o644))
 
 		// Change to test directory
 		oldWd, err := os.Getwd()
@@ -236,7 +236,7 @@ echo "delete"
 echo ":0"
 `
 		scriptPath := filepath.Join(tmpDir, "mock-cobra-normal")
-		require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0755))
+		require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0o755))
 
 		// Call Complete which should return suggestions as-is
 		suggestions, err := c.Complete(scriptPath, []string{})

@@ -17,7 +17,7 @@ func TestSelectInstallStrategy_PrefersDropIn(t *testing.T) {
 	// Create RC file with drop-in support
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 	rcContent := "if [ -d ~/.bashrc.d ]; then\n  for rc in ~/.bashrc.d/*.sh; do\n    source $rc\n  done\nfi"
-	err := os.WriteFile(rcFile, []byte(rcContent), 0644)
+	err := os.WriteFile(rcFile, []byte(rcContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestSelectInstallStrategy_FallbackToExternal(t *testing.T) {
 	// Create RC file without drop-in support
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 	rcContent := "# Regular .bashrc"
-	err := os.WriteFile(rcFile, []byte(rcContent), 0644)
+	err := os.WriteFile(rcFile, []byte(rcContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestAtomicWrite_RCFilePermissions(t *testing.T) {
 		t.Fatalf("Failed to stat file: %v", err)
 	}
 
-	expectedPerm := os.FileMode(0644)
+	expectedPerm := os.FileMode(0o644)
 	if info.Mode().Perm() != expectedPerm {
 		t.Errorf("File permissions = %v, want %v", info.Mode().Perm(), expectedPerm)
 	}

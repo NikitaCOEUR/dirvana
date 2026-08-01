@@ -18,7 +18,7 @@ func TestExec_NoCacheEntry(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create empty cache
 	_, err := cache.New(cachePath)
@@ -48,7 +48,7 @@ func TestExec_AliasNotFound(t *testing.T) {
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Resolve symlinks for macOS compatibility
 	workDir, err := filepath.EvalSymlinks(workDir)
@@ -59,7 +59,7 @@ func TestExec_AliasNotFound(t *testing.T) {
 	configContent := `aliases:
   other: echo other
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 	// Authorize the directory
 	authMgr, err := auth.New(authPath)
@@ -91,7 +91,7 @@ func TestExec_EmptyCommand(t *testing.T) {
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Resolve symlinks for macOS compatibility
 	workDir, err := filepath.EvalSymlinks(workDir)
@@ -102,7 +102,7 @@ func TestExec_EmptyCommand(t *testing.T) {
 	configContent := `aliases:
   empty: ""
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 	// Authorize the directory
 	authMgr, err := auth.New(authPath)
@@ -134,7 +134,7 @@ func TestExec_CommandNotFound(t *testing.T) {
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Resolve symlinks for macOS compatibility
 	workDir, err := filepath.EvalSymlinks(workDir)
@@ -145,7 +145,7 @@ func TestExec_CommandNotFound(t *testing.T) {
 	configContent := `aliases:
   badcmd: this-command-does-not-exist-anywhere
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 	// Authorize the directory
 	authMgr, err := auth.New(authPath)
@@ -176,7 +176,7 @@ func TestExec_CommandWithArgs(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Resolve symlinks for macOS compatibility
 	workDir, err := filepath.EvalSymlinks(workDir)
@@ -218,7 +218,7 @@ func TestExec_MultiWordCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Resolve symlinks for macOS compatibility
 	workDir, err := filepath.EvalSymlinks(workDir)

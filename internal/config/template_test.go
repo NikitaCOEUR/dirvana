@@ -367,7 +367,7 @@ functions:
   goto: "cd {{.DIRVANA_DIR}}"
 `
 
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Load the config

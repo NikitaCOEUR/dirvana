@@ -219,7 +219,7 @@ func TestExternalHookStrategy_NeedsUpdate(t *testing.T) {
 	}
 
 	// Modify hook file to simulate outdated version
-	err = os.WriteFile(hookPath, []byte("# Old hook code"), 0644)
+	err = os.WriteFile(hookPath, []byte("# Old hook code"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to modify hook file: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestExternalHookStrategy_UpdateOnlyTouchesHookFile(t *testing.T) {
 	}
 
 	// Modify hook file
-	err = os.WriteFile(hookPath, []byte("# Old hook code"), 0644)
+	err = os.WriteFile(hookPath, []byte("# Old hook code"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to modify hook file: %v", err)
 	}
@@ -296,14 +296,14 @@ func TestExternalHookStrategy_Install_ErrorCreatingConfigDir(t *testing.T) {
 
 	// Create a file where .config should be to cause error
 	configPath := filepath.Join(tmpDir, ".config")
-	err := os.WriteFile(configPath, []byte("blocking file"), 0644)
+	err := os.WriteFile(configPath, []byte("blocking file"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create blocking file: %v", err)
 	}
 
 	// Create RC file
 	rcFile := filepath.Join(tmpDir, ".bashrc")
-	err = os.WriteFile(rcFile, []byte("# Test"), 0644)
+	err = os.WriteFile(rcFile, []byte("# Test"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestExternalHookStrategy_Install_ErrorReadingRCFile(t *testing.T) {
 
 	// Create a directory where RC file should be
 	rcFile := filepath.Join(tmpDir, ".bashrc")
-	err := os.Mkdir(rcFile, 0755)
+	err := os.Mkdir(rcFile, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create directory: %v", err)
 	}

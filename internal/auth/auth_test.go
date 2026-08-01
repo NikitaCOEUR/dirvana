@@ -276,7 +276,7 @@ func TestAuth_AllowAfterDisabled(t *testing.T) {
 
 	// Create an auth file with a directory that has Allowed=false
 	authData := `{"_version":2,"directories":{"/test/project":{"allowed":false,"allowed_at":"2020-01-01T00:00:00Z"}}}`
-	require.NoError(t, os.WriteFile(authPath, []byte(authData), 0600))
+	require.NoError(t, os.WriteFile(authPath, []byte(authData), 0o600))
 
 	a, err := New(authPath)
 	require.NoError(t, err)
@@ -353,7 +353,7 @@ func TestAuth_Load_EdgeCases(t *testing.T) {
 		// Legacy V1 format ([]string) is no longer supported and is
 		// treated like any unreadable file: empty state.
 		v1Data := []byte(`["/home/user/project1"]`)
-		require.NoError(t, os.WriteFile(authPath, v1Data, 0600))
+		require.NoError(t, os.WriteFile(authPath, v1Data, 0o600))
 
 		a, err := New(authPath)
 		require.NoError(t, err)
@@ -365,7 +365,7 @@ func TestAuth_Load_EdgeCases(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "authorized_v2.json")
 
-		require.NoError(t, os.WriteFile(authPath, []byte(`{invalid json}`), 0600))
+		require.NoError(t, os.WriteFile(authPath, []byte(`{invalid json}`), 0o600))
 
 		// New() should succeed but start with empty state
 		a, err := New(authPath)
@@ -378,7 +378,7 @@ func TestAuth_Load_EdgeCases(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "authorized_v2.json")
 
-		require.NoError(t, os.WriteFile(authPath, []byte(""), 0600))
+		require.NoError(t, os.WriteFile(authPath, []byte(""), 0o600))
 
 		a, err := New(authPath)
 		require.NoError(t, err)
@@ -390,7 +390,7 @@ func TestAuth_Load_EdgeCases(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "authorized_v2.json")
 
-		require.NoError(t, os.WriteFile(authPath, []byte(`{"_version":99,"directories":{}}`), 0600))
+		require.NoError(t, os.WriteFile(authPath, []byte(`{"_version":99,"directories":{}}`), 0o600))
 
 		// New() should succeed but start with empty state
 		a, err := New(authPath)

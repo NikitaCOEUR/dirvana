@@ -28,7 +28,7 @@ func TestInitializeComponents_InvalidAuthPath(t *testing.T) {
 
 	// Create a file where the auth parent directory should be (will cause MkdirAll to fail)
 	authParent := filepath.Join(tmpDir, "auth_parent_is_file")
-	err := os.WriteFile(authParent, []byte("blocking file"), 0644)
+	err := os.WriteFile(authParent, []byte("blocking file"), 0o644)
 	require.NoError(t, err)
 
 	invalidAuthPath := filepath.Join(authParent, "auth.json")
@@ -44,7 +44,7 @@ func TestInitializeComponents_InvalidCachePath(t *testing.T) {
 
 	// Create a directory where the cache file should be (will cause cache.New to fail)
 	invalidCachePath := filepath.Join(tmpDir, "cache_is_a_dir")
-	err := os.MkdirAll(invalidCachePath, 0755)
+	err := os.MkdirAll(invalidCachePath, 0o755)
 	require.NoError(t, err)
 
 	_, err = initializeComponents(invalidCachePath, authPath)

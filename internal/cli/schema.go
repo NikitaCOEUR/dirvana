@@ -13,7 +13,7 @@ func Schema(outputPath string) error {
 
 	// If output path is provided, write to file
 	if outputPath != "" {
-		if err := os.WriteFile(outputPath, []byte(schemaJSON), 0644); err != nil {
+		if err := os.WriteFile(outputPath, []byte(schemaJSON), 0o644); err != nil {
 			return fmt.Errorf("failed to write schema to %s: %w", outputPath, err)
 		}
 		fmt.Printf("JSON Schema written to: %s\n", outputPath)

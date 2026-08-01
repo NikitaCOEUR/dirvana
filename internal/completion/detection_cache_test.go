@@ -70,7 +70,7 @@ func TestDetectionCache_CorruptFile(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			cachePath := filepath.Join(tmpDir, name)
-			require.NoError(t, os.WriteFile(cachePath, []byte(content), 0644))
+			require.NoError(t, os.WriteFile(cachePath, []byte(content), 0o644))
 
 			// A corrupt cache file yields a usable empty cache
 			cache := NewDetectionCache(cachePath)
@@ -136,9 +136,9 @@ func TestDetectionCache_SaveToReadOnlyDir(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	readOnlyDir := filepath.Join(tmpDir, "readonly")
-	err := os.Mkdir(readOnlyDir, 0555) // Read-only directory
+	err := os.Mkdir(readOnlyDir, 0o555) // Read-only directory
 	require.NoError(t, err)
-	defer func() { _ = os.Chmod(readOnlyDir, 0755) }() // Restore permissions for cleanup
+	defer func() { _ = os.Chmod(readOnlyDir, 0o755) }() // Restore permissions for cleanup
 
 	cachePath := filepath.Join(readOnlyDir, "cache.json")
 	cache := NewDetectionCache(cachePath)

@@ -30,7 +30,7 @@ env:
   LOG_LEVEL: debug
 local_only: false
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(yamlContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(yamlContent), 0o644))
 
 	c := New()
 	cfg, err := c.Load(configPath)
@@ -62,7 +62,7 @@ greet = "echo 'Hello, $1!'"
 PROJECT_NAME = "myproject"
 DEBUG = "true"
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(tomlContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(tomlContent), 0o644))
 
 	c := New()
 	cfg, err := c.Load(configPath)
@@ -93,7 +93,7 @@ func TestConfig_LoadJSON(t *testing.T) {
   },
   "local_only": false
 }`
-	require.NoError(t, os.WriteFile(configPath, []byte(jsonContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(jsonContent), 0o644))
 
 	c := New()
 	cfg, err := c.Load(configPath)
@@ -119,7 +119,7 @@ func TestConfig_Hash(t *testing.T) {
 aliases:
   ll: ls -la
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	c := New()
 	hash1, err := c.Hash(configPath)
@@ -136,7 +136,7 @@ aliases:
 aliases:
   ll: ls -lah
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(newContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(newContent), 0o644))
 	hash3, err := c.Hash(configPath)
 	require.NoError(t, err)
 	assert.NotEqual(t, hash1, hash3)
@@ -198,9 +198,9 @@ func TestFindConfigFiles(t *testing.T) {
 	childDir := filepath.Join(rootDir, "child")
 	grandchildDir := filepath.Join(childDir, "grandchild")
 
-	require.NoError(t, os.MkdirAll(grandchildDir, 0755))
-	require.NoError(t, os.WriteFile(filepath.Join(rootDir, ".dirvana.yml"), []byte("aliases:\n  root: echo root"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(childDir, ".dirvana.yml"), []byte("aliases:\n  child: echo child"), 0644))
+	require.NoError(t, os.MkdirAll(grandchildDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, ".dirvana.yml"), []byte("aliases:\n  root: echo root"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(childDir, ".dirvana.yml"), []byte("aliases:\n  child: echo child"), 0o644))
 
 	files := FindConfigFiles(grandchildDir)
 
@@ -283,7 +283,7 @@ env:
   CURRENT_TIME:
     sh: date +%s
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(yamlContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(yamlContent), 0o644))
 
 	c := New()
 	cfg, err := c.Load(configPath)
@@ -319,11 +319,11 @@ aliases:
 env:
   PARENT_VAR: parent_value
 `
-	require.NoError(t, os.WriteFile(parentConfig, []byte(parentContent), 0644))
+	require.NoError(t, os.WriteFile(parentConfig, []byte(parentContent), 0o644))
 
 	// Create child dir and config
 	childDir := filepath.Join(parentDir, "child")
-	require.NoError(t, os.MkdirAll(childDir, 0755))
+	require.NoError(t, os.MkdirAll(childDir, 0o755))
 	childConfig := filepath.Join(childDir, ".dirvana.yml")
 	childContent := `
 aliases:
@@ -331,7 +331,7 @@ aliases:
 env:
   CHILD_VAR: child_value
 `
-	require.NoError(t, os.WriteFile(childConfig, []byte(childContent), 0644))
+	require.NoError(t, os.WriteFile(childConfig, []byte(childContent), 0o644))
 
 	loader := New()
 	merged, files, err := loader.LoadHierarchyWithAuth(childDir, nil)
@@ -371,18 +371,18 @@ func TestConfig_LoadHierarchy_LocalOnly(t *testing.T) {
 aliases:
   ll: ls -la
 `
-	require.NoError(t, os.WriteFile(parentConfig, []byte(parentContent), 0644))
+	require.NoError(t, os.WriteFile(parentConfig, []byte(parentContent), 0o644))
 
 	// Create child dir with local_only config
 	childDir := filepath.Join(parentDir, "child")
-	require.NoError(t, os.MkdirAll(childDir, 0755))
+	require.NoError(t, os.MkdirAll(childDir, 0o755))
 	childConfig := filepath.Join(childDir, ".dirvana.yml")
 	childContent := `
 aliases:
   gd: git diff
 local_only: true
 `
-	require.NoError(t, os.WriteFile(childConfig, []byte(childContent), 0644))
+	require.NoError(t, os.WriteFile(childConfig, []byte(childContent), 0o644))
 
 	loader := New()
 	merged, files, err := loader.LoadHierarchyWithAuth(childDir, nil)
@@ -463,7 +463,7 @@ func TestConfig_LoadHierarchy_WithGlobal(t *testing.T) {
 
 	// Create global config
 	globalDir := filepath.Join(tmpDir, "dirvana")
-	require.NoError(t, os.MkdirAll(globalDir, 0755))
+	require.NoError(t, os.MkdirAll(globalDir, 0o755))
 	globalConfig := filepath.Join(globalDir, GlobalConfigName)
 	globalContent := `aliases:
   g: git
@@ -471,17 +471,17 @@ func TestConfig_LoadHierarchy_WithGlobal(t *testing.T) {
 env:
   GLOBAL_VAR: global_value
 `
-	require.NoError(t, os.WriteFile(globalConfig, []byte(globalContent), 0644))
+	require.NoError(t, os.WriteFile(globalConfig, []byte(globalContent), 0o644))
 
 	// Create a local config in a subdirectory
 	localDir := filepath.Join(tmpDir, "project")
-	require.NoError(t, os.MkdirAll(localDir, 0755))
+	require.NoError(t, os.MkdirAll(localDir, 0o755))
 	localConfig := filepath.Join(localDir, ".dirvana.yml")
 	localContent := `aliases:
   ll: ls -la  # Override global
   local: echo local
 `
-	require.NoError(t, os.WriteFile(localConfig, []byte(localContent), 0644))
+	require.NoError(t, os.WriteFile(localConfig, []byte(localContent), 0o644))
 
 	loader := New()
 	merged, files, err := loader.LoadHierarchyWithAuth(localDir, nil)
@@ -513,23 +513,23 @@ func TestConfig_LoadHierarchy_IgnoreGlobal(t *testing.T) {
 
 	// Create global config
 	globalDir := filepath.Join(tmpDir, "dirvana")
-	require.NoError(t, os.MkdirAll(globalDir, 0755))
+	require.NoError(t, os.MkdirAll(globalDir, 0o755))
 	globalConfig := filepath.Join(globalDir, GlobalConfigName)
 	globalContent := `aliases:
   g: git
   ll: ls -lah
 `
-	require.NoError(t, os.WriteFile(globalConfig, []byte(globalContent), 0644))
+	require.NoError(t, os.WriteFile(globalConfig, []byte(globalContent), 0o644))
 
 	// Create a local config with ignore_global in a subdirectory
 	localDir := filepath.Join(tmpDir, "project")
-	require.NoError(t, os.MkdirAll(localDir, 0755))
+	require.NoError(t, os.MkdirAll(localDir, 0o755))
 	localConfig := filepath.Join(localDir, ".dirvana.yml")
 	localContent := `ignore_global: true
 aliases:
   local: echo local
 `
-	require.NoError(t, os.WriteFile(localConfig, []byte(localContent), 0644))
+	require.NoError(t, os.WriteFile(localConfig, []byte(localContent), 0o644))
 
 	loader := New()
 	merged, files, err := loader.LoadHierarchyWithAuth(localDir, nil)
@@ -580,7 +580,7 @@ func TestConfig_LoadHierarchyWithAuth_SkipsUnauthorized(t *testing.T) {
 	dirB := filepath.Join(dirA, "B")
 	dirC := filepath.Join(dirB, "C")
 
-	require.NoError(t, os.MkdirAll(dirC, 0755))
+	require.NoError(t, os.MkdirAll(dirC, 0o755))
 
 	// Create config files in each directory
 	configA := filepath.Join(dirA, ".dirvana.yml")
@@ -603,9 +603,9 @@ env:
 env:
   C_VAR: "value_c"`
 
-	require.NoError(t, os.WriteFile(configA, []byte(configContentA), 0644))
-	require.NoError(t, os.WriteFile(configB, []byte(configContentB), 0644))
-	require.NoError(t, os.WriteFile(configC, []byte(configContentC), 0644))
+	require.NoError(t, os.WriteFile(configA, []byte(configContentA), 0o644))
+	require.NoError(t, os.WriteFile(configB, []byte(configContentB), 0o644))
+	require.NoError(t, os.WriteFile(configC, []byte(configContentC), 0o644))
 
 	// Create mock auth checker - authorize A and C but NOT B
 	auth := NewMockAuthChecker()
@@ -656,7 +656,7 @@ func TestConfig_LoadHierarchyWithAuth_AllAuthorized(t *testing.T) {
 	dirB := filepath.Join(dirA, "B")
 	dirC := filepath.Join(dirB, "C")
 
-	require.NoError(t, os.MkdirAll(dirC, 0755))
+	require.NoError(t, os.MkdirAll(dirC, 0o755))
 
 	// Create config files
 	configA := filepath.Join(dirA, ".dirvana.yml")
@@ -670,9 +670,9 @@ func TestConfig_LoadHierarchyWithAuth_AllAuthorized(t *testing.T) {
 	configContentC := `aliases:
   c_cmd: echo "from C"`
 
-	require.NoError(t, os.WriteFile(configA, []byte(configContentA), 0644))
-	require.NoError(t, os.WriteFile(configB, []byte(configContentB), 0644))
-	require.NoError(t, os.WriteFile(configC, []byte(configContentC), 0644))
+	require.NoError(t, os.WriteFile(configA, []byte(configContentA), 0o644))
+	require.NoError(t, os.WriteFile(configB, []byte(configContentB), 0o644))
+	require.NoError(t, os.WriteFile(configC, []byte(configContentC), 0o644))
 
 	// Authorize all directories
 	auth := NewMockAuthChecker()
@@ -702,7 +702,7 @@ func TestConfig_LoadHierarchyWithAuth_NoAuthChecker(t *testing.T) {
 
 	configContent := `aliases:
   test: echo "test"`
-	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
 	loader := New()
 
@@ -725,7 +725,7 @@ func TestHasLocalConfig(t *testing.T) {
 
 	// Create .dirvana.yml
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  test: echo test"), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  test: echo test"), 0o644))
 	assert.True(t, HasLocalConfig(tmpDir))
 
 	// Test with different config types
@@ -734,21 +734,21 @@ func TestHasLocalConfig(t *testing.T) {
 
 	// .dirvana.yaml
 	configPath = filepath.Join(tmpDir, ".dirvana.yaml")
-	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  test: echo test"), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  test: echo test"), 0o644))
 	assert.True(t, HasLocalConfig(tmpDir))
 
 	_ = os.Remove(configPath)
 
 	// .dirvana.toml
 	configPath = filepath.Join(tmpDir, ".dirvana.toml")
-	require.NoError(t, os.WriteFile(configPath, []byte("[aliases]\ntest = \"echo test\""), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte("[aliases]\ntest = \"echo test\""), 0o644))
 	assert.True(t, HasLocalConfig(tmpDir))
 
 	_ = os.Remove(configPath)
 
 	// .dirvana.json
 	configPath = filepath.Join(tmpDir, ".dirvana.json")
-	require.NoError(t, os.WriteFile(configPath, []byte("{\"aliases\":{\"test\":\"echo test\"}}"), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte("{\"aliases\":{\"test\":\"echo test\"}}"), 0o644))
 	assert.True(t, HasLocalConfig(tmpDir))
 }
 
@@ -758,11 +758,11 @@ func TestLoader_FindConfigs(t *testing.T) {
 	// Create a nested structure: tmpDir/level1/level2
 	level1 := filepath.Join(tmpDir, "level1")
 	level2 := filepath.Join(level1, "level2")
-	require.NoError(t, os.MkdirAll(level2, 0755))
+	require.NoError(t, os.MkdirAll(level2, 0o755))
 
 	// Add config files at different levels
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte("aliases:\n  root: echo root\n"), 0644))
-	require.NoError(t, os.WriteFile(filepath.Join(level1, ".dirvana.yml"), []byte("aliases:\n  l1: echo l1\n"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte("aliases:\n  root: echo root\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(level1, ".dirvana.yml"), []byte("aliases:\n  l1: echo l1\n"), 0o644))
 
 	loader := New()
 	dirs := loader.FindConfigs(level2)
@@ -788,7 +788,7 @@ func TestLoader_IsLocalOnly_True(t *testing.T) {
 
 	// Create a config with local_only: true
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte("local_only: true\n"), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte("local_only: true\n"), 0o644))
 
 	loader := New()
 	assert.True(t, loader.IsLocalOnly(tmpDir))
@@ -802,7 +802,7 @@ func TestLoader_IsLocalOnly_False(t *testing.T) {
 
 	// Create a config with local_only: false
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte("local_only: false\n"), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte("local_only: false\n"), 0o644))
 
 	loader := New()
 	assert.False(t, loader.IsLocalOnly(tmpDir))
@@ -1033,7 +1033,7 @@ aliases:
     command: ./deploy.sh
     else: "echo 'No .env file'"
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(yamlContent), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(yamlContent), 0o644))
 
 	c := New()
 	cfg, err := c.Load(configPath)
@@ -1066,7 +1066,7 @@ func TestLoader_HashThenLoad(t *testing.T) {
 	// returned a nil config with no error, crashing callers.
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  test: echo test\n"), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  test: echo test\n"), 0o644))
 
 	loader := New()
 

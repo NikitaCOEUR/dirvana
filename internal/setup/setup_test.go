@@ -61,7 +61,7 @@ func TestInstallHook_NewInstallation(t *testing.T) {
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
 	// Pre-create rc file without hook
-	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -106,7 +106,7 @@ func TestIsHookInstalled(t *testing.T) {
 	assert.False(t, installed)
 
 	// Test when file exists without hook
-	require.NoError(t, os.WriteFile(rcFile, []byte("# My bashrc\n"), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte("# My bashrc\n"), 0o644))
 	installed, err = IsHookInstalled("bash")
 	require.NoError(t, err)
 	assert.False(t, installed)
@@ -132,7 +132,7 @@ function myfunction() {
   echo "test"
 }
 `
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -174,7 +174,7 @@ func TestInstallHook_ReadOnlyFile(t *testing.T) {
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
 	// Create a read-only file
-	require.NoError(t, os.WriteFile(rcFile, []byte("# test\n"), 0444))
+	require.NoError(t, os.WriteFile(rcFile, []byte("# test\n"), 0o444))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -196,7 +196,7 @@ func TestInstallHook_DirenvWarning(t *testing.T) {
 # direnv hook
 eval "$(direnv hook bash)"
 `, testBashrcContent)
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -214,7 +214,7 @@ func TestUninstallHook(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
-	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent+"\nSome other content\n"), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent+"\nSome other content\n"), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -245,7 +245,7 @@ func TestUninstallHook_NotInstalled(t *testing.T) {
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
 	// Create rc file without hook
-	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -281,7 +281,7 @@ func TestInstallHook_NoDirenvWarning(t *testing.T) {
 
 	// Create rc file WITHOUT direnv
 	existingContent := testBashrcContent
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -303,7 +303,7 @@ func TestInstallHook_WithoutStaticCompletion(t *testing.T) {
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
 	// Create rc file without hook
-	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -353,15 +353,15 @@ func TestUninstallHook_WithDropInStrategy(t *testing.T) {
 	// Create RC file with drop-in support
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 	rcContent := "if [ -d ~/.bashrc.d ]; then\n  for rc in ~/.bashrc.d/*.sh; do\n    source $rc\n  done\nfi"
-	err := os.WriteFile(rcFile, []byte(rcContent), 0644)
+	err := os.WriteFile(rcFile, []byte(rcContent), 0o644)
 	require.NoError(t, err)
 
 	// Create drop-in directory and hook file
 	dropInDir := filepath.Join(tmpDir, ".bashrc.d")
 	dropInFile := filepath.Join(dropInDir, "dirvana.sh")
-	err = os.MkdirAll(dropInDir, 0755)
+	err = os.MkdirAll(dropInDir, 0o755)
 	require.NoError(t, err)
-	err = os.WriteFile(dropInFile, []byte("# Hook code"), 0644)
+	err = os.WriteFile(dropInFile, []byte("# Hook code"), 0o644)
 	require.NoError(t, err)
 
 	// Uninstall
@@ -382,18 +382,18 @@ func TestUninstallHook_WithExternalHook(t *testing.T) {
 
 	// Create external hook file
 	configDir := filepath.Join(tmpDir, ".config", "dirvana")
-	err := os.MkdirAll(configDir, 0755)
+	err := os.MkdirAll(configDir, 0o755)
 	require.NoError(t, err)
 
 	hookPath := filepath.Join(configDir, "hook-bash.sh")
-	err = os.WriteFile(hookPath, []byte("# Test hook"), 0644)
+	err = os.WriteFile(hookPath, []byte("# Test hook"), 0o644)
 	require.NoError(t, err)
 
 	// Create RC file with reference to external hook
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 	sourceLine := fmt.Sprintf("[ -f %s ] && source %s", hookPath, hookPath)
 	hookCode := fmt.Sprintf("# Dirvana\n%s\n", sourceLine)
-	err = os.WriteFile(rcFile, []byte(hookCode), 0644)
+	err = os.WriteFile(rcFile, []byte(hookCode), 0o644)
 	require.NoError(t, err)
 
 	// Uninstall
@@ -428,7 +428,7 @@ func TestCheckDirenvConflict_NoConflict(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 	content := "# Regular bashrc\nexport PATH=$PATH:/usr/local/bin"
-	err := os.WriteFile(rcFile, []byte(content), 0644)
+	err := os.WriteFile(rcFile, []byte(content), 0o644)
 	require.NoError(t, err)
 
 	warning := checkDirenvConflict(rcFile)
@@ -439,7 +439,7 @@ func TestCheckDirenvConflict_WithConflict(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 	content := "# Bashrc with direnv\neval \"$(direnv hook bash)\""
-	err := os.WriteFile(rcFile, []byte(content), 0644)
+	err := os.WriteFile(rcFile, []byte(content), 0o644)
 	require.NoError(t, err)
 
 	warning := checkDirenvConflict(rcFile)
@@ -460,20 +460,20 @@ func TestInstallHook_UpToDateNoUpdate(t *testing.T) {
 
 	// Create external hook that's already up to date
 	configDir := filepath.Join(tmpDir, ".config", "dirvana")
-	err := os.MkdirAll(configDir, 0755)
+	err := os.MkdirAll(configDir, 0o755)
 	require.NoError(t, err)
 
 	hookPath := filepath.Join(configDir, "hook-bash.sh")
 	hookCode, err := shell.GenerateHookCode("bash", shell.BinaryPath())
 	require.NoError(t, err)
-	err = os.WriteFile(hookPath, []byte(hookCode), 0644)
+	err = os.WriteFile(hookPath, []byte(hookCode), 0o644)
 	require.NoError(t, err)
 
 	// Create RC file with reference
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 	sourceLine := fmt.Sprintf("[ -f %s ] && source %s", hookPath, hookPath)
 	content := fmt.Sprintf("# Dirvana\n%s\n", sourceLine)
-	err = os.WriteFile(rcFile, []byte(content), 0644)
+	err = os.WriteFile(rcFile, []byte(content), 0o644)
 	require.NoError(t, err)
 
 	// Install when already up to date

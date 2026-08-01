@@ -12,9 +12,9 @@ import (
 // feed shell evaluation, so they are restricted to the owning user.
 const (
 	// StateFilePerm is the mode for state files (cache, auth, downloaded scripts)
-	StateFilePerm os.FileMode = 0600
+	StateFilePerm os.FileMode = 0o600
 	// StateDirPerm is the mode for directories holding state files
-	StateDirPerm os.FileMode = 0700
+	StateDirPerm os.FileMode = 0o700
 )
 
 // AtomicWrite writes data to filename atomically: the content is written

@@ -197,7 +197,7 @@ func main() {
 		outputPath = os.Args[1]
 	}
 
-	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+	if err := os.WriteFile(outputPath, data, 0o644); err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing schema: %v\n", err)
 		os.Exit(1)
 	}

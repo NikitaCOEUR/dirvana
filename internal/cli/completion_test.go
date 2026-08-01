@@ -34,7 +34,7 @@ func TestCompletion_NoCacheEntry(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create empty cache
 	_, err := cache.New(cachePath)
@@ -63,7 +63,7 @@ func TestCompletion_AliasNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create cache with entry but different alias
 	c, err := cache.New(cachePath)
@@ -100,7 +100,7 @@ func TestCompletion_WithCompletionOverride(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create cache with entry that has completion override
 	c, err := cache.New(cachePath)
@@ -140,7 +140,7 @@ func TestCompletion_BasicFlow(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create cache with echo command (should exist on all systems)
 	c, err := cache.New(cachePath)
@@ -178,7 +178,7 @@ func TestCompletion_FunctionAlias(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create cache with function alias
 	c, err := cache.New(cachePath)
@@ -215,7 +215,7 @@ func TestCompletion_EmptyCommand(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create cache with empty command
 	c, err := cache.New(cachePath)
@@ -251,7 +251,7 @@ func TestCompletion_CommandNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create cache with non-existent command
 	c, err := cache.New(cachePath)
@@ -288,7 +288,7 @@ func TestCompletion_CompletionBeyondLastWord(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create cache with echo command
 	c, err := cache.New(cachePath)
@@ -326,7 +326,7 @@ func TestCompletion_WithCurrentWord(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create cache with echo command
 	c, err := cache.New(cachePath)
@@ -364,7 +364,7 @@ func TestCompletion_SortsSuggestions(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create a mock completion script that returns unordered suggestions
 	mockScript := `#!/bin/bash
@@ -375,7 +375,7 @@ if [ -n "$COMP_LINE" ]; then
 fi
 `
 	scriptPath := filepath.Join(tmpDir, "mock-tool.sh")
-	require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0755))
+	require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0o755))
 
 	// Create cache with mock script
 	c, err := cache.New(cachePath)
@@ -433,7 +433,7 @@ func TestCompletion_OutputsDescriptions(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0755))
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
 
 	// Create a mock Cobra command that returns suggestions with descriptions
 	// Use printf with explicit \t to ensure tab characters work on all platforms
@@ -444,7 +444,7 @@ printf "delete\tDelete resources by filenames\n"
 printf ":4\n"
 `
 	scriptPath := filepath.Join(tmpDir, "mock-cobra")
-	require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0755))
+	require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0o755))
 
 	// Verify the script works before using it in the test
 	testCmd := exec.Command(scriptPath)
