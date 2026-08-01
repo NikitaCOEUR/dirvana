@@ -284,28 +284,18 @@ func TestParseShellFromPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseShellFromPath(tt.path)
+			got := parseShellName(tt.path)
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestParseShellFromCmdline(t *testing.T) {
+func TestParseShellName_Cmdline(t *testing.T) {
 	tests := []struct {
 		name    string
 		cmdline string
 		want    string
 	}{
-		{
-			name:    "zsh in path",
-			cmdline: "/usr/bin/zsh",
-			want:    ShellZsh,
-		},
-		{
-			name:    "bash in path",
-			cmdline: "/bin/bash",
-			want:    ShellBash,
-		},
 		{
 			name:    "zsh with arguments",
 			cmdline: "/usr/local/bin/zsh\x00-l",
@@ -321,26 +311,11 @@ func TestParseShellFromCmdline(t *testing.T) {
 			cmdline: "/bin/sh",
 			want:    "",
 		},
-		{
-			name:    "fish shell",
-			cmdline: "/usr/bin/fish",
-			want:    ShellFish,
-		},
-		{
-			name:    "empty cmdline",
-			cmdline: "",
-			want:    "",
-		},
-		{
-			name:    "zsh in middle of path",
-			cmdline: "/home/user/.oh-my-zsh/bin/zsh",
-			want:    ShellZsh,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := parseShellFromCmdline(tt.cmdline)
+			got := parseShellName(tt.cmdline)
 			assert.Equal(t, tt.want, got)
 		})
 	}

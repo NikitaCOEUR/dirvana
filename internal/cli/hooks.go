@@ -55,39 +55,24 @@ func DetectShell(shellFlag string) string {
 
 	// Try SHELL env var (usually set to login shell, less reliable)
 	if shell := os.Getenv("SHELL"); shell != "" {
-		return parseShellFromPath(shell)
+		return parseShellName(shell)
 	}
 
 	// Default to bash
 	return ShellBash
 }
 
-// parseShellFromPath extracts shell type from a path like "/bin/zsh" or "/usr/bin/fish"
-func parseShellFromPath(path string) string {
-	path = strings.ToLower(path)
-	if strings.Contains(path, "fish") {
+// parseShellName detects the shell type from any string naming it: a path
+// like "/usr/bin/fish" or a process command line
+func parseShellName(s string) string {
+	s = strings.ToLower(s)
+	if strings.Contains(s, "fish") {
 		return ShellFish
 	}
-	if strings.Contains(path, "zsh") {
+	if strings.Contains(s, "zsh") {
 		return ShellZsh
 	}
-	if strings.Contains(path, "bash") {
-		return ShellBash
-	}
-	return ""
-}
-
-// parseShellFromCmdline parses a command line string to detect the shell type
-// This is a pure function that can be easily tested
-func parseShellFromCmdline(cmdline string) string {
-	cmdline = strings.ToLower(cmdline)
-	if strings.Contains(cmdline, "fish") {
-		return ShellFish
-	}
-	if strings.Contains(cmdline, "zsh") {
-		return ShellZsh
-	}
-	if strings.Contains(cmdline, "bash") {
+	if strings.Contains(s, "bash") {
 		return ShellBash
 	}
 	return ""
@@ -95,13 +80,10 @@ func parseShellFromCmdline(cmdline string) string {
 
 // detectShellFromParentProcess tries to detect the shell by reading the parent process name
 func detectShellFromParentProcess() string {
-	// This works on Linux and macOS
-	ppid := os.Getppid()
-
 	// Try to read /proc/$PPID/cmdline (Linux)
-	cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", ppid))
+	cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", os.Getppid()))
 	if err == nil {
-		return parseShellFromCmdline(string(cmdline))
+		return parseShellName(string(cmdline))
 	}
 
 	// On macOS, we could use ps, but that's more complex
