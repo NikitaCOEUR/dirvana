@@ -39,21 +39,31 @@ func TestValidateURL(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("accepts valid HTTP URL", func(t *testing.T) {
+	t.Run("rejects plain HTTP URL", func(t *testing.T) {
 		err := validateURL("http://example.com/script.sh")
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "HTTPS")
+	})
+
+	t.Run("accepts HTTP for loopback hosts", func(t *testing.T) {
+		for _, u := range []string{
+			"http://localhost:8080/script.sh",
+			"http://127.0.0.1/script.sh",
+			"http://[::1]:9999/script.sh",
+		} {
+			assert.NoError(t, validateURL(u), u)
+		}
 	})
 
 	t.Run("rejects URL without scheme", func(t *testing.T) {
 		err := validateURL("example.com/script.sh")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "HTTP or HTTPS scheme")
 	})
 
 	t.Run("rejects unsupported scheme", func(t *testing.T) {
 		err := validateURL("ftp://example.com/script.sh")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "HTTP or HTTPS scheme")
+		assert.Contains(t, err.Error(), "HTTPS scheme")
 	})
 
 	t.Run("rejects URL without host", func(t *testing.T) {

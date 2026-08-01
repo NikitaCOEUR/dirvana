@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -77,7 +78,9 @@ type RegistryScript struct {
 // Note: We don't maintain a hardcoded list of tools anymore.
 // Instead, we auto-detect completion support using common patterns below.
 
-// validateURL validates that a URL uses HTTPS
+// validateURL validates that a URL uses HTTPS. Downloaded scripts are
+// executed through bash, so plain HTTP is only tolerated for loopback
+// hosts (local development and tests).
 func validateURL(rawURL string) error {
 	// Parse URL
 	u, err := url.Parse(rawURL)
@@ -85,17 +88,33 @@ func validateURL(rawURL string) error {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
 
-	// Must be HTTPS for security
-	if u.Scheme != "https" && u.Scheme != "http" {
-		return fmt.Errorf("URL must use HTTP or HTTPS scheme, got: %s", u.Scheme)
-	}
-
 	// Must have a host
 	if u.Host == "" {
 		return fmt.Errorf("URL must have a host")
 	}
 
-	return nil
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if isLoopbackHost(u.Hostname()) {
+			return nil
+		}
+		return fmt.Errorf("URL must use HTTPS (plain HTTP is only allowed for localhost)")
+	default:
+		return fmt.Errorf("URL must use HTTPS scheme, got: %s", u.Scheme)
+	}
+}
+
+// isLoopbackHost reports whether host is localhost or a loopback address
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 // downloadWithSizeLimit downloads data with a size limit
