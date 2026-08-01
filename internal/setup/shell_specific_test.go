@@ -5,14 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // TestZshHookContent verifies that zsh-specific hook code is correctly generated
 func TestZshHookContent(t *testing.T) {
-	hookCode, err := cli.GenerateHookCode("zsh")
+	hookCode, err := shell.GenerateHookCode("zsh", shell.BinaryPath())
 	require.NoError(t, err)
 
 	// Must have zsh-specific features
@@ -33,7 +33,7 @@ func TestZshHookContent(t *testing.T) {
 
 // TestBashHookContent verifies that bash-specific hook code is correctly generated
 func TestBashHookContent(t *testing.T) {
-	hookCode, err := cli.GenerateHookCode("bash")
+	hookCode, err := shell.GenerateHookCode("bash", shell.BinaryPath())
 	require.NoError(t, err)
 
 	// Must have bash-specific features

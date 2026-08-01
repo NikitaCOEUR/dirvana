@@ -12,12 +12,8 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/completion"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
+	shellpkg "github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
-)
-
-const (
-	shellBash = "bash"
-	shellZsh  = "zsh"
 )
 
 // CollectAll gathers all status information from the current directory
@@ -109,25 +105,25 @@ func CollectAll(cachePath, authPath string) (*Data, error) {
 
 func collectSystemInfo(data *Data) {
 	// Detect current shell
-	shell := os.Getenv("SHELL")
+	sh := os.Getenv("SHELL")
 	shellName := "unknown"
-	if strings.Contains(shell, shellBash) {
-		shellName = shellBash
-	} else if strings.Contains(shell, shellZsh) {
-		shellName = shellZsh
+	if strings.Contains(sh, shellpkg.Bash) {
+		shellName = shellpkg.Bash
+	} else if strings.Contains(sh, shellpkg.Zsh) {
+		shellName = shellpkg.Zsh
 	}
 	data.Shell = shellName
 
 	// Check if hook is installed
 	hookInstalled := false
 	rcFile := ""
-	if shellName == shellBash || shellName == shellZsh {
+	if shellName == shellpkg.Bash || shellName == shellpkg.Zsh {
 		home, err := os.UserHomeDir()
 		if err == nil {
 			switch shellName {
-			case shellBash:
+			case shellpkg.Bash:
 				rcFile = filepath.Join(home, ".bashrc")
-			case shellZsh:
+			case shellpkg.Zsh:
 				rcFile = filepath.Join(home, ".zshrc")
 			}
 

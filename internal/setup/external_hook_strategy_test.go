@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 func TestExternalHookStrategy_Install(t *testing.T) {
@@ -43,7 +43,7 @@ func TestExternalHookStrategy_Install(t *testing.T) {
 		t.Fatalf("Failed to read hook file: %v", err)
 	}
 
-	expectedHookCode, err := cli.GenerateHookCode("bash")
+	expectedHookCode, err := shell.GenerateHookCode("bash", shell.BinaryPath())
 	if err != nil {
 		t.Fatalf("GenerateHookCode failed: %v", err)
 	}

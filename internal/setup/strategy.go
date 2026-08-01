@@ -1,8 +1,8 @@
 package setup
 
 import (
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
 	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 // InstallStrategy defines the interface for different hook installation strategies
@@ -27,20 +27,20 @@ const (
 )
 
 // SelectInstallStrategy selects the best installation strategy for the given shell
-func SelectInstallStrategy(shell string) (InstallStrategy, error) {
+func SelectInstallStrategy(shellName string) (InstallStrategy, error) {
 	// Fish requires special handling due to is-interactive block
-	if shell == cli.ShellFish {
+	if shellName == shell.Fish {
 		return NewFishHookStrategy()
 	}
 
 	// Try drop-in strategy first (cleanest approach)
-	dropIn, err := NewDropInStrategy(shell)
+	dropIn, err := NewDropInStrategy(shellName)
 	if err == nil && dropIn.IsSupported() {
 		return dropIn, nil
 	}
 
 	// Fallback to external hook strategy
-	return NewExternalHookStrategy(shell)
+	return NewExternalHookStrategy(shellName)
 }
 
 // atomicWrite writes an RC or hook file atomically (0644: shell config

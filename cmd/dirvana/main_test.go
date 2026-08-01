@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	dircli "github.com/NikitaCOEUR/dirvana/internal/cli"
 	"github.com/NikitaCOEUR/dirvana/internal/setup"
+	shellpkg "github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +62,7 @@ func TestDetectShell(t *testing.T) {
 				defer func() { _ = os.Unsetenv("SHELL") }()
 			}
 
-			got := dircli.DetectShell(tt.flag)
+			got := shellpkg.Detect(tt.flag)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -97,7 +97,7 @@ func TestGenerateHookCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			code, err := dircli.GenerateHookCode(tt.shell)
+			code, err := shellpkg.GenerateHookCode(tt.shell, shellpkg.BinaryPath())
 			require.NoError(t, err)
 			for _, expected := range tt.want {
 				assert.Contains(t, code, expected)
@@ -215,10 +215,10 @@ func TestEnvVarSupport_Shell(t *testing.T) {
 	defer func() { _ = os.Unsetenv("DIRVANA_SHELL") }()
 
 	// When DIRVANA_SHELL is set, DetectShell should return it
-	shell := dircli.DetectShell("auto")
+	shell := shellpkg.Detect("auto")
 	assert.Equal(t, "zsh", shell)
 
 	// When explicitly set, it should override env var
-	shell = dircli.DetectShell("bash")
+	shell = shellpkg.Detect("bash")
 	assert.Equal(t, "bash", shell)
 }

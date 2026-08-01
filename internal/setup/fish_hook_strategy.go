@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 // FishHookStrategy implements hook installation for Fish shell
@@ -29,7 +29,7 @@ func NewFishHookStrategy() (*FishHookStrategy, error) {
 	configDir := filepath.Join(home, ".config", "dirvana")
 	hookPath := filepath.Join(configDir, "hook-fish.sh")
 
-	rcFile, err := GetRCFilePath(cli.ShellFish)
+	rcFile, err := GetRCFilePath(shell.Fish)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func NewFishHookStrategy() (*FishHookStrategy, error) {
 // Install installs the hook for Fish shell
 func (s *FishHookStrategy) Install() error {
 	// Step 1: Create hook file
-	hookCode, err := cli.GenerateHookCode(cli.ShellFish)
+	hookCode, err := shell.GenerateHookCode(shell.Fish, shell.BinaryPath())
 	if err != nil {
 		return fmt.Errorf("failed to generate hook code: %w", err)
 	}
@@ -245,7 +245,7 @@ func (s *FishHookStrategy) NeedsUpdate() bool {
 		return true
 	}
 
-	expectedHook, err := cli.GenerateHookCode(cli.ShellFish)
+	expectedHook, err := shell.GenerateHookCode(shell.Fish, shell.BinaryPath())
 	if err != nil {
 		return true
 	}

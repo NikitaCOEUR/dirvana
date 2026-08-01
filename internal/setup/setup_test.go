@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -464,7 +464,7 @@ func TestInstallHook_UpToDateNoUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	hookPath := filepath.Join(configDir, "hook-bash.sh")
-	hookCode, err := cli.GenerateHookCode("bash")
+	hookCode, err := shell.GenerateHookCode("bash", shell.BinaryPath())
 	require.NoError(t, err)
 	err = os.WriteFile(hookPath, []byte(hookCode), 0644)
 	require.NoError(t, err)

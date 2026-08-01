@@ -1,3 +1,4 @@
+// Package cli implements the bodies of the dirvana CLI commands.
 package cli
 
 import _ "embed"

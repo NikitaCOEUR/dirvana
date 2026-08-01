@@ -9,6 +9,7 @@ import (
 
 	dircli "github.com/NikitaCOEUR/dirvana/internal/cli"
 	"github.com/NikitaCOEUR/dirvana/internal/setup"
+	shellpkg "github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/NikitaCOEUR/dirvana/internal/trace"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 	"github.com/urfave/cli/v3"
@@ -218,14 +219,14 @@ func main() {
 					},
 				},
 				Action: func(_ context.Context, cmd *cli.Command) error {
-					shell := dircli.DetectShell(cmd.String("shell"))
-					hookCode, err := dircli.GenerateHookCode(shell)
+					sh := shellpkg.Detect(cmd.String("shell"))
+					hookCode, err := shellpkg.GenerateHookCode(sh, shellpkg.BinaryPath())
 					if err != nil {
 						return fmt.Errorf("failed to generate hook code: %w", err)
 					}
 
 					fmt.Println("# Add this to your shell config file:")
-					fmt.Printf("# For %s: add to ~/.%src\n\n", shell, shell)
+					fmt.Printf("# For %s: add to ~/.%src\n\n", sh, sh)
 					fmt.Println(hookCode)
 
 					return nil
@@ -248,15 +249,15 @@ func main() {
 					},
 				},
 				Action: func(_ context.Context, cmd *cli.Command) error {
-					shell := dircli.DetectShell(cmd.String("shell"))
+					sh := shellpkg.Detect(cmd.String("shell"))
 
 					var result *setup.Result
 					var err error
 
 					if cmd.Bool("uninstall") {
-						result, err = setup.UninstallHook(shell)
+						result, err = setup.UninstallHook(sh)
 					} else {
-						result, err = setup.InstallHook(shell)
+						result, err = setup.InstallHook(sh)
 					}
 
 					if err != nil {

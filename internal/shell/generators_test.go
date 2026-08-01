@@ -8,12 +8,12 @@ import (
 )
 
 func TestBashCodeGenerator_Name(t *testing.T) {
-	gen := NewCompletionGenerator(shellBash)
+	gen := NewCompletionGenerator(Bash)
 	assert.Equal(t, "bash", gen.Name())
 }
 
 func TestBashCodeGenerator_GenerateCompletionFunction(t *testing.T) {
-	gen := NewCompletionGenerator(shellBash)
+	gen := NewCompletionGenerator(Bash)
 	aliasCommands := map[string]string{
 		"k": "kubectl",
 		"g": "git",
@@ -48,7 +48,7 @@ func TestBashCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 }
 
 func TestBashCodeGenerator_GenerateCompletionFunction_SingleAlias(t *testing.T) {
-	gen := NewCompletionGenerator(shellBash)
+	gen := NewCompletionGenerator(Bash)
 	aliasCommands := map[string]string{"k": "kubectl"}
 
 	lines := gen.GenerateCompletionFunction(aliasCommands)
@@ -59,7 +59,7 @@ func TestBashCodeGenerator_GenerateCompletionFunction_SingleAlias(t *testing.T) 
 }
 
 func TestBashCodeGenerator_GenerateCompletionFunction_NoAliases(t *testing.T) {
-	gen := NewCompletionGenerator(shellBash)
+	gen := NewCompletionGenerator(Bash)
 	aliasCommands := map[string]string{}
 
 	lines := gen.GenerateCompletionFunction(aliasCommands)
@@ -71,7 +71,7 @@ func TestBashCodeGenerator_GenerateCompletionFunction_NoAliases(t *testing.T) {
 }
 
 func TestBashCodeGenerator_GenerateCompletionFunction_FunctionFallback(t *testing.T) {
-	gen := NewCompletionGenerator(shellBash)
+	gen := NewCompletionGenerator(Bash)
 	// Functions have empty underlying command
 	aliasCommands := map[string]string{
 		"k":      "kubectl",
@@ -88,12 +88,12 @@ func TestBashCodeGenerator_GenerateCompletionFunction_FunctionFallback(t *testin
 }
 
 func TestZshCodeGenerator_Name(t *testing.T) {
-	gen := NewCompletionGenerator(shellZsh)
+	gen := NewCompletionGenerator(Zsh)
 	assert.Equal(t, "zsh", gen.Name())
 }
 
 func TestZshCodeGenerator_GenerateCompletionFunction(t *testing.T) {
-	gen := NewCompletionGenerator(shellZsh)
+	gen := NewCompletionGenerator(Zsh)
 	aliasCommands := map[string]string{
 		"k": "kubectl",
 		"g": "git",
@@ -126,7 +126,7 @@ func TestZshCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 }
 
 func TestZshCodeGenerator_GenerateCompletionFunction_SingleAlias(t *testing.T) {
-	gen := NewCompletionGenerator(shellZsh)
+	gen := NewCompletionGenerator(Zsh)
 	aliasCommands := map[string]string{"k": "kubectl"}
 
 	lines := gen.GenerateCompletionFunction(aliasCommands)
@@ -137,7 +137,7 @@ func TestZshCodeGenerator_GenerateCompletionFunction_SingleAlias(t *testing.T) {
 }
 
 func TestZshCodeGenerator_GenerateCompletionFunction_MultipleAliases(t *testing.T) {
-	gen := NewCompletionGenerator(shellZsh)
+	gen := NewCompletionGenerator(Zsh)
 	aliasCommands := map[string]string{
 		"k": "kubectl",
 		"g": "git",
@@ -158,7 +158,7 @@ func TestZshCodeGenerator_GenerateCompletionFunction_MultipleAliases(t *testing.
 }
 
 func TestZshCodeGenerator_GenerateCompletionFunction_FunctionFallback(t *testing.T) {
-	gen := NewCompletionGenerator(shellZsh)
+	gen := NewCompletionGenerator(Zsh)
 	aliasCommands := map[string]string{
 		"k":      "kubectl",
 		"myfunc": "",
@@ -181,8 +181,8 @@ func TestMultiShellCodeGenerator_Name(t *testing.T) {
 func TestMultiShellCodeGenerator_GenerateCompletionFunction(t *testing.T) {
 	gen := &MultiShellCodeGenerator{
 		generators: []CodeGenerator{
-			NewCompletionGenerator(shellBash),
-			NewCompletionGenerator(shellZsh),
+			NewCompletionGenerator(Bash),
+			NewCompletionGenerator(Zsh),
 		},
 	}
 	aliasCommands := map[string]string{

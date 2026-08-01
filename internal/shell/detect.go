@@ -1,34 +1,41 @@
-// Package cli provides CLI-related functionality for Dirvana.
-package cli
+package shell
 
 import (
 	"fmt"
 	"os"
 	"strings"
-
-	shellpkg "github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 // Supported shells
 const (
-	// ShellBash represents bash shell
-	ShellBash = "bash"
-	// ShellZsh represents zsh shell
-	ShellZsh = "zsh"
-	// ShellFish represents fish shell
-	ShellFish = "fish"
+	// Bash represents the bash shell
+	Bash = "bash"
+	// Zsh represents the zsh shell
+	Zsh = "zsh"
+	// Fish represents the fish shell
+	Fish = "fish"
 )
 
-// DetectShell determines the shell type based on the flag or environment.
+// Detect determines the shell type based on the flag or environment,
+// defaulting to bash when nothing can be detected.
+func Detect(shellFlag string) string {
+	if s := DetectRaw(shellFlag); s != "" {
+		return s
+	}
+	return Bash
+}
+
+// DetectRaw determines the shell type based on the flag or environment.
+// Unlike Detect it returns "" when no shell could be identified, letting
+// callers distinguish a real detection from the bash fallback.
 // Detection priority:
 // 1. Explicit shell flag (if not "auto")
 // 2. DIRVANA_SHELL env var (set by hook, most reliable)
 // 3. Shell-specific version variables (FISH_VERSION, ZSH_VERSION, BASH_VERSION)
-// 4. Parent process detection (Linux/macOS via /proc)
+// 4. Parent process detection (Linux via /proc)
 // 5. SHELL env var (login shell, less reliable)
-// 6. Default to bash
-func DetectShell(shellFlag string) string {
-	if shellFlag != "auto" {
+func DetectRaw(shellFlag string) string {
+	if shellFlag != "auto" && shellFlag != "" {
 		return shellFlag
 	}
 
@@ -39,27 +46,26 @@ func DetectShell(shellFlag string) string {
 
 	// Try shell-specific version variables (most reliable runtime detection)
 	if os.Getenv("FISH_VERSION") != "" {
-		return ShellFish
+		return Fish
 	}
 	if os.Getenv("ZSH_VERSION") != "" {
-		return ShellZsh
+		return Zsh
 	}
 	if os.Getenv("BASH_VERSION") != "" {
-		return ShellBash
+		return Bash
 	}
 
-	// Try to detect from parent process (works on Linux/macOS)
+	// Try to detect from parent process (works on Linux)
 	if parentShell := detectShellFromParentProcess(); parentShell != "" {
 		return parentShell
 	}
 
 	// Try SHELL env var (usually set to login shell, less reliable)
-	if shell := os.Getenv("SHELL"); shell != "" {
-		return parseShellName(shell)
+	if sh := os.Getenv("SHELL"); sh != "" {
+		return parseShellName(sh)
 	}
 
-	// Default to bash
-	return ShellBash
+	return ""
 }
 
 // parseShellName detects the shell type from any string naming it: a path
@@ -67,13 +73,13 @@ func DetectShell(shellFlag string) string {
 func parseShellName(s string) string {
 	s = strings.ToLower(s)
 	if strings.Contains(s, "fish") {
-		return ShellFish
+		return Fish
 	}
 	if strings.Contains(s, "zsh") {
-		return ShellZsh
+		return Zsh
 	}
 	if strings.Contains(s, "bash") {
-		return ShellBash
+		return Bash
 	}
 	return ""
 }
@@ -91,19 +97,13 @@ func detectShellFromParentProcess() string {
 	return ""
 }
 
-// getBinaryPath returns the path to the running dirvana binary so that
+// BinaryPath returns the path of the running dirvana binary so that
 // generated hooks work even when dirvana is not on $PATH. Falls back to
 // the bare name if the executable path cannot be resolved.
-func getBinaryPath() string {
+func BinaryPath() string {
 	exe, err := os.Executable()
 	if err != nil {
 		return "dirvana"
 	}
 	return exe
-}
-
-// GenerateHookCode generates the shell hook code for the specified shell
-// using the embedded templates from internal/shell.
-func GenerateHookCode(shell string) (string, error) {
-	return shellpkg.GenerateHookCode(shell, getBinaryPath())
 }

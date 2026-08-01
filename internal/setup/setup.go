@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 // Result represents the result of a setup operation
@@ -17,21 +17,21 @@ type Result struct {
 }
 
 // GetRCFilePath returns the RC file path for the given shell
-func GetRCFilePath(shell string) (string, error) {
+func GetRCFilePath(shellName string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	switch shell {
-	case cli.ShellBash:
+	switch shellName {
+	case shell.Bash:
 		return filepath.Join(home, ".bashrc"), nil
-	case cli.ShellZsh:
+	case shell.Zsh:
 		return filepath.Join(home, ".zshrc"), nil
-	case cli.ShellFish:
+	case shell.Fish:
 		return filepath.Join(home, ".config/fish/config.fish"), nil
 	default:
-		return "", fmt.Errorf("unsupported shell: %s (use bash, zsh, or fish)", shell)
+		return "", fmt.Errorf("unsupported shell: %s (use bash, zsh, or fish)", shellName)
 	}
 }
 

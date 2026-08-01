@@ -10,6 +10,7 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 // ExecParams contains parameters for the Exec command
@@ -139,22 +140,22 @@ func resolveAliasCommand(params ExecParams, aliasConf config.AliasConfig, curren
 // executeCommand executes the resolved command via shell
 func executeCommand(params ExecParams, command string, log *logger.Logger) error {
 	// Detect shell type
-	shellType := DetectShell("auto")
+	shellType := shell.Detect("auto")
 
 	// Map shell type to executable name
-	shell := getShellExecutable(shellType)
+	shellExec := shell.Executable(shellType)
 
 	// Find shell executable path
-	execPath, err := exec.LookPath(shell)
+	execPath, err := exec.LookPath(shellExec)
 	if err != nil {
-		return derrors.NewExecutionError(params.Alias, fmt.Sprintf("shell not found: %s", shell), err)
+		return derrors.NewExecutionError(params.Alias, fmt.Sprintf("shell not found: %s", shellExec), err)
 	}
 
 	// Build argv for shell execution
-	argv := buildShellArgs(shell, shellType, command, params.Args)
+	argv := shell.BuildArgs(shellExec, shellType, command, params.Args)
 
 	log.Debug().
-		Str("shell", shell).
+		Str("shell", shellExec).
 		Str("argv", fmt.Sprintf("%q", argv)).
 		Msg("Executing command via shell")
 
@@ -164,73 +165,6 @@ func executeCommand(params ExecParams, command string, log *logger.Logger) error
 
 	// If we reach here, syscall.Exec failed (extremely rare)
 	return derrors.NewExecutionError(command, "failed to execute command", err)
-}
-
-// getShellExecutable returns the executable name for the given shell type
-func getShellExecutable(shellType string) string {
-	switch shellType {
-	case ShellBash:
-		return "bash"
-	case ShellZsh:
-		return "zsh"
-	case ShellFish:
-		return "fish"
-	default:
-		// DetectShell always returns at least ShellBash, but keep bash as fallback for safety
-		// Note: sh (dash/busybox) is not supported as it doesn't support required flags
-		return "bash"
-	}
-}
-
-// getShellFlags returns the optimization flags for the given shell type
-func getShellFlags(shellType string) []string {
-	switch shellType {
-	case ShellFish:
-		return []string{"--no-config"}
-	case ShellBash:
-		return []string{"--norc", "--noprofile"}
-	case ShellZsh:
-		return []string{"--no-rcs"}
-	default:
-		return []string{}
-	}
-}
-
-// getArgSyntax returns the argument syntax for the given shell type
-func getArgSyntax(shellType string) string {
-	if shellType == ShellFish {
-		return " $argv"
-	}
-	return ` "$@"`
-}
-
-// needsExtraShellArg returns true if the shell needs an extra shell argument in argv
-func needsExtraShellArg(shellType string) bool {
-	return shellType != ShellFish
-}
-
-// buildShellArgs builds the argument list for shell execution
-func buildShellArgs(shell, shellType, command string, args []string) []string {
-	flags := getShellFlags(shellType)
-	argSyntax := getArgSyntax(shellType)
-	needsExtra := needsExtraShellArg(shellType)
-
-	var argv []string
-	argv = append(argv, shell)
-	argv = append(argv, flags...)
-
-	if len(args) > 0 {
-		argv = append(argv, "-c", command+argSyntax)
-		if needsExtra {
-			argv = append(argv, shell) // bash/zsh: $0 separator
-		} else {
-			argv = append(argv, "--") // fish: end-of-options marker
-		}
-		argv = append(argv, args...)
-	} else {
-		argv = append(argv, "-c", command)
-	}
-	return argv
 }
 
 // buildEnvMap creates a map of environment variables for condition evaluation

@@ -8,6 +8,7 @@ import (
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -269,7 +270,7 @@ func TestExec_InvalidCachePath(t *testing.T) {
 
 func TestBuildShellArgs_FishWithFlags(t *testing.T) {
 	// Fish must use -- to prevent interpreting user args as fish flags
-	argv := buildShellArgs("fish", ShellFish, "talosctl", []string{"-n", "10.0.0.1", "get", "disks"})
+	argv := shell.BuildArgs("fish", shell.Fish, "talosctl", []string{"-n", "10.0.0.1", "get", "disks"})
 
 	// Should be: fish --no-config -c "talosctl $argv" -- -n 10.0.0.1 get disks
 	assert.Equal(t, "fish", argv[0])
@@ -285,7 +286,7 @@ func TestBuildShellArgs_FishWithFlags(t *testing.T) {
 
 func TestBuildShellArgs_FishWithHelp(t *testing.T) {
 	// --help must not be interpreted by fish
-	argv := buildShellArgs("fish", ShellFish, "talosctl", []string{"--help"})
+	argv := shell.BuildArgs("fish", shell.Fish, "talosctl", []string{"--help"})
 
 	assert.Equal(t, "--", argv[4], "fish must have -- before --help")
 	assert.Equal(t, "--help", argv[5])
@@ -293,7 +294,7 @@ func TestBuildShellArgs_FishWithHelp(t *testing.T) {
 
 func TestBuildShellArgs_FishNoArgs(t *testing.T) {
 	// No args = no -- needed
-	argv := buildShellArgs("fish", ShellFish, "talosctl", []string{})
+	argv := shell.BuildArgs("fish", shell.Fish, "talosctl", []string{})
 
 	assert.Equal(t, "fish", argv[0])
 	assert.Equal(t, "--no-config", argv[1])
@@ -304,7 +305,7 @@ func TestBuildShellArgs_FishNoArgs(t *testing.T) {
 
 func TestBuildShellArgs_BashWithFlags(t *testing.T) {
 	// Bash uses shell name as $0 separator, not --
-	argv := buildShellArgs("bash", ShellBash, "talosctl", []string{"-n", "10.0.0.1"})
+	argv := shell.BuildArgs("bash", shell.Bash, "talosctl", []string{"-n", "10.0.0.1"})
 
 	assert.Equal(t, "bash", argv[0])
 	assert.Equal(t, "--norc", argv[1])
@@ -316,7 +317,7 @@ func TestBuildShellArgs_BashWithFlags(t *testing.T) {
 }
 
 func TestBuildShellArgs_ZshWithFlags(t *testing.T) {
-	argv := buildShellArgs("zsh", ShellZsh, "talosctl", []string{"-n", "10.0.0.1"})
+	argv := shell.BuildArgs("zsh", shell.Zsh, "talosctl", []string{"-n", "10.0.0.1"})
 
 	assert.Equal(t, "zsh", argv[0])
 	assert.Equal(t, "--no-rcs", argv[1])

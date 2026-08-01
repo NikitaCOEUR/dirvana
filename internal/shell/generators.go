@@ -7,12 +7,6 @@ import (
 	"text/template"
 )
 
-const (
-	shellBash = "bash"
-	shellZsh  = "zsh"
-	shellFish = "fish"
-)
-
 // CodeGenerator is an interface for shell-specific completion code generation
 // Implementations generate shell code for bash, zsh, etc.
 type CodeGenerator interface {
@@ -51,7 +45,7 @@ type FishCodeGenerator struct{}
 
 // Name returns the shell name for fish
 func (f *FishCodeGenerator) Name() string {
-	return shellFish
+	return Fish
 }
 
 // GenerateCompletionFunction generates fish-specific completion functions
@@ -95,19 +89,19 @@ func (m *MultiShellCodeGenerator) GenerateCompletionFunction(aliasCommands map[s
 // NewCompletionGenerator creates appropriate shell code generator for the given shell type
 func NewCompletionGenerator(shell string) CodeGenerator {
 	switch shell {
-	case shellBash:
-		return &registrationGenerator{shell: shellBash, template: bashTemplate}
-	case shellZsh:
-		return &registrationGenerator{shell: shellZsh, template: zshFunctionTemplate}
-	case shellFish:
+	case Bash:
+		return &registrationGenerator{shell: Bash, template: bashTemplate}
+	case Zsh:
+		return &registrationGenerator{shell: Zsh, template: zshFunctionTemplate}
+	case Fish:
 		return &FishCodeGenerator{}
 	default:
 		// All shells
 		return &MultiShellCodeGenerator{
 			generators: []CodeGenerator{
-				NewCompletionGenerator(shellBash),
-				NewCompletionGenerator(shellZsh),
-				NewCompletionGenerator(shellFish),
+				NewCompletionGenerator(Bash),
+				NewCompletionGenerator(Zsh),
+				NewCompletionGenerator(Fish),
 			},
 		}
 	}
@@ -117,11 +111,11 @@ func NewCompletionGenerator(shell string) CodeGenerator {
 func GenerateHookCode(shell, binaryPath string) (string, error) {
 	var tmpl string
 	switch shell {
-	case shellBash:
+	case Bash:
 		tmpl = bashHookTemplate
-	case shellZsh:
+	case Zsh:
 		tmpl = zshHookTemplate
-	case shellFish:
+	case Fish:
 		tmpl = fishHookTemplate
 	default:
 		tmpl = bashHookTemplate // Default to bash

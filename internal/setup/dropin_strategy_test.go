@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 const testBashrcDropInContent = "if [ -d ~/.bashrc.d ]; then\n  for rc in ~/.bashrc.d/*.sh; do\n    source $rc\n  done\nfi"
@@ -117,7 +117,7 @@ func TestDropInStrategy_Install(t *testing.T) {
 		t.Fatalf("Failed to read drop-in file: %v", err)
 	}
 
-	expectedHookCode, err := cli.GenerateHookCode("bash")
+	expectedHookCode, err := shell.GenerateHookCode("bash", shell.BinaryPath())
 	if err != nil {
 		t.Fatalf("GenerateHookCode failed: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestDropInStrategy_NeedsUpdate(t *testing.T) {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	currentHook, err := cli.GenerateHookCode("bash")
+	currentHook, err := shell.GenerateHookCode("bash", shell.BinaryPath())
 	if err != nil {
 		t.Fatalf("GenerateHookCode failed: %v", err)
 	}
@@ -394,7 +394,7 @@ func TestDropInStrategy_GetMessage_UpToDate(t *testing.T) {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	currentHook, err := cli.GenerateHookCode("bash")
+	currentHook, err := shell.GenerateHookCode("bash", shell.BinaryPath())
 	if err != nil {
 		t.Fatalf("GenerateHookCode failed: %v", err)
 	}
@@ -496,7 +496,7 @@ func TestDropInStrategy_Install_AlreadyUpToDate(t *testing.T) {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	expectedHookCode, err := cli.GenerateHookCode("bash")
+	expectedHookCode, err := shell.GenerateHookCode("bash", shell.BinaryPath())
 	if err != nil {
 		t.Fatalf("GenerateHookCode failed: %v", err)
 	}

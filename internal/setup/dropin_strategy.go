@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 // DropInStrategy implements hook installation using shell drop-in directories
@@ -64,7 +64,7 @@ func (s *DropInStrategy) Install() error {
 		return fmt.Errorf("failed to create drop-in directory: %w", err)
 	}
 
-	hookCode, err := cli.GenerateHookCode(s.shell)
+	hookCode, err := shell.GenerateHookCode(s.shell, shell.BinaryPath())
 	if err != nil {
 		return fmt.Errorf("failed to generate hook code: %w", err)
 	}
@@ -103,7 +103,7 @@ func (s *DropInStrategy) NeedsUpdate() bool {
 		return true
 	}
 
-	expectedHook, err := cli.GenerateHookCode(s.shell)
+	expectedHook, err := shell.GenerateHookCode(s.shell, shell.BinaryPath())
 	if err != nil {
 		return true
 	}

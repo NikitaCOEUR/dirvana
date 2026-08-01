@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
@@ -11,6 +10,7 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/NikitaCOEUR/dirvana/internal/shellctx"
 	"github.com/NikitaCOEUR/dirvana/internal/timing"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
@@ -78,20 +78,11 @@ func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache,
 	return cleanupCode
 }
 
-// detectTargetShell determines the target shell for code generation
+// detectTargetShell determines the target shell for code generation.
+// Returns "" (generate for all shells) when no shell could actually be
+// detected, instead of silently assuming bash.
 func detectTargetShell() string {
-	targetShell := DetectShell("auto")
-
-	if targetShell == ShellBash {
-		// Check if it's a real detection or just the default fallback
-		if os.Getenv("DIRVANA_SHELL") == "" &&
-			detectShellFromParentProcess() == "" &&
-			!strings.Contains(os.Getenv("SHELL"), "bash") {
-			targetShell = "" // Generate for all shells
-		}
-	}
-
-	return targetShell
+	return shell.DetectRaw("auto")
 }
 
 // checkUnauthorizedConfig warns if current directory has an unauthorized config
