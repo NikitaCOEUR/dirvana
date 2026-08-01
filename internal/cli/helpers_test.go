@@ -57,25 +57,24 @@ func TestInitializeComponents_InvalidCachePath(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to initialize cache")
 }
 
-func TestKeysFromMap(t *testing.T) {
+func TestMapKeys(t *testing.T) {
 	m := map[string]string{
 		"alias1": "value1",
 		"alias2": "value2",
 		"alias3": "value3",
 	}
 
-	keys := keysFromMap(m)
+	keys := mapKeys(m)
 	assert.Len(t, keys, 3)
 	assert.Contains(t, keys, "alias1")
 	assert.Contains(t, keys, "alias2")
 	assert.Contains(t, keys, "alias3")
 }
 
-func TestKeysFromMap_Empty(t *testing.T) {
+func TestMapKeys_Empty(t *testing.T) {
 	m := map[string]string{}
-	keys := keysFromMap(m)
+	keys := mapKeys(m)
 	assert.Len(t, keys, 0)
-	assert.NotNil(t, keys) // Should return empty slice, not nil
 }
 
 func TestMergeTwoKeyLists(t *testing.T) {
@@ -102,7 +101,6 @@ func TestMergeTwoKeyLists_EmptyMaps(t *testing.T) {
 
 	keys := mergeTwoKeyLists(map1, map2)
 	assert.Len(t, keys, 0)
-	assert.NotNil(t, keys)
 }
 
 func TestMergeTwoKeyLists_OneEmpty(t *testing.T) {

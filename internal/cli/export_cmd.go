@@ -154,8 +154,8 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 		hash, _ := comps.config.Hash(configPath)
 		staticEnv, shellEnv := cfg.GetEnvVars()
 		aliases := cfg.GetAliases()
-		aliasKeys := keysFromAliasMap(aliases)
-		functions := keysFromMap(cfg.Functions)
+		aliasKeys := mapKeys(aliases)
+		functions := mapKeys(cfg.Functions)
 		envVars := mergeTwoKeyLists(staticEnv, shellEnv)
 
 		entry := &cache.Entry{
@@ -191,8 +191,8 @@ func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths [
 	// but without cleanup data since they only inherit configs (nothing new to clean up)
 	var aliasKeys, functions, envVars []string
 	if hasLocalConfig {
-		aliasKeys = keysFromAliasMap(aliases)
-		functions = keysFromMap(mergedConfig.Functions)
+		aliasKeys = mapKeys(aliases)
+		functions = mapKeys(mergedConfig.Functions)
 		staticEnv, shellEnv := mergedConfig.GetEnvVars()
 		envVars = mergeTwoKeyLists(staticEnv, shellEnv)
 	}

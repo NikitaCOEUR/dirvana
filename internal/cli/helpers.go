@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -43,35 +45,14 @@ func initializeComponents(cachePath, authPath string) (*components, error) {
 	}, nil
 }
 
-// keysFromMap extracts sorted keys from a map[string]string
-// Pre-allocates slice with exact capacity to avoid reallocation
-func keysFromMap(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
+// mapKeys returns the keys of a string-keyed map (unsorted)
+func mapKeys[V any](m map[string]V) []string {
+	return slices.Collect(maps.Keys(m))
 }
 
-// keysFromAliasMap extracts keys from a map[string]config.AliasConfig
-func keysFromAliasMap(m map[string]config.AliasConfig) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
-// mergeTwoKeyLists combines two lists of keys into a single pre-allocated slice
+// mergeTwoKeyLists combines the keys of two maps into a single slice
 func mergeTwoKeyLists(map1, map2 map[string]string) []string {
-	keys := make([]string, 0, len(map1)+len(map2))
-	for k := range map1 {
-		keys = append(keys, k)
-	}
-	for k := range map2 {
-		keys = append(keys, k)
-	}
-	return keys
+	return slices.Concat(mapKeys(map1), mapKeys(map2))
 }
 
 // buildCommandMap creates a map of alias/function names to their commands
