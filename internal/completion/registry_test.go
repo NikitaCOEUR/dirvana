@@ -17,19 +17,16 @@ import (
 
 const testCacheDir = "/tmp/cache"
 
-// setupTestHTTPClient configures HTTP client to trust test TLS certificates
-func setupTestHTTPClient(server *httptest.Server) func() {
-	oldClient := httpClient
-
-	httpClient = server.Client()
+// newTestRegistry builds a Registry whose HTTP client trusts the test
+// server's TLS certificates
+func newTestRegistry(cacheDir string, server *httptest.Server) *Registry {
+	r := NewRegistry(cacheDir)
+	r.client = server.Client()
 	// Configure to accept insecure certificates for tests
-	httpClient.Transport = &http.Transport{
+	r.client.Transport = &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-
-	return func() {
-		httpClient = oldClient
-	}
+	return r
 }
 
 // TestValidateURL tests URL validation
@@ -82,10 +79,9 @@ func TestDownloadWithSizeLimit(t *testing.T) {
 			_, _ = w.Write(content)
 		}))
 		defer server.Close()
-		cleanup := setupTestHTTPClient(server)
-		defer cleanup()
+		r := newTestRegistry(t.TempDir(), server)
 
-		data, err := downloadWithSizeLimit(server.URL, 1024)
+		data, err := r.downloadWithSizeLimit(server.URL, 1024)
 		require.NoError(t, err)
 		assert.Equal(t, content, data)
 	})
@@ -98,10 +94,9 @@ func TestDownloadWithSizeLimit(t *testing.T) {
 			_, _ = w.Write(largeContent)
 		}))
 		defer server.Close()
-		cleanup := setupTestHTTPClient(server)
-		defer cleanup()
+		r := newTestRegistry(t.TempDir(), server)
 
-		_, err := downloadWithSizeLimit(server.URL, 1000)
+		_, err := r.downloadWithSizeLimit(server.URL, 1000)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "content too large")
 	})
@@ -111,10 +106,9 @@ func TestDownloadWithSizeLimit(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		}))
 		defer server.Close()
-		cleanup := setupTestHTTPClient(server)
-		defer cleanup()
+		r := newTestRegistry(t.TempDir(), server)
 
-		_, err := downloadWithSizeLimit(server.URL, 1024)
+		_, err := r.downloadWithSizeLimit(server.URL, 1024)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "HTTP 404")
 	})
@@ -392,7 +386,6 @@ func TestTryLoadExpiredCache(t *testing.T) {
 // TestLoadRegistry tests registry loading with various scenarios
 func TestLoadRegistry(t *testing.T) {
 	t.Run("loads from cache when valid", func(t *testing.T) {
-		clearRegistryCache() // Clear memory cache before test
 		tmpDir := t.TempDir()
 
 		// Create a valid cached registry
@@ -421,7 +414,7 @@ func TestLoadRegistry(t *testing.T) {
 		require.NoError(t, err)
 
 		// Load registry
-		config, err := LoadRegistry(tmpDir)
+		config, err := NewRegistry(tmpDir).Load()
 		require.NoError(t, err)
 		assert.Equal(t, "v1", config.Version)
 		assert.Equal(t, "Test registry", config.Description)
@@ -429,7 +422,6 @@ func TestLoadRegistry(t *testing.T) {
 	})
 
 	t.Run("uses memory cache on repeated calls", func(t *testing.T) {
-		clearRegistryCache() // Clear memory cache before test
 		tmpDir := t.TempDir()
 
 		// Create a valid cached registry
@@ -457,8 +449,10 @@ func TestLoadRegistry(t *testing.T) {
 		err = os.WriteFile(registryPath, data, 0644)
 		require.NoError(t, err)
 
+		reg := NewRegistry(tmpDir)
+
 		// First call - loads from file and populates memory cache
-		config1, err := LoadRegistry(tmpDir)
+		config1, err := reg.Load()
 		require.NoError(t, err)
 		assert.Equal(t, "Memory cache test", config1.Description)
 
@@ -467,7 +461,7 @@ func TestLoadRegistry(t *testing.T) {
 		require.NoError(t, err)
 
 		// Second call - should use memory cache (file is gone)
-		config2, err := LoadRegistry(tmpDir)
+		config2, err := reg.Load()
 		require.NoError(t, err)
 		assert.Equal(t, "Memory cache test", config2.Description)
 		assert.Contains(t, config2.Tools, "cache-tool")
@@ -477,7 +471,6 @@ func TestLoadRegistry(t *testing.T) {
 	})
 
 	t.Run("memory cache expires after TTL", func(t *testing.T) {
-		clearRegistryCache()
 		tmpDir := t.TempDir()
 
 		// Create registry
@@ -496,14 +489,16 @@ func TestLoadRegistry(t *testing.T) {
 		err = os.WriteFile(registryPath, data, 0644)
 		require.NoError(t, err)
 
+		reg := NewRegistry(tmpDir)
+
 		// Load registry into memory cache
-		_, err = LoadRegistry(tmpDir)
+		_, err = reg.Load()
 		require.NoError(t, err)
 
 		// Manually expire the cache
-		registryMemCache.mu.Lock()
-		registryMemCache.expiresAt = time.Now().Add(-1 * time.Hour)
-		registryMemCache.mu.Unlock()
+		reg.mu.Lock()
+		reg.memExpiresAt = time.Now().Add(-1 * time.Hour)
+		reg.mu.Unlock()
 
 		// Update the file with different content
 		registryData.Description = "TTL expired - reloaded"
@@ -513,7 +508,7 @@ func TestLoadRegistry(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should reload from file since cache expired
-		config, err := LoadRegistry(tmpDir)
+		config, err := reg.Load()
 		require.NoError(t, err)
 		assert.Equal(t, "TTL expired - reloaded", config.Description)
 	})
@@ -550,7 +545,7 @@ func TestLoadRegistry(t *testing.T) {
 
 		// Note: This test would require network failure simulation
 		// For now, we just verify the cache is read
-		config, err := LoadRegistry(tmpDir)
+		config, err := NewRegistry(tmpDir).Load()
 		if err == nil {
 			// If it succeeded (either from download or cache), verify it's valid
 			assert.NotNil(t, config)
@@ -587,7 +582,7 @@ func TestLoadRegistry(t *testing.T) {
 		err = os.Chdir(tmpDir)
 		require.NoError(t, err)
 
-		config, err := LoadRegistry(tmpDir)
+		config, err := NewRegistry(tmpDir).Load()
 		require.NoError(t, err)
 		assert.Equal(t, "Local dev registry", config.Description)
 	})
@@ -605,8 +600,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			_, _ = w.Write([]byte(scriptContent))
 		}))
 		defer server.Close()
-		cleanup := setupTestHTTPClient(server)
-		defer cleanup()
+		r := newTestRegistry(tmpDir, server)
 
 		// Create registry with test tool
 		registry := &RegistryConfig{
@@ -620,7 +614,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			},
 		}
 
-		err := DownloadCompletionScript(tmpDir, "test-tool", "bash", registry)
+		err := r.DownloadScript("test-tool", "bash", registry)
 		require.NoError(t, err)
 
 		// Verify script was saved
@@ -641,8 +635,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			_, _ = w.Write([]byte(scriptContent))
 		}))
 		defer server.Close()
-		cleanup := setupTestHTTPClient(server)
-		defer cleanup()
+		r := newTestRegistry(tmpDir, server)
 
 		registry := &RegistryConfig{
 			Version: "v1",
@@ -656,7 +649,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			},
 		}
 
-		err := DownloadCompletionScript(tmpDir, "test-tool", "bash", registry)
+		err := r.DownloadScript("test-tool", "bash", registry)
 		require.NoError(t, err)
 	})
 
@@ -671,8 +664,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			_, _ = w.Write([]byte(scriptContent))
 		}))
 		defer server.Close()
-		cleanup := setupTestHTTPClient(server)
-		defer cleanup()
+		r := newTestRegistry(tmpDir, server)
 
 		registry := &RegistryConfig{
 			Version: "v1",
@@ -686,7 +678,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			},
 		}
 
-		err := DownloadCompletionScript(tmpDir, "test-tool", "bash", registry)
+		err := r.DownloadScript("test-tool", "bash", registry)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "checksum mismatch")
 	})
@@ -699,7 +691,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			Tools:   map[string]RegistryTool{},
 		}
 
-		err := DownloadCompletionScript(tmpDir, "nonexistent-tool", "bash", registry)
+		err := NewRegistry(tmpDir).DownloadScript("nonexistent-tool", "bash", registry)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not found in registry")
 	})
@@ -712,8 +704,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			_, _ = w.Write([]byte(scriptContent))
 		}))
 		defer server.Close()
-		cleanup := setupTestHTTPClient(server)
-		defer cleanup()
+		r := newTestRegistry(tmpDir, server)
 
 		registry := &RegistryConfig{
 			Version: "v1",
@@ -725,7 +716,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 		}
 
 		// Should work with any shell parameter (always downloads to bash location)
-		err := DownloadCompletionScript(tmpDir, "test-tool", "fish", registry)
+		err := r.DownloadScript("test-tool", "fish", registry)
 		require.NoError(t, err)
 
 		// Verify script was saved to bash location
@@ -749,7 +740,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			},
 		}
 
-		err := DownloadCompletionScript(tmpDir, "test-tool", "bash", registry)
+		err := NewRegistry(tmpDir).DownloadScript("test-tool", "bash", registry)
 		assert.Error(t, err)
 	})
 
@@ -761,8 +752,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			_, _ = w.Write([]byte(scriptContent))
 		}))
 		defer server.Close()
-		cleanup := setupTestHTTPClient(server)
-		defer cleanup()
+		r := newTestRegistry(tmpDir, server)
 
 		registry := &RegistryConfig{
 			Version: "v1",
@@ -778,7 +768,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 		_, err := os.Stat(filepath.Dir(scriptPath))
 		assert.True(t, os.IsNotExist(err), "directory should not exist initially")
 
-		err = DownloadCompletionScript(tmpDir, "test-tool", "bash", registry)
+		err = r.DownloadScript("test-tool", "bash", registry)
 		require.NoError(t, err)
 
 		// Verify directory was created
@@ -930,6 +920,6 @@ func BenchmarkLoadRegistry(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = LoadRegistry(tmpDir)
+		_, _ = NewRegistry(tmpDir).Load()
 	}
 }

@@ -14,11 +14,15 @@ import (
 // or /etc/bash_completion.d/, or can be auto-downloaded from the registry
 type ScriptCompleter struct {
 	cacheDir string
+	registry *Registry
 }
 
 // NewScriptCompleter creates a new script-based completer
 func NewScriptCompleter(cacheDir string) *ScriptCompleter {
-	return &ScriptCompleter{cacheDir: cacheDir}
+	return &ScriptCompleter{
+		cacheDir: cacheDir,
+		registry: NewRegistry(cacheDir),
+	}
 }
 
 // completionScriptPaths returns possible locations for bash completion scripts
@@ -63,7 +67,7 @@ func (s *ScriptCompleter) Supports(tool string, _ []string) bool {
 
 	// Check if we can download from registry
 	if s.cacheDir != "" {
-		registry, err := LoadRegistry(s.cacheDir)
+		registry, err := s.registry.Load()
 		if err == nil {
 			if _, ok := registry.Tools[tool]; ok {
 				return true
@@ -101,10 +105,10 @@ func (s *ScriptCompleter) ensureScriptAvailable(tool string) (string, error) {
 
 	// If no script found, try to download from registry
 	if scriptPath == "" && s.cacheDir != "" {
-		registry, err := LoadRegistry(s.cacheDir)
+		registry, err := s.registry.Load()
 		if err == nil {
 			// Try to download for bash (default)
-			if err := DownloadCompletionScript(s.cacheDir, tool, "bash", registry); err == nil {
+			if err := s.registry.DownloadScript(tool, "bash", registry); err == nil {
 				// Retry finding the script
 				scriptPath = s.findCompletionScript(tool)
 			}
