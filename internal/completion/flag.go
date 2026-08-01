@@ -39,12 +39,6 @@ func (f *FlagCompleter) Complete(tool string, args []string) ([]Suggestion, erro
 		return nil, err
 	}
 
-	return parseFlagOutput(output), nil
-}
-
-// parseFlagOutput parses flag-based completion output
-// Format: one suggestion per line, no descriptions (simple list)
-func parseFlagOutput(output []byte) []Suggestion {
-	// Use common parser without description support
-	return parseCompletionOutput(output, false)
+	// One suggestion per line, no descriptions
+	return parseCompletionOutput(output, false), nil
 }

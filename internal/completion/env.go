@@ -33,9 +33,10 @@ func (e *EnvCompleter) Supports(tool string, _ []string) bool {
 		return false
 	}
 
-	// Check if output looks like suggestions (list of simple words)
-	// bash complete protocol returns simple words, one per line
-	// NOT multi-word descriptions or help text
+	// Check if output looks like suggestions (list of simple words).
+	// Deliberately stricter than validateSimpleOutput: tools that ignore
+	// COMP_LINE print their usage/help text, so a single help-like line
+	// must disqualify the tool entirely.
 	lines := strings.Split(string(output), "\n")
 	validLines := 0
 	invalidLines := 0
@@ -83,12 +84,6 @@ func (e *EnvCompleter) Complete(tool string, args []string) ([]Suggestion, error
 		return nil, err
 	}
 
-	return parseEnvOutput(output), nil
-}
-
-// parseEnvOutput parses the output from environment variable-based completion
-// Format: one suggestion per line, no descriptions
-func parseEnvOutput(output []byte) []Suggestion {
-	// Use common parser without description support
-	return parseCompletionOutput(output, false)
+	// One suggestion per line, no descriptions
+	return parseCompletionOutput(output, false), nil
 }
