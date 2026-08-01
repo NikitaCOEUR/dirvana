@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/condition"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/NikitaCOEUR/dirvana/internal/derrors"
@@ -250,30 +248,4 @@ func buildEnvMap() map[string]string {
 		}
 	}
 	return envMap
-}
-
-// findCacheEntry searches for a cache entry in the current directory or parent directories
-func findCacheEntry(c *cache.Cache, dir string) (*cache.Entry, bool) {
-	dir = filepath.Clean(dir)
-
-	// Try current directory first
-	if entry, found := c.Get(dir); found {
-		return entry, true
-	}
-
-	// Walk up the directory tree
-	for {
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			// Reached root
-			break
-		}
-		dir = parent
-
-		if entry, found := c.Get(dir); found {
-			return entry, true
-		}
-	}
-
-	return nil, false
 }

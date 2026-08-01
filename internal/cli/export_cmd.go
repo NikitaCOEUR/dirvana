@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
@@ -86,7 +87,7 @@ func detectTargetShell() string {
 		// Check if it's a real detection or just the default fallback
 		if os.Getenv("DIRVANA_SHELL") == "" &&
 			detectShellFromParentProcess() == "" &&
-			!containsString(os.Getenv("SHELL"), "bash") {
+			!strings.Contains(os.Getenv("SHELL"), "bash") {
 			targetShell = "" // Generate for all shells
 		}
 	}

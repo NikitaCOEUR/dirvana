@@ -13,66 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFindCacheEntry(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-
-	// Create cache with entries
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	parentDir := filepath.Join(tmpDir, "parent")
-	childDir := filepath.Join(parentDir, "child")
-	grandchildDir := filepath.Join(childDir, "grandchild")
-
-	// Add entry for parent
-	err = c.Set(&cache.Entry{
-		Path:      parentDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-		CommandMap: map[string]string{
-			"test": "echo test",
-		},
-	})
-	require.NoError(t, err)
-
-	// Add entry for child
-	err = c.Set(&cache.Entry{
-		Path:      childDir,
-		Hash:      "hash2",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-		CommandMap: map[string]string{
-			"child": "echo child",
-		},
-	})
-	require.NoError(t, err)
-
-	// Test finding entry in parent dir
-	entry, found := findCacheEntry(c, parentDir)
-	assert.True(t, found)
-	assert.Equal(t, parentDir, entry.Path)
-	assert.Equal(t, "echo test", entry.CommandMap["test"])
-
-	// Test finding entry in child dir
-	entry, found = findCacheEntry(c, childDir)
-	assert.True(t, found)
-	assert.Equal(t, childDir, entry.Path)
-	assert.Equal(t, "echo child", entry.CommandMap["child"])
-
-	// Test finding parent entry from grandchild dir (walks up)
-	entry, found = findCacheEntry(c, grandchildDir)
-	assert.True(t, found)
-	assert.Equal(t, childDir, entry.Path)
-
-	// Test not finding entry in unrelated dir
-	unrelatedDir := filepath.Join(tmpDir, "unrelated")
-	entry, found = findCacheEntry(c, unrelatedDir)
-	assert.False(t, found)
-	assert.Nil(t, entry)
-}
-
 func TestExec_NoCacheEntry(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
@@ -331,48 +271,6 @@ func TestExec_InvalidCachePath(t *testing.T) {
 	err := Exec(params)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load cache")
-}
-
-func TestFindCacheEntry_RootDirectory(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-
-	// Create cache
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	// Try to find entry starting from root (should stop at root)
-	entry, found := findCacheEntry(c, "/")
-	assert.False(t, found)
-	assert.Nil(t, entry)
-}
-
-func TestFindCacheEntry_CleanPath(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	dir := filepath.Join(tmpDir, "test")
-
-	// Add entry
-	err = c.Set(&cache.Entry{
-		Path:      dir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-		CommandMap: map[string]string{
-			"test": "echo test",
-		},
-	})
-	require.NoError(t, err)
-
-	// Test with path that needs cleaning (has . or ..)
-	dirtyPath := filepath.Join(dir, ".", "subdir", "..")
-	entry, found := findCacheEntry(c, dirtyPath)
-	assert.True(t, found)
-	assert.Equal(t, dir, entry.Path)
 }
 
 func TestBuildShellArgs_FishWithFlags(t *testing.T) {
