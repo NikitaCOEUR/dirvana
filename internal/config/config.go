@@ -432,9 +432,11 @@ func (l *Loader) Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to stat config file: %w", err)
 	}
 
-	// Check cache with read lock
+	// Check cache with read lock.
+	// cached.config may be nil when Hash() populated the entry before any
+	// Load() — a hash-only entry must not short-circuit parsing.
 	l.mu.RLock()
-	if cached, exists := l.parsedCache[path]; exists {
+	if cached, exists := l.parsedCache[path]; exists && cached.config != nil {
 		// Verify file hasn't been modified (check both modtime and size)
 		if !fileInfo.ModTime().After(cached.modTime) && fileInfo.Size() == cached.size {
 			// Cache is still valid

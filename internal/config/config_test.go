@@ -1059,3 +1059,23 @@ aliases:
 	assert.NotNil(t, deployAlias.When)
 	assert.Equal(t, ".env", deployAlias.When.File)
 }
+
+func TestLoader_HashThenLoad(t *testing.T) {
+	// Regression: Hash() used to store a config-less parsedCache entry;
+	// a subsequent Load() of the same unchanged file hit that entry and
+	// returned a nil config with no error, crashing callers.
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  test: echo test\n"), 0644))
+
+	loader := New()
+
+	hash, err := loader.Hash(configPath)
+	require.NoError(t, err)
+	assert.NotEmpty(t, hash)
+
+	cfg, err := loader.Load(configPath)
+	require.NoError(t, err)
+	require.NotNil(t, cfg, "Load after Hash must parse the file, not return the hash-only cache entry")
+	assert.Contains(t, cfg.Aliases, "test")
+}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/NikitaCOEUR/dirvana/internal/condition"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
+	"github.com/NikitaCOEUR/dirvana/internal/core"
 	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 	"github.com/NikitaCOEUR/dirvana/internal/shell"
@@ -32,18 +33,18 @@ func Exec(params ExecParams) error {
 		return derrors.NewExecutionError(params.Alias, "failed to get current directory", err)
 	}
 
-	// Get merged alias configs and functions from the full hierarchy
-	aliases, functions, err := getMergedAliasConfigs(currentDir, params.CachePath, params.AuthPath)
+	// Get the merged context from the full hierarchy (cached)
+	dctx, err := core.NewEngine(params.CachePath, params.AuthPath).Load(currentDir)
 	if err != nil {
 		return derrors.NewConfigurationError(currentDir, "failed to load configuration", err)
 	}
 
-	if len(aliases) == 0 && len(functions) == 0 {
+	if dctx.Empty() {
 		return derrors.NewNotFoundError(params.Alias, fmt.Sprintf("no dirvana context found for alias '%s'", params.Alias))
 	}
 
 	// Resolve the command to execute
-	command, err := resolveCommand(params, aliases, functions, currentDir, log)
+	command, err := resolveCommand(params, dctx.Aliases, dctx.Functions, currentDir, log)
 	if err != nil {
 		return err
 	}

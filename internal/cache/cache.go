@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
 )
 
@@ -24,10 +25,13 @@ type Entry struct {
 	Functions []string `json:"functions,omitempty"`
 	EnvVars   []string `json:"env_vars,omitempty"`
 
-	// Merged configuration cache for fast completion/exec
-	// This stores the merged result after applying hierarchy, auth, global config, etc.
-	MergedCommandMap    map[string]string `json:"merged_command_map,omitempty"`
-	MergedCompletionMap map[string]string `json:"merged_completion_map,omitempty"`
+	// Merged configuration snapshot for fast completion/exec:
+	// the result after applying hierarchy, auth, global config, etc.
+	// Full alias specs are stored so exec keeps conditions (when/else)
+	// and completion overrides. No omitempty: an empty non-nil map is
+	// the marker that a merged snapshot exists.
+	MergedAliases   map[string]config.AliasConfig `json:"merged_aliases"`
+	MergedFunctions map[string]string             `json:"merged_functions"`
 	// Hash of the full hierarchy (all config files that contributed to the merge)
 	// Format: "hash1:hash2:hash3:..." from root to leaf
 	HierarchyHash string `json:"hierarchy_hash,omitempty"`

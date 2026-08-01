@@ -169,7 +169,7 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 }
 
 // cacheMergedConfig creates and caches the merged configuration for the current directory
-func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths []string, mergedConfig *config.Config, aliases map[string]config.AliasConfig, mergedCommandMap, mergedCompletionMap map[string]string, comps *components, log *logger.Logger) {
+func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths []string, mergedConfig *config.Config, dctx *core.Context, comps *components, log *logger.Logger) {
 	if hierarchyHash == "" {
 		return
 	}
@@ -182,21 +182,21 @@ func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths [
 	// but without cleanup data since they only inherit configs (nothing new to clean up)
 	var aliasKeys, functions, envVars []string
 	if hasLocalConfig {
-		aliasKeys = mapKeys(aliases)
-		functions = mapKeys(mergedConfig.Functions)
+		aliasKeys = mapKeys(dctx.Aliases)
+		functions = mapKeys(dctx.Functions)
 		staticEnv, shellEnv := mergedConfig.GetEnvVars()
 		envVars = mergeTwoKeyLists(staticEnv, shellEnv)
 	}
 
 	mergedEntry := &cache.Entry{
-		Path:                currentDir,
-		Hash:                hierarchyHash,
-		Timestamp:           time.Now(),
-		Version:             version.Version,
-		MergedCommandMap:    mergedCommandMap,
-		MergedCompletionMap: mergedCompletionMap,
-		HierarchyHash:       hierarchyHash,
-		HierarchyPaths:      hierarchyPaths,
+		Path:            currentDir,
+		Hash:            hierarchyHash,
+		Timestamp:       time.Now(),
+		Version:         version.Version,
+		MergedAliases:   dctx.Aliases,
+		MergedFunctions: dctx.Functions,
+		HierarchyHash:   hierarchyHash,
+		HierarchyPaths:  hierarchyPaths,
 		// Store cleanup data only for directories with local config
 		// This avoids duplicating cleanup data for inherited configs
 		Aliases:   aliasKeys, // nil if !hasLocalConfig
@@ -210,8 +210,8 @@ func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths [
 		logEvent := log.Debug().
 			Str("dir", currentDir).
 			Bool("has_local_config", hasLocalConfig).
-			Int("merged_commands", len(mergedCommandMap)).
-			Int("merged_completions", len(mergedCompletionMap)).
+			Int("merged_aliases", len(dctx.Aliases)).
+			Int("merged_functions", len(dctx.Functions)).
 			Str("hierarchy_hash", hierarchyHash)
 
 		if hasLocalConfig {
@@ -293,19 +293,16 @@ func Export(params ExportParams) error {
 	timer.Mark("load_configs")
 
 	// Cache the merged configuration for fast completion/exec access
-	// Build merged command and completion maps from the final merged config
-	aliases := mergedConfig.GetAliases()
-	mergedCommandMap := buildCommandMap(aliases, mergedConfig.Functions)
-	mergedCompletionMap := buildCompletionMap(aliases)
+	dctx := core.NewContext(mergedConfig.GetAliases(), mergedConfig.Functions)
 
 	// Compute hierarchy hash from all active config paths
-	hierarchyHash, hierarchyPaths, err := computeHierarchyHash(chains.current, comps.config)
+	hierarchyHash, hierarchyPaths, err := core.HierarchyHash(chains.current, comps.config)
 	if err != nil {
 		log.Debug().Err(err).Msg("Failed to compute hierarchy hash")
 	}
 
 	// Cache the merged result for the current directory
-	cacheMergedConfig(currentDir, hierarchyHash, hierarchyPaths, mergedConfig, aliases, mergedCommandMap, mergedCompletionMap, comps, log)
+	cacheMergedConfig(currentDir, hierarchyHash, hierarchyPaths, mergedConfig, dctx, comps, log)
 	timer.Mark("cache_merged")
 
 	// Get environment variables and aliases
@@ -347,7 +344,7 @@ func Export(params ExportParams) error {
 	}
 
 	// Generate shell code from merged config
-	shellCode := comps.shell.Generate(aliases, mergedConfig.Functions, staticEnv, shellEnv, mergedCompletionMap)
+	shellCode := comps.shell.Generate(dctx.Aliases, dctx.Functions, staticEnv, shellEnv, dctx.CompletionMap())
 	timer.Mark("generate_shell")
 
 	// Prepend cleanup code if needed
@@ -360,8 +357,8 @@ func Export(params ExportParams) error {
 	log.Debug().
 		Int("active_configs", len(chains.current)).
 		Int("cleanup_configs", len(cleanupDirs)).
-		Int("aliases", len(aliases)).
-		Int("functions", len(mergedConfig.Functions)).
+		Int("aliases", len(dctx.Aliases)).
+		Int("functions", len(dctx.Functions)).
 		Int("static_env", len(staticEnv)).
 		Int("shell_env", len(shellEnv)).
 		Dur("total_ms", totalDur).

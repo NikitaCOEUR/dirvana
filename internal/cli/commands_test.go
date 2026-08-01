@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
+	"github.com/NikitaCOEUR/dirvana/internal/core"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1059,16 +1060,14 @@ functions:
 	cfg, err := comps.config.Load(configPath)
 	require.NoError(t, err)
 
-	aliases := cfg.GetAliases()
-	mergedCommandMap := buildCommandMap(aliases, cfg.Functions)
-	mergedCompletionMap := buildCompletionMap(aliases)
+	dctx := core.NewContext(cfg.GetAliases(), cfg.Functions)
 	hierarchyHash := "test_hash"
 	hierarchyPaths := []string{tmpDir}
 
 	log := logger.New("error", os.Stderr)
 
 	// Call cacheMergedConfig
-	cacheMergedConfig(tmpDir, hierarchyHash, hierarchyPaths, cfg, aliases, mergedCommandMap, mergedCompletionMap, comps, log)
+	cacheMergedConfig(tmpDir, hierarchyHash, hierarchyPaths, cfg, dctx, comps, log)
 
 	// Verify cache entry
 	entry, found := comps.cache.Get(tmpDir)
@@ -1083,8 +1082,8 @@ functions:
 	assert.Contains(t, entry.Functions, "test_func", "Should contain function 'test_func'")
 
 	// Should have merged data (for performance)
-	assert.NotNil(t, entry.MergedCommandMap, "MergedCommandMap should not be nil")
-	assert.NotNil(t, entry.MergedCompletionMap, "MergedCompletionMap should not be nil")
+	assert.NotNil(t, entry.MergedAliases, "MergedAliases should not be nil")
+	assert.NotNil(t, entry.MergedFunctions, "MergedFunctions should not be nil")
 	assert.Equal(t, hierarchyHash, entry.HierarchyHash, "HierarchyHash should match")
 }
 
@@ -1119,16 +1118,14 @@ env:
 	cfg, err := comps.config.Load(configPath)
 	require.NoError(t, err)
 
-	aliases := cfg.GetAliases()
-	mergedCommandMap := buildCommandMap(aliases, cfg.Functions)
-	mergedCompletionMap := buildCompletionMap(aliases)
+	dctx := core.NewContext(cfg.GetAliases(), cfg.Functions)
 	hierarchyHash := "test_hash"
 	hierarchyPaths := []string{tmpDir}
 
 	log := logger.New("error", os.Stderr)
 
 	// Call cacheMergedConfig for the subdirectory (which has no local config)
-	cacheMergedConfig(subDir, hierarchyHash, hierarchyPaths, cfg, aliases, mergedCommandMap, mergedCompletionMap, comps, log)
+	cacheMergedConfig(subDir, hierarchyHash, hierarchyPaths, cfg, dctx, comps, log)
 
 	// Verify cache entry
 	entry, found := comps.cache.Get(subDir)
@@ -1140,8 +1137,8 @@ env:
 	assert.Nil(t, entry.Functions, "Functions should be nil (no local config)")
 
 	// Should still have merged data (for performance)
-	assert.NotNil(t, entry.MergedCommandMap, "MergedCommandMap should not be nil")
-	assert.NotNil(t, entry.MergedCompletionMap, "MergedCompletionMap should not be nil")
+	assert.NotNil(t, entry.MergedAliases, "MergedAliases should not be nil")
+	assert.NotNil(t, entry.MergedFunctions, "MergedFunctions should not be nil")
 	assert.Equal(t, hierarchyHash, entry.HierarchyHash, "HierarchyHash should match")
 	assert.Equal(t, hierarchyPaths, entry.HierarchyPaths, "HierarchyPaths should match")
 }
@@ -1158,7 +1155,7 @@ func TestCacheMergedConfig_EmptyHash(t *testing.T) {
 	log := logger.New("error", os.Stderr)
 
 	// Call with empty hierarchyHash - should not cache anything
-	cacheMergedConfig(tmpDir, "", []string{}, nil, nil, nil, nil, comps, log)
+	cacheMergedConfig(tmpDir, "", []string{}, nil, nil, comps, log)
 
 	// Verify NO cache entry was created
 	_, found := comps.cache.Get(tmpDir)

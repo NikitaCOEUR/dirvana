@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/NikitaCOEUR/dirvana/internal/completion"
+	"github.com/NikitaCOEUR/dirvana/internal/core"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 	"github.com/NikitaCOEUR/dirvana/internal/trace"
 )
@@ -27,32 +28,29 @@ type CompletionParams struct {
 func resolveCompletionCommand(aliasName, currentDir, cachePath, authPath string, log *logger.Logger) (command, completionCmd string, err error) {
 	ctx := context.Background()
 
-	// Get merged command maps from the full hierarchy
-	var commandMap, completionMap map[string]string
-	trace.WithRegion(ctx, "getMergedCommandMaps", func() {
-		commandMap, completionMap, err = getMergedCommandMaps(currentDir, cachePath, authPath)
+	// Get the merged context from the full hierarchy (cached)
+	var dctx *core.Context
+	trace.WithRegion(ctx, "core.Load", func() {
+		dctx, err = core.NewEngine(cachePath, authPath).Load(currentDir)
 	})
 	if err != nil {
 		return "", "", err
 	}
 
-	if len(commandMap) == 0 {
+	if dctx.Empty() {
 		return "", "", fmt.Errorf("no dirvana context")
 	}
 
 	// Look up the actual command for this alias
-	var found bool
-	command, found = commandMap[aliasName]
+	command, found := dctx.CommandMap()[aliasName]
 	if !found {
 		return "", "", fmt.Errorf("not a dirvana-managed alias")
 	}
 
 	// Check if there's a completion override
 	completionCmd = command
-	if completionMap != nil {
-		if override, ok := completionMap[aliasName]; ok {
-			completionCmd = override
-		}
+	if override, ok := dctx.CompletionMap()[aliasName]; ok {
+		completionCmd = override
 	}
 
 	log.Debug().
@@ -129,7 +127,7 @@ func Completion(params CompletionParams) error {
 	}
 
 	// For functions, we don't have smart completions
-	if strings.HasPrefix(command, "__dirvana_function__") {
+	if strings.HasPrefix(command, core.FunctionPrefix) {
 		return nil
 	}
 
