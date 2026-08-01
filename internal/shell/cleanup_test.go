@@ -1,5 +1,4 @@
-//nolint:revive // Package name intentionally matches stdlib for internal consistency
-package shellctx
+package shell
 
 import (
 	"testing"

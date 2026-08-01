@@ -14,7 +14,6 @@ import (
 
 const testPathConst = "/test/path"
 
-
 func TestAllow(t *testing.T) {
 	tmpDir := t.TempDir()
 	authPath := filepath.Join(tmpDir, "auth.json")

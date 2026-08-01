@@ -8,10 +8,10 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
+	"github.com/NikitaCOEUR/dirvana/internal/core"
 	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 	"github.com/NikitaCOEUR/dirvana/internal/shell"
-	"github.com/NikitaCOEUR/dirvana/internal/shellctx"
 	"github.com/NikitaCOEUR/dirvana/internal/timing"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
@@ -35,18 +35,18 @@ func calculateActiveChains(prevDir, currentDir string, authMgr *auth.Auth, confi
 	chains := activeChains{}
 
 	if prevDir != "" && prevDir != currentDir {
-		chains.prev = shellctx.GetActiveConfigChain(prevDir, authMgr, configLoader)
-		chains.current = shellctx.GetActiveConfigChain(currentDir, authMgr, configLoader)
+		chains.prev = core.ActiveConfigChain(prevDir, authMgr, configLoader)
+		chains.current = core.ActiveConfigChain(currentDir, authMgr, configLoader)
 	} else {
 		// Same directory or no previous directory
-		chains.current = shellctx.GetActiveConfigChain(currentDir, authMgr, configLoader)
+		chains.current = core.ActiveConfigChain(currentDir, authMgr, configLoader)
 	}
 
 	return chains
 }
 
 // generateCleanupCodeForDirs generates cleanup code for directories that need cleanup
-func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache, shell string, log *logger.Logger) string {
+func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache, shellName string, log *logger.Logger) string {
 	var cleanupCode string
 
 	if len(cleanupDirs) == 0 {
@@ -57,11 +57,11 @@ func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache,
 	for _, dir := range cleanupDirs {
 		if entry, found := cacheStorage.Get(dir); found {
 			startTime := time.Now()
-			cleanupCode += shellctx.GenerateCleanupCode(
+			cleanupCode += shell.GenerateCleanupCode(
 				entry.Aliases,
 				entry.Functions,
 				entry.EnvVars,
-				shell,
+				shellName,
 			)
 			duration := time.Since(startTime)
 
@@ -260,7 +260,7 @@ func Export(params ExportParams) error {
 	timer.Mark("calc_chains")
 
 	// Determine what needs cleanup
-	cleanupDirs := shellctx.CalculateCleanup(chains.prev, chains.current)
+	cleanupDirs := core.CalculateCleanup(chains.prev, chains.current)
 	cleanupCode := generateCleanupCodeForDirs(cleanupDirs, comps.cache, targetShell, log)
 	timer.Mark("cleanup")
 

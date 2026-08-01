@@ -1,5 +1,4 @@
-//nolint:revive // Package name intentionally matches stdlib for internal consistency
-package shellctx
+package core
 
 import (
 	"testing"
@@ -89,7 +88,7 @@ func TestConfigChainCalculation(t *testing.T) {
 				localOnly: localOnlySet,
 			}
 
-			result := GetActiveConfigChain(tt.dir, mockAuth, mockConfig)
+			result := ActiveConfigChain(tt.dir, mockAuth, mockConfig)
 			assert.Equal(t, tt.expected, result, "Active config chain mismatch")
 		})
 	}
