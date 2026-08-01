@@ -34,17 +34,10 @@ type AliasConfig struct {
 	Else       string           `json:"else,omitempty" jsonschema:"description=Fallback command to execute if conditions are not met"`
 }
 
-// CompletionValue can be string, bool, or CompletionConfig
+// CompletionValue can be string (inherit) or bool (disable)
 type CompletionValue struct {
-	Inherit string            `json:"-"`
-	Disable bool              `json:"-"`
-	Custom  *CompletionConfig `json:"-"`
-}
-
-// CompletionConfig for custom shell completion
-type CompletionConfig struct {
-	Bash string `json:"bash,omitempty" jsonschema:"description=Bash completion code"`
-	Zsh  string `json:"zsh,omitempty" jsonschema:"description=Zsh completion code"`
+	Inherit string `json:"-"`
+	Disable bool   `json:"-"`
 }
 
 // Condition represents conditions for alias execution
@@ -102,9 +95,6 @@ func (CompletionValue) JSONSchema() *jsonschema.Schema {
 				Type:        "boolean",
 				Description: "Set to false to disable completion",
 			},
-			{
-				Ref: "#/$defs/CompletionConfig",
-			},
 		},
 	}
 }
@@ -137,7 +127,6 @@ func main() {
 	// Add missing definitions that are referenced via $ref
 	// Extract just the type definition from each reflected schema
 	aliasConfigSchema := r.ReflectFromType(reflect.TypeOf(AliasConfig{}))
-	completionConfigSchema := r.ReflectFromType(reflect.TypeOf(CompletionConfig{}))
 	conditionSchema := r.ReflectFromType(reflect.TypeOf(Condition{}))
 	envConfigSchema := r.ReflectFromType(reflect.TypeOf(EnvConfig{}))
 
@@ -150,9 +139,6 @@ func main() {
 				schema.Definitions[k] = v
 			}
 		}
-	}
-	if def, ok := completionConfigSchema.Definitions["CompletionConfig"]; ok {
-		schema.Definitions["CompletionConfig"] = def
 	}
 	if def, ok := conditionSchema.Definitions["Condition"]; ok {
 		schema.Definitions["Condition"] = def

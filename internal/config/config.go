@@ -56,12 +56,6 @@ type EnvVar struct {
 	Sh    string // Shell command to execute (mutually exclusive with Value)
 }
 
-// CompletionConfig represents shell completion configuration for an alias
-type CompletionConfig struct {
-	Bash string `koanf:"bash"` // Bash completion code
-	Zsh  string `koanf:"zsh"`  // Zsh completion code
-}
-
 // When represents conditions that must be met for an alias to execute
 type When struct {
 	// Atomic conditions (syntactic sugar for single condition)
@@ -78,7 +72,7 @@ type When struct {
 // AliasConfig represents an alias with optional completion override
 type AliasConfig struct {
 	Command    string      // The command to execute
-	Completion interface{} // Can be: string (inherit), false (disable), or CompletionConfig object
+	Completion interface{} // Can be: string (inherit) or false (disable)
 	When       *When       // Conditions that must be met for the alias to execute
 	Else       string      // Fallback command if conditions are not met
 }
@@ -271,16 +265,6 @@ func (c *Config) GetAliases() map[string]AliasConfig {
 					if !c {
 						alias.Completion = false
 					}
-				case map[string]interface{}:
-					// Custom completion with bash/zsh
-					compCfg := CompletionConfig{}
-					if bash, ok := c["bash"].(string); ok {
-						compCfg.Bash = bash
-					}
-					if zsh, ok := c["zsh"].(string); ok {
-						compCfg.Zsh = zsh
-					}
-					alias.Completion = compCfg
 				}
 			}
 

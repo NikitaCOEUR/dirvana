@@ -40,19 +40,6 @@
         }
       ]
     },
-    "CompletionConfig": {
-      "properties": {
-        "bash": {
-          "type": "string",
-          "description": "Bash completion code"
-        },
-        "zsh": {
-          "type": "string",
-          "description": "Zsh completion code"
-        }
-      },
-      "type": "object"
-    },
     "CompletionValue": {
       "oneOf": [
         {
@@ -63,9 +50,6 @@
         {
           "type": "boolean",
           "description": "Set to false to disable completion"
-        },
-        {
-          "$ref": "#/$defs/CompletionConfig"
         }
       ]
     },

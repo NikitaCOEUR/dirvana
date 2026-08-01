@@ -109,7 +109,7 @@ func buildCompletionMap(aliases map[string]config.AliasConfig) map[string]string
 				// completion: false, skip completion
 				continue
 			} else {
-				// Other completion types (e.g., CompletionConfig), use command
+				// Any other value behaves like an absent completion key
 				completionMap[name] = aliasConf.Command
 			}
 		} else {

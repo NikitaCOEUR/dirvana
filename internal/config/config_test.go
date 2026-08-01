@@ -867,7 +867,10 @@ func TestConfig_GetAliases_WithCompletionDisabled(t *testing.T) {
 	assert.Equal(t, false, aliases["test"].Completion)
 }
 
-func TestConfig_GetAliases_WithCustomCompletion(t *testing.T) {
+func TestConfig_GetAliases_ObjectCompletionIgnored(t *testing.T) {
+	// The object form of completion (bash/zsh snippets) was never
+	// implemented and is no longer parsed: it behaves like an absent
+	// completion key (the alias completes with its own command).
 	cfg := &Config{
 		Aliases: map[string]interface{}{
 			"mt": map[string]interface{}{
@@ -884,11 +887,7 @@ func TestConfig_GetAliases_WithCustomCompletion(t *testing.T) {
 
 	assert.Len(t, aliases, 1)
 	assert.Equal(t, "my-tool", aliases["mt"].Command)
-
-	compCfg, ok := aliases["mt"].Completion.(CompletionConfig)
-	assert.True(t, ok)
-	assert.Equal(t, "complete -W 'foo bar' mt", compCfg.Bash)
-	assert.Equal(t, "compdef _mt mt", compCfg.Zsh)
+	assert.Nil(t, aliases["mt"].Completion)
 }
 
 func TestConfig_GetAliases_WithConditionalSimple(t *testing.T) {

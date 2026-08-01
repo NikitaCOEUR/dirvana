@@ -134,18 +134,12 @@ func TestBuildCompletionMap(t *testing.T) {
 			Command:    "echo empty",
 			Completion: "", // Empty string -> uses command
 		},
-		"object": {
-			Command: "docker",
-			Completion: config.CompletionConfig{
-				Bash: "docker",
-			}, // Object -> uses command
-		},
 	}
 
 	completionMap := buildCompletionMap(aliases)
 
 	// Should include all except "test" (completion: false)
-	assert.Len(t, completionMap, 4)
+	assert.Len(t, completionMap, 3)
 
 	// Explicit string completion
 	assert.Equal(t, "kubectl", completionMap["kc"])
@@ -155,9 +149,6 @@ func TestBuildCompletionMap(t *testing.T) {
 
 	// Empty string -> uses command
 	assert.Equal(t, "echo empty", completionMap["empty"])
-
-	// Object completion -> uses command
-	assert.Equal(t, "docker", completionMap["object"])
 
 	// Disabled -> no entry
 	assert.NotContains(t, completionMap, "test")
