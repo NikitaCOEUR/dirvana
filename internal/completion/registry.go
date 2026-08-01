@@ -388,18 +388,21 @@ func (r *Registry) DownloadScript(tool, shell string, registry *RegistryConfig) 
 		return fmt.Errorf("invalid script URL for %s: %w", tool, err)
 	}
 
+	// Fail closed: downloaded scripts are executed through bash, so an
+	// entry without a checksum is refused rather than trusted
+	if scriptInfo.SHA256 == "" {
+		return fmt.Errorf("registry entry for %s has no sha256 checksum; refusing to execute unverified script", tool)
+	}
+
 	// Download script with size limit
 	data, err := r.downloadWithSizeLimit(scriptInfo.URL, MaxScriptSize)
 	if err != nil {
 		return fmt.Errorf("failed to download script for %s: %w", tool, err)
 	}
 
-	// Verify checksum if provided
-	if scriptInfo.SHA256 != "" {
-		hash := computeHash(data)
-		if hash != scriptInfo.SHA256 {
-			return fmt.Errorf("checksum mismatch for %s: expected %s, got %s", tool, scriptInfo.SHA256, hash)
-		}
+	// Verify checksum
+	if hash := computeHash(data); hash != scriptInfo.SHA256 {
+		return fmt.Errorf("checksum mismatch for %s: expected %s, got %s", tool, scriptInfo.SHA256, hash)
 	}
 
 	// Save script (always to bash location, regardless of shell parameter).

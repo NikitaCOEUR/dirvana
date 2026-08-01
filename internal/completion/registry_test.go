@@ -608,7 +608,8 @@ func TestDownloadCompletionScript(t *testing.T) {
 			Tools: map[string]RegistryTool{
 				"test-tool": {
 					Script: RegistryScript{
-						URL: server.URL + "/completion.sh",
+						URL:    server.URL + "/completion.sh",
+						SHA256: computeHash([]byte(scriptContent)),
 					},
 				},
 			},
@@ -622,6 +623,26 @@ func TestDownloadCompletionScript(t *testing.T) {
 		content, err := os.ReadFile(scriptPath)
 		require.NoError(t, err)
 		assert.Equal(t, scriptContent, string(content))
+	})
+
+	t.Run("refuses entry without sha256", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		registry := &RegistryConfig{
+			Version: "v1",
+			Tools: map[string]RegistryTool{
+				"test-tool": {
+					Script: RegistryScript{
+						URL: "https://example.com/completion.sh",
+					},
+				},
+			},
+		}
+
+		// Fail closed: no download attempt without a checksum
+		err := NewRegistry(tmpDir).DownloadScript("test-tool", "bash", registry)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no sha256 checksum")
 	})
 
 	t.Run("verifies checksum when provided", func(t *testing.T) {
@@ -710,7 +731,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			Version: "v1",
 			Tools: map[string]RegistryTool{
 				"test-tool": {
-					Script: RegistryScript{URL: server.URL},
+					Script: RegistryScript{URL: server.URL, SHA256: computeHash([]byte(scriptContent))},
 				},
 			},
 		}
@@ -758,7 +779,7 @@ func TestDownloadCompletionScript(t *testing.T) {
 			Version: "v1",
 			Tools: map[string]RegistryTool{
 				"test-tool": {
-					Script: RegistryScript{URL: server.URL},
+					Script: RegistryScript{URL: server.URL, SHA256: computeHash([]byte(scriptContent))},
 				},
 			},
 		}
