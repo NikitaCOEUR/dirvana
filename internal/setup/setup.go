@@ -9,13 +9,6 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/cli"
 )
 
-const (
-	// HookMarkerStart is the starting marker for Dirvana hook in RC files
-	HookMarkerStart = "# Dirvana shell hook - START"
-	// HookMarkerEnd is the ending marker for Dirvana hook in RC files
-	HookMarkerEnd = "# Dirvana shell hook - END"
-)
-
 // Result represents the result of a setup operation
 type Result struct {
 	RCFile  string
@@ -62,26 +55,6 @@ func checkDirenvConflict(rcFile string) string {
 
 // InstallHook installs or updates the Dirvana hook using the best strategy
 func InstallHook(shell string) (*Result, error) {
-	// Check for legacy installation
-	if HasLegacyInstall(shell) {
-		// Migrate from legacy to new strategy
-		if err := MigrateLegacyInstall(shell); err != nil {
-			return nil, fmt.Errorf("failed to migrate legacy installation: %w", err)
-		}
-
-		strategy, err := SelectInstallStrategy(shell)
-		if err != nil {
-			return nil, err
-		}
-
-		return &Result{
-			RCFile:  strategy.GetRCFile(),
-			Updated: true,
-			Message: "⚠️  Migrated from legacy installation\n" + strategy.GetMessage() + "\n✓ Shell completion is up to date",
-		}, nil
-	}
-
-	// Use new strategy-based installation
 	strategy, err := SelectInstallStrategy(shell)
 	if err != nil {
 		return nil, err
@@ -108,14 +81,8 @@ func InstallHook(shell string) (*Result, error) {
 	}, nil
 }
 
-// IsHookInstalled checks if the Dirvana hook is installed (legacy or new strategy)
+// IsHookInstalled checks if the Dirvana hook is installed
 func IsHookInstalled(shell string) (bool, error) {
-	// Check for legacy installation
-	if HasLegacyInstall(shell) {
-		return true, nil
-	}
-
-	// Check with new strategy
 	strategy, err := SelectInstallStrategy(shell)
 	if err != nil {
 		return false, err
@@ -124,25 +91,19 @@ func IsHookInstalled(shell string) (bool, error) {
 	return strategy.IsInstalled(), nil
 }
 
-// UninstallHook removes the Dirvana hook (handles both legacy and new strategies)
+// UninstallHook removes the Dirvana hook
 func UninstallHook(shell string) (*Result, error) {
 	rcFile, err := GetRCFilePath(shell)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check if legacy install exists
-	legacyExists := HasLegacyInstall(shell)
-
-	// Check if new strategy is installed
 	strategy, err := SelectInstallStrategy(shell)
 	if err != nil {
 		return nil, err
 	}
-	newStrategyInstalled := strategy.IsInstalled()
 
-	// If nothing is installed, return early
-	if !legacyExists && !newStrategyInstalled {
+	if !strategy.IsInstalled() {
 		return &Result{
 			RCFile:  rcFile,
 			Updated: false,
@@ -150,43 +111,13 @@ func UninstallHook(shell string) (*Result, error) {
 		}, nil
 	}
 
-	// Remove legacy if it exists
-	if legacyExists {
-		if err := uninstallLegacyHook(shell); err != nil {
-			return nil, err
-		}
-	}
-
-	// Remove new strategy if it's installed
-	if newStrategyInstalled {
-		if err := strategy.Uninstall(); err != nil {
-			return nil, fmt.Errorf("failed to uninstall: %w", err)
-		}
-	}
-
-	// Build message based on what was removed
-	var message string
-	if legacyExists && newStrategyInstalled {
-		message = "✓ Removed legacy hook and new hook"
-	} else if legacyExists {
-		message = fmt.Sprintf("✓ Removed legacy hook from %s", rcFile)
-	} else {
-		message = strategy.GetMessage()
+	if err := strategy.Uninstall(); err != nil {
+		return nil, fmt.Errorf("failed to uninstall: %w", err)
 	}
 
 	return &Result{
 		RCFile:  rcFile,
 		Updated: true,
-		Message: message,
+		Message: strategy.GetMessage(),
 	}, nil
-}
-
-// uninstallLegacyHook removes legacy hook from RC file
-func uninstallLegacyHook(shell string) error {
-	rcFile, err := GetRCFilePath(shell)
-	if err != nil {
-		return err
-	}
-
-	return removeLegacyHook(rcFile)
 }
