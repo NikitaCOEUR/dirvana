@@ -39,6 +39,22 @@ func TestEdit_CreatesConfigIfNotExists(t *testing.T) {
 	require.NotNil(t, cfg)
 }
 
+func TestEdit_VisualTakesPrecedenceOverEditor(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	require.NoError(t, os.Chdir(tmpDir))
+
+	// POSIX convention: VISUAL wins over EDITOR. 'false' exits non-zero,
+	// so Edit would fail if EDITOR were picked.
+	t.Setenv("VISUAL", "true")
+	t.Setenv("EDITOR", "false")
+
+	require.NoError(t, Edit(false))
+}
+
 func TestEdit_OpensExistingConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 

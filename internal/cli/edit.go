@@ -64,10 +64,10 @@ func Edit(global bool) error {
 		}
 	}
 
-	// Get editor from environment or use defaults
-	editor := os.Getenv("EDITOR")
+	// Get editor from environment (POSIX convention: VISUAL wins over EDITOR)
+	editor := os.Getenv("VISUAL")
 	if editor == "" {
-		editor = os.Getenv("VISUAL")
+		editor = os.Getenv("EDITOR")
 	}
 	if editor == "" {
 		// Try common editors
