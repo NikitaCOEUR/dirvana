@@ -23,36 +23,23 @@ type CodeGenerator interface {
 	Name() string
 }
 
-// BashCodeGenerator generates bash-specific shell completion code
-type BashCodeGenerator struct{}
-
-// Name returns the shell name for bash
-func (b *BashCodeGenerator) Name() string {
-	return shellBash
+// registrationGenerator generates completion code for shells whose per-alias
+// registration is a plain __dirvana_register_completion call (bash and zsh);
+// only the embedded template differs between them.
+type registrationGenerator struct {
+	shell    string
+	template string
 }
 
-// GenerateCompletionFunction generates bash-specific completion functions
-func (b *BashCodeGenerator) GenerateCompletionFunction(aliasCommands map[string]string) []string {
-	var lines []string
-	lines = append(lines, strings.Split(bashTemplate, "\n")...)
-	for _, alias := range sortedKeys(aliasCommands) {
-		lines = append(lines, fmt.Sprintf("__dirvana_register_completion %s %s", alias, aliasCommands[alias]))
-	}
-	return lines
+// Name returns the shell name
+func (g *registrationGenerator) Name() string {
+	return g.shell
 }
 
-// ZshCodeGenerator generates zsh-specific shell completion code
-type ZshCodeGenerator struct{}
-
-// Name returns the shell name for zsh
-func (z *ZshCodeGenerator) Name() string {
-	return shellZsh
-}
-
-// GenerateCompletionFunction generates zsh-specific completion functions
-func (z *ZshCodeGenerator) GenerateCompletionFunction(aliasCommands map[string]string) []string {
-	var lines []string
-	lines = append(lines, strings.Split(zshFunctionTemplate, "\n")...)
+// GenerateCompletionFunction emits the shell template followed by one
+// registration line per alias
+func (g *registrationGenerator) GenerateCompletionFunction(aliasCommands map[string]string) []string {
+	lines := strings.Split(g.template, "\n")
 	for _, alias := range sortedKeys(aliasCommands) {
 		lines = append(lines, fmt.Sprintf("__dirvana_register_completion %s %s", alias, aliasCommands[alias]))
 	}
@@ -109,18 +96,18 @@ func (m *MultiShellCodeGenerator) GenerateCompletionFunction(aliasCommands map[s
 func NewCompletionGenerator(shell string) CodeGenerator {
 	switch shell {
 	case shellBash:
-		return &BashCodeGenerator{}
+		return &registrationGenerator{shell: shellBash, template: bashTemplate}
 	case shellZsh:
-		return &ZshCodeGenerator{}
+		return &registrationGenerator{shell: shellZsh, template: zshFunctionTemplate}
 	case shellFish:
 		return &FishCodeGenerator{}
 	default:
 		// All shells
 		return &MultiShellCodeGenerator{
 			generators: []CodeGenerator{
-				&BashCodeGenerator{},
-				&ZshCodeGenerator{},
-				&FishCodeGenerator{},
+				NewCompletionGenerator(shellBash),
+				NewCompletionGenerator(shellZsh),
+				NewCompletionGenerator(shellFish),
 			},
 		}
 	}
