@@ -24,6 +24,10 @@ func resolveSymlinks(t *testing.T, path string) string {
 //
 //nolint:gocyclo // Test function with multiple scenarios
 func TestExport_HierarchyWithUnauthorizedMiddle(t *testing.T) {
+	// Pin the target shell: the assertions expect bash-format output and
+	// the test process may run under a dirvana-enabled fish/zsh session
+	t.Setenv("DIRVANA_SHELL", "bash")
+
 	// Save and restore current directory
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -202,6 +206,10 @@ func TestExport_HierarchyWithUnauthorizedMiddle(t *testing.T) {
 //
 //nolint:gocyclo // Test function with multiple scenarios
 func TestExport_LocalOnlyFlag(t *testing.T) {
+	// Pin the target shell: the assertions expect bash-format output and
+	// the test process may run under a dirvana-enabled fish/zsh session
+	t.Setenv("DIRVANA_SHELL", "bash")
+
 	// Save and restore current directory
 	origDir, err := os.Getwd()
 	if err != nil {

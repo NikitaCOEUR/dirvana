@@ -48,9 +48,18 @@ func Exec(params ExecParams) error {
 		return err
 	}
 
+	if command == "" {
+		return fmt.Errorf("empty command for alias '%s'", params.Alias)
+	}
+
 	// Execute the command via shell
 	return executeCommand(params, command, log)
 }
+
+// execve is a seam over syscall.Exec: the real call replaces the current
+// process, which would silently kill the test binary (remaining tests AND
+// the coverage flush) the moment a test reaches it
+var execve = syscall.Exec
 
 // resolveCommand resolves an alias or function and handles conditions/completion
 func resolveCommand(params ExecParams, aliases map[string]config.AliasConfig, functions map[string]string, currentDir string, log *logger.Logger) (string, error) {
@@ -161,7 +170,7 @@ func executeCommand(params ExecParams, command string, log *logger.Logger) error
 
 	// Execute the command via shell (replace current process)
 	// This allows shell variable expansion, pipes, redirections, etc.
-	err = syscall.Exec(execPath, argv, os.Environ())
+	err = execve(execPath, argv, os.Environ())
 
 	// If we reach here, syscall.Exec failed (extremely rare)
 	return fmt.Errorf("failed to execute command: %w", err)

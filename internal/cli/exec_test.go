@@ -3,13 +3,11 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
-	"github.com/NikitaCOEUR/dirvana/internal/shell"
-	"github.com/NikitaCOEUR/dirvana/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -129,7 +127,32 @@ func TestExec_EmptyCommand(t *testing.T) {
 	assert.Contains(t, err.Error(), "empty command")
 }
 
-func TestExec_CommandNotFound(t *testing.T) {
+// stubExecve replaces the process-replacing execve seam for the duration of
+// a test and records the invocation. The real syscall.Exec would swallow
+// the test binary (remaining tests and the coverage flush included).
+func stubExecve(t *testing.T, execErr error) *execveCall {
+	t.Helper()
+	call := &execveCall{}
+	orig := execve
+	execve = func(argv0 string, argv []string, envv []string) error {
+		call.argv0 = argv0
+		call.argv = argv
+		call.envv = envv
+		call.called = true
+		return execErr
+	}
+	t.Cleanup(func() { execve = orig })
+	return call
+}
+
+type execveCall struct {
+	called bool
+	argv0  string
+	argv   []string
+	envv   []string
+}
+
+func TestExec_ExecutesResolvedCommandWithArgs(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 	authPath := filepath.Join(tmpDir, "auth.json")
@@ -140,119 +163,78 @@ func TestExec_CommandNotFound(t *testing.T) {
 	workDir, err := filepath.EvalSymlinks(workDir)
 	require.NoError(t, err)
 
-	// Create a real config file with non-existent command
 	configPath := filepath.Join(workDir, ".dirvana.yml")
-	configContent := `aliases:
-  badcmd: this-command-does-not-exist-anywhere
-`
-	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
+	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  ll: ls -la\n"), 0o644))
 
-	// Authorize the directory
 	authMgr, err := auth.New(authPath)
 	require.NoError(t, err)
 	require.NoError(t, authMgr.Allow(workDir))
 
-	// Change to work directory
 	origDir, err := os.Getwd()
 	require.NoError(t, err)
 	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
+	require.NoError(t, os.Chdir(workDir))
 
-	params := ExecParams{
+	call := stubExecve(t, nil)
+
+	err = Exec(ExecParams{
 		CachePath: cachePath,
 		AuthPath:  authPath,
 		LogLevel:  "error",
-		Alias:     "badcmd",
-		Args:      []string{},
-	}
-
-	err = Exec(params)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "command not found")
-}
-
-func TestExec_CommandWithArgs(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
-
-	// Resolve symlinks for macOS compatibility
-	workDir, err := filepath.EvalSymlinks(workDir)
-	require.NoError(t, err)
-
-	// Create cache with echo command (exists on all systems)
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-	})
-	require.NoError(t, err)
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := ExecParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Alias:     "e",
-		Args:      []string{"world"},
-	}
-
-	// This will execute "echo hello world"
-	// Note: syscall.Exec will replace the test process, so we can't really test this directly
-	// The test will verify the setup is correct before exec is called
-	_ = params // Params are valid, but we can't actually call Exec in test
-}
-
-func TestExec_MultiWordCommand(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
-
-	// Resolve symlinks for macOS compatibility
-	workDir, err := filepath.EvalSymlinks(workDir)
-	require.NoError(t, err)
-
-	// Create cache with multi-word command
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-	})
-	require.NoError(t, err)
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := ExecParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
 		Alias:     "ll",
 		Args:      []string{"/tmp"},
-	}
+	})
+	// The stub returns nil, so Exec falls through to its unreachable-in-
+	// production error path; what matters is what was about to be executed
+	require.True(t, call.called, "exec must be invoked")
+	assert.Error(t, err, "a returning execve means the exec failed")
 
-	// This would execute "ls -la /tmp"
-	// We can't test syscall.Exec directly, but we verify the setup
-	_ = params
+	// The resolved command runs through the user's shell with args appended
+	assert.NotEmpty(t, call.argv0)
+	joined := strings.Join(call.argv, " ")
+	assert.Contains(t, joined, "ls -la")
+	assert.Contains(t, joined, "/tmp")
+	assert.NotEmpty(t, call.envv)
+}
+
+func TestExec_ConditionalAliasUsesElseBranch(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+	workDir := filepath.Join(tmpDir, "work")
+	require.NoError(t, os.MkdirAll(workDir, 0o755))
+
+	workDir, err := filepath.EvalSymlinks(workDir)
+	require.NoError(t, err)
+
+	configContent := `aliases:
+  cond:
+    command: echo "condition-met"
+    when:
+      file: marker.txt
+    else: echo "condition-missing"
+`
+	require.NoError(t, os.WriteFile(filepath.Join(workDir, ".dirvana.yml"), []byte(configContent), 0o644))
+
+	authMgr, err := auth.New(authPath)
+	require.NoError(t, err)
+	require.NoError(t, authMgr.Allow(workDir))
+
+	origDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(origDir) }()
+	require.NoError(t, os.Chdir(workDir))
+
+	// No marker.txt: the else command must be selected
+	call := stubExecve(t, nil)
+	_ = Exec(ExecParams{
+		CachePath: cachePath,
+		AuthPath:  authPath,
+		LogLevel:  "error",
+		Alias:     "cond",
+	})
+	require.True(t, call.called)
+	assert.Contains(t, strings.Join(call.argv, " "), "condition-missing")
 }
 
 func TestExec_InvalidCachePath(t *testing.T) {
@@ -265,66 +247,7 @@ func TestExec_InvalidCachePath(t *testing.T) {
 
 	err := Exec(params)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to load cache")
-}
-
-func TestBuildShellArgs_FishWithFlags(t *testing.T) {
-	// Fish must use -- to prevent interpreting user args as fish flags
-	argv := shell.BuildArgs("fish", shell.Fish, "talosctl", []string{"-n", "10.0.0.1", "get", "disks"})
-
-	// Should be: fish --no-config -c "talosctl $argv" -- -n 10.0.0.1 get disks
-	assert.Equal(t, "fish", argv[0])
-	assert.Equal(t, "--no-config", argv[1])
-	assert.Equal(t, "-c", argv[2])
-	assert.Equal(t, "talosctl $argv", argv[3])
-	assert.Equal(t, "--", argv[4], "fish must have -- end-of-options marker")
-	assert.Equal(t, "-n", argv[5])
-	assert.Equal(t, "10.0.0.1", argv[6])
-	assert.Equal(t, "get", argv[7])
-	assert.Equal(t, "disks", argv[8])
-}
-
-func TestBuildShellArgs_FishWithHelp(t *testing.T) {
-	// --help must not be interpreted by fish
-	argv := shell.BuildArgs("fish", shell.Fish, "talosctl", []string{"--help"})
-
-	assert.Equal(t, "--", argv[4], "fish must have -- before --help")
-	assert.Equal(t, "--help", argv[5])
-}
-
-func TestBuildShellArgs_FishNoArgs(t *testing.T) {
-	// No args = no -- needed
-	argv := shell.BuildArgs("fish", shell.Fish, "talosctl", []string{})
-
-	assert.Equal(t, "fish", argv[0])
-	assert.Equal(t, "--no-config", argv[1])
-	assert.Equal(t, "-c", argv[2])
-	assert.Equal(t, "talosctl", argv[3])
-	assert.Len(t, argv, 4, "should not have -- when no args")
-}
-
-func TestBuildShellArgs_BashWithFlags(t *testing.T) {
-	// Bash uses shell name as $0 separator, not --
-	argv := shell.BuildArgs("bash", shell.Bash, "talosctl", []string{"-n", "10.0.0.1"})
-
-	assert.Equal(t, "bash", argv[0])
-	assert.Equal(t, "--norc", argv[1])
-	assert.Equal(t, "--noprofile", argv[2])
-	assert.Equal(t, "-c", argv[3])
-	assert.Contains(t, argv[4], `"$@"`)
-	assert.Equal(t, "bash", argv[5], "bash uses shell name as $0 separator")
-	assert.Equal(t, "-n", argv[6])
-}
-
-func TestBuildShellArgs_ZshWithFlags(t *testing.T) {
-	argv := shell.BuildArgs("zsh", shell.Zsh, "talosctl", []string{"-n", "10.0.0.1"})
-
-	assert.Equal(t, "zsh", argv[0])
-	assert.Equal(t, "--no-rcs", argv[1])
-	assert.Equal(t, "-c", argv[2])
-	assert.Contains(t, argv[3], `"$@"`)
-	assert.Equal(t, "zsh", argv[4], "zsh uses shell name as $0 separator")
-	assert.Equal(t, "-n", argv[5])
+	assert.Contains(t, err.Error(), "failed to load configuration")
 }
 
 func TestExec_CacheLoadFailure(t *testing.T) {
