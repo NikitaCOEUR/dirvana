@@ -130,7 +130,7 @@ func TestExec_EmptyCommand(t *testing.T) {
 // stubExecve replaces the process-replacing execve seam for the duration of
 // a test and records the invocation. The real syscall.Exec would swallow
 // the test binary (remaining tests and the coverage flush included).
-func stubExecve(t *testing.T, execErr error) *execveCall {
+func stubExecve(t *testing.T) *execveCall {
 	t.Helper()
 	call := &execveCall{}
 	orig := execve
@@ -139,7 +139,7 @@ func stubExecve(t *testing.T, execErr error) *execveCall {
 		call.argv = argv
 		call.envv = envv
 		call.called = true
-		return execErr
+		return nil
 	}
 	t.Cleanup(func() { execve = orig })
 	return call
@@ -175,7 +175,7 @@ func TestExec_ExecutesResolvedCommandWithArgs(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 	require.NoError(t, os.Chdir(workDir))
 
-	call := stubExecve(t, nil)
+	call := stubExecve(t)
 
 	err = Exec(ExecParams{
 		CachePath: cachePath,
@@ -195,6 +195,128 @@ func TestExec_ExecutesResolvedCommandWithArgs(t *testing.T) {
 	assert.Contains(t, joined, "ls -la")
 	assert.Contains(t, joined, "/tmp")
 	assert.NotEmpty(t, call.envv)
+}
+
+// execParams builds the params for an alias of the workspace
+func (e *testEnv) execParams(alias string, args ...string) ExecParams {
+	return ExecParams{
+		CachePath: e.CachePath,
+		AuthPath:  e.AuthPath,
+		LogLevel:  "error",
+		Alias:     alias,
+		Args:      args,
+	}
+}
+
+func TestExec_RunsFunctionBody(t *testing.T) {
+	env := newTestEnv(t)
+	env.writeConfig(t, "functions:\n  greet: |\n    echo hello $1\n")
+	env.allow(t)
+
+	call := stubExecve(t)
+	_ = Exec(env.execParams("greet", "world"))
+
+	require.True(t, call.called)
+	joined := strings.Join(call.argv, " ")
+	// The function body is passed to the shell, marker prefix included
+	assert.Contains(t, joined, "echo hello $1")
+	assert.Contains(t, joined, "world")
+}
+
+func TestExec_ConditionMetUsesMainCommand(t *testing.T) {
+	env := newTestEnv(t)
+	env.writeConfig(t, `aliases:
+  cond:
+    command: echo "condition-met"
+    when:
+      file: marker.txt
+    else: echo "condition-missing"
+`)
+	env.allow(t)
+	require.NoError(t, os.WriteFile(filepath.Join(env.Dir, "marker.txt"), []byte("x"), 0o644))
+
+	call := stubExecve(t)
+	_ = Exec(env.execParams("cond"))
+
+	require.True(t, call.called)
+	assert.Contains(t, strings.Join(call.argv, " "), "condition-met")
+}
+
+func TestExec_ConditionNotMetWithoutFallback(t *testing.T) {
+	env := newTestEnv(t)
+	env.writeConfig(t, `aliases:
+  cond:
+    command: echo "condition-met"
+    when:
+      var: DIRVANA_TEST_UNSET_VAR
+`)
+	env.allow(t)
+
+	// Without an else branch the main command stays selected
+	call := stubExecve(t)
+	_ = Exec(env.execParams("cond"))
+
+	require.True(t, call.called)
+	assert.Contains(t, strings.Join(call.argv, " "), "condition-met")
+}
+
+func TestExec_UnparsableConditionFallsBackToMainCommand(t *testing.T) {
+	env := newTestEnv(t)
+	// Mixing an atomic condition with a composite one is rejected by the
+	// condition parser
+	env.writeConfig(t, `aliases:
+  cond:
+    command: echo "main"
+    when:
+      file: marker.txt
+      all:
+        - var: SOME_VAR
+`)
+	env.allow(t)
+
+	call := stubExecve(t)
+	_ = Exec(env.execParams("cond"))
+
+	require.True(t, call.called)
+	assert.Contains(t, strings.Join(call.argv, " "), "main")
+}
+
+func TestExec_CompletionCallUsesCompletionCommand(t *testing.T) {
+	env := newTestEnv(t)
+	env.writeConfig(t, `aliases:
+  k:
+    command: kubectl --context prod
+    completion: kubectl
+`)
+	env.allow(t)
+
+	for _, arg := range []string{"__complete", "completion"} {
+		t.Run(arg, func(t *testing.T) {
+			call := stubExecve(t)
+			_ = Exec(env.execParams("k", arg, "get"))
+
+			require.True(t, call.called)
+			joined := strings.Join(call.argv, " ")
+			// The completion command replaces the alias command, so the
+			// completion protocol is not confused by the extra flags
+			assert.Contains(t, joined, "kubectl")
+			assert.Contains(t, joined, arg)
+			assert.NotContains(t, joined, "--context prod")
+		})
+	}
+}
+
+func TestExec_ShellNotFound(t *testing.T) {
+	env := newTestEnv(t)
+	env.writeConfig(t, "aliases:\n  ll: ls -la\n")
+	env.allow(t)
+
+	// No PATH, no shell to hand the command over to
+	t.Setenv("PATH", "")
+
+	err := Exec(env.execParams("ll"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "shell not found")
 }
 
 func TestExec_ConditionalAliasUsesElseBranch(t *testing.T) {
@@ -226,7 +348,7 @@ func TestExec_ConditionalAliasUsesElseBranch(t *testing.T) {
 	require.NoError(t, os.Chdir(workDir))
 
 	// No marker.txt: the else command must be selected
-	call := stubExecve(t, nil)
+	call := stubExecve(t)
 	_ = Exec(ExecParams{
 		CachePath: cachePath,
 		AuthPath:  authPath,
