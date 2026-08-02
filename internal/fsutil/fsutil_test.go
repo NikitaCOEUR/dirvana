@@ -2,8 +2,10 @@ package fsutil
 
 import (
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,6 +60,44 @@ func TestAtomicWrite_RenameOverDirectoryFails(t *testing.T) {
 	require.NoError(t, err)
 	for _, entry := range entries {
 		assert.NotContains(t, entry.Name(), ".dirvana-tmp-", "temp file leaked after failed rename")
+	}
+}
+
+// The failing chmod and close branches of AtomicWrite are deliberately
+// left uncovered: fchmod and close on a local regular file the process
+// just created do not fail short of a hardware or NFS error, and faking
+// one would mean injecting a seam into production code that exists for
+// no other reason. The write failure below is the one that does happen -
+// a full filesystem - and it is covered.
+
+func TestAtomicWrite_WriteFailure(t *testing.T) {
+	// A full filesystem is the realistic way the write fails; a zero file
+	// size limit reproduces it without needing a dedicated mount.
+	// SIGXFSZ has to be ignored, otherwise exceeding the limit kills the
+	// test binary instead of returning EFBIG.
+	signal.Ignore(syscall.SIGXFSZ)
+	t.Cleanup(func() { signal.Reset(syscall.SIGXFSZ) })
+
+	var orig syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_FSIZE, &orig); err != nil {
+		t.Skipf("RLIMIT_FSIZE unavailable: %v", err)
+	}
+	if err := syscall.Setrlimit(syscall.RLIMIT_FSIZE, &syscall.Rlimit{Cur: 0, Max: orig.Max}); err != nil {
+		t.Skipf("cannot lower RLIMIT_FSIZE: %v", err)
+	}
+	t.Cleanup(func() { _ = syscall.Setrlimit(syscall.RLIMIT_FSIZE, &orig) })
+
+	tmpDir := t.TempDir()
+	err := AtomicWrite(filepath.Join(tmpDir, "state.json"), []byte("data"), StateFilePerm)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to write to temp file")
+
+	// The destination must not exist, and no temp file may be left over
+	assert.NoFileExists(t, filepath.Join(tmpDir, "state.json"))
+	entries, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	for _, entry := range entries {
+		assert.NotContains(t, entry.Name(), ".dirvana-tmp-", "temp file leaked after a failed write")
 	}
 }
 
