@@ -73,6 +73,34 @@ var shellIntegrationTests = []struct {
 		minCompletions: 15,
 		shouldContain:  []string{"init", "plan", "apply"},
 	},
+	{
+		name:           "kubectl-subcommand-in-zsh",
+		shell:          "zsh",
+		alias:          "k",
+		tool:           "kubectl",
+		subcommand:     "config",
+		minCompletions: 5,
+		shouldContain:  []string{"current-context", "use-context"},
+	},
+	// zsh delegates to a tool's own completion when it has one, so the
+	// unpackaged tool is what proves dirvana is reached at all
+	{
+		name:           "unpackaged-tool-in-zsh",
+		shell:          "zsh",
+		alias:          "ut",
+		tool:           "unpackaged-tool",
+		minCompletions: 2,
+		shouldContain:  []string{"alpha", "beta"},
+	},
+	{
+		name:           "unpackaged-tool-subcommand-in-zsh",
+		shell:          "zsh",
+		alias:          "ut",
+		tool:           "unpackaged-tool",
+		subcommand:     "alpha",
+		minCompletions: 2,
+		shouldContain:  []string{"nested-one", "nested-two"},
+	},
 	// Fish reaches completions two ways, and both have to keep working.
 	//
 	// For a command fish knows - it bundles completions for over a
@@ -144,10 +172,6 @@ func TestShellIntegration_Completion(t *testing.T) {
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
-			// TODO: Fix zsh expect script - completion works manually but expect has issues capturing output
-			if tt.shell == "zsh" {
-				t.Skip("Zsh completion tests temporarily disabled due to expect script issues")
-			}
 			t.Logf("Testing %s completion in %s", tt.alias, tt.shell)
 
 			// Get absolute path to config dir

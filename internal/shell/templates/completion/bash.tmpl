@@ -92,7 +92,9 @@ __dirvana_format_descriptions() {
 }
 
 __dirvana_register_completion() {
-    local alias_name="$1"
+    # Guarded for the same reason as zsh: this is evaluated in the user's
+    # shell, which may run under `set -u`
+    local alias_name="${1:-}"
     # For bash, always use dirvana's completion function.
     # Native completion wrapping (complete -p / sed) is unreliable with bash aliases
     # because completion functions run the command name in subshells where aliases

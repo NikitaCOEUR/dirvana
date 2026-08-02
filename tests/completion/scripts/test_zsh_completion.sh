@@ -1,132 +1,93 @@
-#!/usr/bin/expect -f
-# Test zsh completion for dirvana-managed aliases
+#!/usr/bin/env zsh
+# Capture the completions zsh offers for a dirvana-managed alias.
 #
-# Usage: test_zsh_completion.sh <alias> <config_dir>
+# Usage: test_zsh_completion.sh <alias> <config_dir> [subcommand]
 #
-# This script:
-# 1. Starts a zsh shell
-# 2. Sources dirvana export
-# 3. Simulates TAB completion for the given alias
-# 4. Outputs the completions
+# Zsh has no equivalent to fish's `complete -C`, and driving a terminal
+# through expect meant scraping a rendered screen - pagination, escape
+# codes and prompt guessing included, which is why these tests were
+# disabled. Instead we call the completion system the way zsh itself
+# does: look up the function registered for the alias, set the `words`
+# and `CURRENT` variables a real completion would see, and intercept the
+# builtins the function reports its matches through.
 
-set timeout 5
-set alias_name [lindex $argv 0]
-set config_dir [lindex $argv 1]
+emulate -L zsh
+setopt no_unset
 
-if {$alias_name == ""} {
-    send_user "Usage: test_zsh_completion.sh <alias> <config_dir>\n"
+local alias_name="${1:-}"
+local config_dir="${2:-}"
+local subcommand="${3:-}"
+
+if [[ -z "$alias_name" ]]; then
+    print -u2 "Usage: test_zsh_completion.sh <alias> <config_dir> [subcommand]"
     exit 1
+fi
+
+[[ -n "$config_dir" ]] && cd "$config_dir"
+
+autoload -Uz compinit && compinit -u 2>/dev/null
+
+# Load the aliases and their completion registrations. DIRVANA_SHELL is
+# explicit because this script is not run from an interactive zsh, so
+# shell auto-detection would look at the wrong parent process.
+eval "$(DIRVANA_SHELL=zsh dirvana export 2>/dev/null)"
+
+# Completion functions report matches through _describe or compadd.
+# Replacing both captures what the user would be offered, whether the
+# function is dirvana's own or the tool's native one.
+_describe() {
+    local arrname=${@[-1]}
+    local entry
+    for entry in ${(P)arrname}; do
+        # entries are "value:description"
+        print -- "${entry%%:*}"
+    done
+    return 0
 }
 
-# Start zsh with no rc files initially
-spawn zsh --no-rcs
-
-# Wait for prompt (can be % or hostname#)
-expect {
-    timeout { send_user "TIMEOUT waiting for initial prompt\n"; exit 1 }
-    -re {(%|#)}
+compadd() {
+    local -a values
+    local skip_next=0 arg
+    for arg in "$@"; do
+        if (( skip_next )); then
+            skip_next=0
+            continue
+        fi
+        case "$arg" in
+            # options carrying a value
+            -d|-X|-J|-V|-P|-S|-p|-s|-M|-W|-F|-i|-a) skip_next=1 ;;
+            -*) ;;
+            --) ;;
+            *) values+=("$arg") ;;
+        esac
+    done
+    print -l -- "${values[@]}"
+    return 0
 }
 
-# Configure zsh completion system
-send "autoload -Uz compinit\r"
-expect {
-    timeout { send_user "TIMEOUT after autoload compinit\n"; exit 1 }
-    -re {(%|#)}
-}
+# Never let a miss fall through to listing the filesystem
+_files() { return 1 }
+_message() { return 0 }
 
-send "compinit -i\r"
-expect {
-    timeout { send_user "TIMEOUT after compinit\n"; exit 1 }
-    -re {(%|#)}
-}
+# Build the line being completed, as the completion system would see it:
+# words holds the tokens, CURRENT is the 1-based index of the one being
+# completed - an empty trailing token when completing a fresh word.
+local -a words
+if [[ -n "$subcommand" ]]; then
+    words=("$alias_name" "$subcommand" "")
+else
+    words=("$alias_name" "")
+fi
+local CURRENT=${#words}
 
-# Disable the "do you wish to see all N possibilities" prompt
-# Set LISTMAX to a very high number so zsh never asks
-send "LISTMAX=9999\r"
-expect {
-    timeout { send_user "TIMEOUT after LISTMAX\n"; exit 1 }
-    -re {(%|#)}
-}
+# Use whatever zsh registered for this alias: dirvana's function, or the
+# tool's native completion when dirvana delegated to it
+local comp_func=${_comps[$alias_name]:-}
+if [[ -z "$comp_func" ]]; then
+    print -u2 "no completion registered for '$alias_name'"
+    exit 1
+fi
 
-# Load native tool completions
-send "kubectl completion zsh > /tmp/_kubectl && source /tmp/_kubectl 2>/dev/null || true\r"
-expect {
-    timeout { send_user "TIMEOUT after kubectl completion\n"; exit 1 }
-    -re {(%|#)}
-}
-
-send "terraform -install-autocomplete 2>/dev/null || true\r"
-expect {
-    timeout { send_user "TIMEOUT after terraform autocomplete\n"; exit 1 }
-    -re {(%|#)}
-}
-
-send "aqua completion zsh > /tmp/_aqua && source /tmp/_aqua 2>/dev/null || true\r"
-expect {
-    timeout { send_user "TIMEOUT after aqua completion\n"; exit 1 }
-    -re {(%|#)}
-}
-
-# Change to config directory
-send "cd $config_dir\r"
-expect {
-    timeout { send_user "TIMEOUT after cd command\n"; exit 1 }
-    -re {(%|#)}
-}
-
-# Allow directory (suppress authorization prompt and output)
-send "dirvana allow >/dev/null 2>&1\r"
-expect {
-    timeout { send_user "TIMEOUT after dirvana allow\n"; exit 1 }
-    -re {(%|#)}
-}
-
-# Export dirvana environment
-send "eval \"\$(dirvana export)\"\r"
-expect {
-    timeout { send_user "TIMEOUT after dirvana export\n"; exit 1 }
-    -re {(%|#)}
-}
-
-# Trigger completion (send alias + space + double TAB)
-send "$alias_name \t\t"
-
-# Wait a bit for completions to appear and capture them
-set output ""
-expect {
-    -timeout 30
-    timeout {
-        send_user "TIMEOUT waiting for completions after 30s\n"
-        exit 1
-    }
-    -ex {--More--} {
-        # Paged output - accumulate what we have so far and send Ctrl+C
-        append output $expect_out(buffer)
-        send "\x03"
-        exp_continue
-    }
-    -re {(%|#)} {
-        # Got back to prompt - accumulate final output
-        append output $expect_out(buffer)
-    }
-}
-
-# If we didn't get back to prompt yet, wait for it after Ctrl+C
-if {![string match "*%*" $output] && ![string match "*#*" $output]} {
-    send "\x03"
-    expect {
-        timeout { send_user "TIMEOUT after Ctrl+C\n"; exit 1 }
-        -re {(%|#)}
-    }
-}
-
-# Print captured completions to stdout (not to spawned shell)
-send_user "COMPLETIONS_START\n"
-send_user -- $output
-send_user "\n"
-send_user "COMPLETIONS_END\n"
-
-# Exit shell
-send "\025" ;# Ctrl+U to clear line
-send "exit\r"
-expect eof
+print "COMPLETIONS_START"
+$comp_func 2>/dev/null
+print "COMPLETIONS_END"
