@@ -325,15 +325,7 @@ func Export(params ExportParams) error {
 			return err
 		}
 
-		// Display confirmation message directly to terminal
-		tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
-		if err != nil {
-			// Fallback to stderr if /dev/tty is not available
-			_, _ = fmt.Fprintf(os.Stderr, "\n✓ Shell commands approved and cached\n\n")
-		} else {
-			_, _ = fmt.Fprintf(tty, "\n✓ Shell commands approved and cached\n\n")
-			_ = tty.Close()
-		}
+		notifyUser("\n✓ Shell commands approved and cached\n\n")
 	}
 
 	// Configure shell generator

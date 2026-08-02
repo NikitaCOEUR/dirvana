@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -218,41 +219,29 @@ func displayShellCommandsForApproval(shellEnv map[string]string) error {
 	return nil
 }
 
-// Prompt user for shell command approval
+// promptShellApproval asks the user to approve the dynamic shell commands.
+// The prompt goes to the terminal so it stays visible inside
+// $(dirvana export), and falls back to stderr/stdin when there is none.
 func promptShellApproval() (bool, error) {
-	// For testing: use stdin/stderr fallback if DIRVANA_TEST_MODE is set
-	useFallback := os.Getenv("DIRVANA_TEST_MODE") != ""
-
-	// Open /dev/tty for both reading and writing to interact with the user
-	// This ensures prompts are visible even when stdout/stderr are redirected (e.g., in eval)
-	var tty *os.File
-	var err error
-
-	if !useFallback {
-		tty, err = os.OpenFile("/dev/tty", os.O_RDWR, 0)
-	} else {
-		err = fmt.Errorf("test mode: skip /dev/tty")
-	}
-
+	tty, err := openTTY(os.O_RDWR)
 	if err != nil {
-		// Fallback to stderr for output and stdin for input
-		_, _ = fmt.Fprintf(os.Stderr, "Approve execution? [y/N]: ")
-		reader := bufio.NewReader(os.Stdin)
-		response, err := reader.ReadString('\n')
-		if err != nil {
-			return false, err
-		}
-		response = strings.TrimSpace(strings.ToLower(response))
-		return response == "y" || response == "yes", nil
+		return readApproval(os.Stderr, os.Stdin)
 	}
 	defer func() { _ = tty.Close() }()
 
-	_, _ = fmt.Fprintf(tty, "Approve execution? [y/N]: ")
-	reader := bufio.NewReader(tty)
-	response, err := reader.ReadString('\n')
+	return readApproval(tty, tty)
+}
+
+// readApproval writes the prompt to out and reads the answer from in.
+// Anything but an explicit yes is a refusal.
+func readApproval(out io.Writer, in io.Reader) (bool, error) {
+	_, _ = fmt.Fprintf(out, "Approve execution? [y/N]: ")
+
+	response, err := bufio.NewReader(in).ReadString('\n')
 	if err != nil {
 		return false, err
 	}
+
 	response = strings.TrimSpace(strings.ToLower(response))
 	return response == "y" || response == "yes", nil
 }
