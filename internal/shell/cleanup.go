@@ -34,8 +34,10 @@ func generateAliasCleanup(aliases []string, shell string) []string {
 			// Fish uses 'functions -e' to remove functions/aliases
 			lines = append(lines, "functions -e "+alias+" 2>/dev/null; or true")
 		} else {
-			// Bash/Zsh use 'unalias'
-			lines = append(lines, "unalias "+alias+" 2>/dev/null || true")
+			// Bash defines real aliases, but zsh wraps them as shell
+			// functions so completion can attach: remove whichever form
+			// exists, without tripping `set -e` shells
+			lines = append(lines, "{ unalias "+alias+" || unset -f "+alias+"; } 2>/dev/null || true")
 		}
 	}
 
