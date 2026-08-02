@@ -9,6 +9,73 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// sampleConfigMarkers are the sections every generated config must carry
+var sampleConfigMarkers = []string{
+	"yaml-language-server: $schema=",
+	"aliases:",
+	"functions:",
+	"env:",
+	"local_only:",
+}
+
+func TestInit(t *testing.T) {
+	env := newTestEnv(t)
+
+	out := captureStdout(t, func() {
+		require.NoError(t, Init(false))
+	})
+	assert.Contains(t, out, "Created sample config")
+
+	content, err := os.ReadFile(filepath.Join(env.Dir, ".dirvana.yml"))
+	require.NoError(t, err)
+	for _, marker := range sampleConfigMarkers {
+		assert.Contains(t, string(content), marker)
+	}
+}
+
+func TestInit_AlreadyExists(t *testing.T) {
+	env := newTestEnv(t)
+	env.writeConfig(t, "aliases:\n  existing: echo existing\n")
+
+	err := Init(false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists")
+
+	// The existing config is left untouched
+	content, err := os.ReadFile(filepath.Join(env.Dir, ".dirvana.yml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "existing")
+}
+
+func TestInit_Global(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	out := captureStdout(t, func() {
+		require.NoError(t, Init(true))
+	})
+	assert.Contains(t, out, "Created global config")
+
+	content, err := os.ReadFile(filepath.Join(tmpDir, "dirvana", "global.yml"))
+	require.NoError(t, err)
+	for _, marker := range sampleConfigMarkers {
+		assert.Contains(t, string(content), marker)
+	}
+}
+
+func TestInit_Global_AlreadyExists(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	globalConfig := filepath.Join(tmpDir, "dirvana", "global.yml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(globalConfig), 0o755))
+	require.NoError(t, os.WriteFile(globalConfig, []byte("aliases: {}\n"), 0o644))
+
+	err := Init(true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists")
+}
+
 func TestInit_GlobalWithoutHome(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("HOME", "")

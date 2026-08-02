@@ -100,12 +100,24 @@ func chdir(t *testing.T, dir string) {
 // captureStdout runs fn with os.Stdout redirected and returns what it wrote
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
+	return captureFile(t, &os.Stdout, fn)
+}
+
+// captureStderr runs fn with os.Stderr redirected and returns what it wrote
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	return captureFile(t, &os.Stderr, fn)
+}
+
+// captureFile redirects one of the process streams for the duration of fn
+func captureFile(t *testing.T, stream **os.File, fn func()) string {
+	t.Helper()
 
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 
-	orig := os.Stdout
-	os.Stdout = w
+	orig := *stream
+	*stream = w
 
 	// Drain concurrently so a write larger than the pipe buffer cannot
 	// deadlock fn
@@ -116,7 +128,7 @@ func captureStdout(t *testing.T, fn func()) string {
 	}()
 
 	defer func() {
-		os.Stdout = orig
+		*stream = orig
 		_ = r.Close()
 	}()
 
@@ -124,4 +136,37 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	require.NoError(t, w.Close())
 	return <-done
+}
+
+// answerPrompt feeds one answer to the interactive consent prompt, through
+// the stdin fallback the test mode routes it to
+func answerPrompt(t *testing.T, answer string) {
+	t.Helper()
+	stubStdin(t, answer+"\n")
+}
+
+// answerPromptEOF closes the prompt's input without answering
+func answerPromptEOF(t *testing.T) {
+	t.Helper()
+	stubStdin(t, "")
+}
+
+// stubStdin replaces stdin with the given content for the duration of the
+// test, and forces the terminal fallback so the prompt reads from it
+func stubStdin(t *testing.T, content string) {
+	t.Helper()
+	t.Setenv("DIRVANA_TEST_MODE", "1")
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	_, err = w.WriteString(content)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+
+	orig := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() {
+		os.Stdin = orig
+		_ = r.Close()
+	})
 }

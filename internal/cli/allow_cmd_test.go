@@ -13,6 +13,86 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testPathConst is a path that never exists on disk: authorization is
+// bookkeeping, it does not require the directory to be there
+const testPathConst = "/test/path"
+
+func TestAllow(t *testing.T) {
+	env := newTestEnv(t)
+
+	require.NoError(t, Allow(env.AuthPath, testPathConst))
+
+	authMgr, err := auth.New(env.AuthPath)
+	require.NoError(t, err)
+	allowed, err := authMgr.IsAllowed(testPathConst)
+	require.NoError(t, err)
+	assert.True(t, allowed)
+}
+
+func TestAllow_EmptyPath(t *testing.T) {
+	env := newTestEnv(t)
+
+	// The auth layer stores whatever it is given, empty path included
+	require.NoError(t, Allow(env.AuthPath, ""))
+}
+
+func TestAllow_InvalidAuthPath(t *testing.T) {
+	env := newTestEnv(t)
+
+	// A regular file where the state directory is expected
+	blocker := filepath.Join(env.Root, "not-a-dir")
+	require.NoError(t, os.WriteFile(blocker, []byte("x"), 0o644))
+
+	err := Allow(filepath.Join(blocker, "auth.json"), testPathConst)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to initialize auth")
+}
+
+func TestRevoke(t *testing.T) {
+	env := newTestEnv(t)
+	require.NoError(t, Allow(env.AuthPath, testPathConst))
+
+	require.NoError(t, Revoke(env.AuthPath, testPathConst))
+
+	authMgr, err := auth.New(env.AuthPath)
+	require.NoError(t, err)
+	allowed, err := authMgr.IsAllowed(testPathConst)
+	require.NoError(t, err)
+	assert.False(t, allowed)
+}
+
+func TestRevoke_NotAuthorized(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Revoking what was never authorized is a no-op, not an error
+	require.NoError(t, Revoke(env.AuthPath, testPathConst))
+}
+
+func TestRevoke_InvalidAuthPath(t *testing.T) {
+	env := newTestEnv(t)
+
+	blocker := filepath.Join(env.Root, "not-a-dir")
+	require.NoError(t, os.WriteFile(blocker, []byte("x"), 0o644))
+
+	err := Revoke(filepath.Join(blocker, "auth.json"), testPathConst)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to initialize auth")
+}
+
+func TestList_ShowsAuthorizedPaths(t *testing.T) {
+	env := newTestEnv(t)
+	require.NoError(t, Allow(env.AuthPath, "/test/path1"))
+	require.NoError(t, Allow(env.AuthPath, "/test/path2"))
+
+	out := captureStdout(t, func() {
+		require.NoError(t, List(env.AuthPath))
+	})
+
+	assert.Contains(t, out, "Authorized projects:")
+	assert.Contains(t, out, "/test/path1")
+	assert.Contains(t, out, "/test/path2")
+}
+
 func TestAllowWithParams_AlreadyAuthorizedIsIdempotent(t *testing.T) {
 	env := newTestEnv(t)
 	env.allow(t)
@@ -105,63 +185,6 @@ func TestAllowWithParams_ReadOnlyAuthDirectory(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to authorize")
-}
-
-func TestHandleShellApproval_AlreadyApproved(t *testing.T) {
-	env := newTestEnv(t)
-	env.writeConfig(t, "env:\n  CURRENT_USER:\n    sh: whoami\n")
-
-	// First pass approves the commands
-	require.NoError(t, AllowWithParams(AllowParams{
-		AuthPath:         env.AuthPath,
-		PathToAllow:      env.Dir,
-		AutoApproveShell: true,
-		LogLevel:         "error",
-	}))
-
-	authMgr, err := auth.New(env.AuthPath)
-	require.NoError(t, err)
-
-	// Second pass: the hash is unchanged, no consent to ask for again
-	out := captureStdout(t, func() {
-		require.NoError(t, handleShellApproval(env.Dir, authMgr, false, testLogger()))
-	})
-	assert.Empty(t, out)
-}
-
-func TestHandleShellApproval_MergesInheritedCommands(t *testing.T) {
-	env := newTestEnv(t)
-	env.writeConfig(t, "env:\n  PARENT_VAR:\n    sh: echo parent\n")
-	env.allow(t)
-
-	child := filepath.Join(env.Dir, "child")
-	env.writeConfigIn(t, child, "env:\n  CHILD_VAR:\n    sh: echo child\n")
-
-	// Approving the child covers the commands inherited from the parent
-	require.NoError(t, AllowWithParams(AllowParams{
-		AuthPath:         env.AuthPath,
-		PathToAllow:      child,
-		AutoApproveShell: true,
-		LogLevel:         "error",
-	}))
-
-	authMgr, err := auth.New(env.AuthPath)
-	require.NoError(t, err)
-	assert.False(t, authMgr.RequiresShellApproval(child, map[string]string{
-		"PARENT_VAR": "echo parent",
-		"CHILD_VAR":  "echo child",
-	}))
-}
-
-func TestMergedShellEnv_NoConfig(t *testing.T) {
-	env := newTestEnv(t)
-
-	authMgr, err := auth.New(env.AuthPath)
-	require.NoError(t, err)
-
-	shellEnv, err := mergedShellEnv(env.Dir, authMgr)
-	require.NoError(t, err)
-	assert.Empty(t, shellEnv)
 }
 
 func TestRevokeWithParams_InvalidatesCacheOfSubdirectories(t *testing.T) {

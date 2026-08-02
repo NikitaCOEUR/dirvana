@@ -6,125 +6,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/NikitaCOEUR/dirvana/internal/auth"
-	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestExec_NoCacheEntry(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
-
-	// Create empty cache
-	_, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := ExecParams{
-		CachePath: cachePath,
+// execParams builds the params for an alias of the workspace
+func (e *testEnv) execParams(alias string, args ...string) ExecParams {
+	return ExecParams{
+		CachePath: e.CachePath,
+		AuthPath:  e.AuthPath,
 		LogLevel:  "error",
-		Alias:     "test",
-		Args:      []string{},
+		Alias:     alias,
+		Args:      args,
 	}
-
-	err = Exec(params)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no dirvana context found")
-}
-
-func TestExec_AliasNotFound(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	authPath := filepath.Join(tmpDir, "auth.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
-
-	// Resolve symlinks for macOS compatibility
-	workDir, err := filepath.EvalSymlinks(workDir)
-	require.NoError(t, err)
-
-	// Create a real config file with an alias
-	configPath := filepath.Join(workDir, ".dirvana.yml")
-	configContent := `aliases:
-  other: echo other
-`
-	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
-
-	// Authorize the directory
-	authMgr, err := auth.New(authPath)
-	require.NoError(t, err)
-	require.NoError(t, authMgr.Allow(workDir))
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := ExecParams{
-		CachePath: cachePath,
-		AuthPath:  authPath,
-		LogLevel:  "error",
-		Alias:     "nonexistent",
-		Args:      []string{},
-	}
-
-	err = Exec(params)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "alias 'nonexistent' not found")
-}
-
-func TestExec_EmptyCommand(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	authPath := filepath.Join(tmpDir, "auth.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
-
-	// Resolve symlinks for macOS compatibility
-	workDir, err := filepath.EvalSymlinks(workDir)
-	require.NoError(t, err)
-
-	// Create a real config file with empty command
-	configPath := filepath.Join(workDir, ".dirvana.yml")
-	configContent := `aliases:
-  empty: ""
-`
-	require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
-
-	// Authorize the directory
-	authMgr, err := auth.New(authPath)
-	require.NoError(t, err)
-	require.NoError(t, authMgr.Allow(workDir))
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := ExecParams{
-		CachePath: cachePath,
-		AuthPath:  authPath,
-		LogLevel:  "error",
-		Alias:     "empty",
-		Args:      []string{},
-	}
-
-	err = Exec(params)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "empty command")
 }
 
 // stubExecve replaces the process-replacing execve seam for the duration of
@@ -152,38 +46,47 @@ type execveCall struct {
 	envv   []string
 }
 
+// command returns what the shell was asked to run
+func (c *execveCall) command() string {
+	return strings.Join(c.argv, " ")
+}
+
+func TestExec_NoContext(t *testing.T) {
+	env := newTestEnv(t)
+
+	err := Exec(env.execParams("test"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no dirvana context found")
+}
+
+func TestExec_AliasNotFound(t *testing.T) {
+	env := newTestEnv(t)
+	env.writeConfig(t, "aliases:\n  other: echo other\n")
+	env.allow(t)
+
+	err := Exec(env.execParams("nonexistent"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "alias 'nonexistent' not found")
+}
+
+func TestExec_EmptyCommand(t *testing.T) {
+	env := newTestEnv(t)
+	env.writeConfig(t, "aliases:\n  empty: \"\"\n")
+	env.allow(t)
+
+	err := Exec(env.execParams("empty"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty command")
+}
+
 func TestExec_ExecutesResolvedCommandWithArgs(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	authPath := filepath.Join(tmpDir, "auth.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
-
-	// Resolve symlinks for macOS compatibility
-	workDir, err := filepath.EvalSymlinks(workDir)
-	require.NoError(t, err)
-
-	configPath := filepath.Join(workDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  ll: ls -la\n"), 0o644))
-
-	authMgr, err := auth.New(authPath)
-	require.NoError(t, err)
-	require.NoError(t, authMgr.Allow(workDir))
-
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	require.NoError(t, os.Chdir(workDir))
+	env := newTestEnv(t)
+	env.writeConfig(t, "aliases:\n  ll: ls -la\n")
+	env.allow(t)
 
 	call := stubExecve(t)
+	err := Exec(env.execParams("ll", "/tmp"))
 
-	err = Exec(ExecParams{
-		CachePath: cachePath,
-		AuthPath:  authPath,
-		LogLevel:  "error",
-		Alias:     "ll",
-		Args:      []string{"/tmp"},
-	})
 	// The stub returns nil, so Exec falls through to its unreachable-in-
 	// production error path; what matters is what was about to be executed
 	require.True(t, call.called, "exec must be invoked")
@@ -191,21 +94,9 @@ func TestExec_ExecutesResolvedCommandWithArgs(t *testing.T) {
 
 	// The resolved command runs through the user's shell with args appended
 	assert.NotEmpty(t, call.argv0)
-	joined := strings.Join(call.argv, " ")
-	assert.Contains(t, joined, "ls -la")
-	assert.Contains(t, joined, "/tmp")
+	assert.Contains(t, call.command(), "ls -la")
+	assert.Contains(t, call.command(), "/tmp")
 	assert.NotEmpty(t, call.envv)
-}
-
-// execParams builds the params for an alias of the workspace
-func (e *testEnv) execParams(alias string, args ...string) ExecParams {
-	return ExecParams{
-		CachePath: e.CachePath,
-		AuthPath:  e.AuthPath,
-		LogLevel:  "error",
-		Alias:     alias,
-		Args:      args,
-	}
 }
 
 func TestExec_RunsFunctionBody(t *testing.T) {
@@ -217,54 +108,67 @@ func TestExec_RunsFunctionBody(t *testing.T) {
 	_ = Exec(env.execParams("greet", "world"))
 
 	require.True(t, call.called)
-	joined := strings.Join(call.argv, " ")
 	// The function body is passed to the shell, marker prefix included
-	assert.Contains(t, joined, "echo hello $1")
-	assert.Contains(t, joined, "world")
+	assert.Contains(t, call.command(), "echo hello $1")
+	assert.Contains(t, call.command(), "world")
 }
 
-func TestExec_ConditionMetUsesMainCommand(t *testing.T) {
-	env := newTestEnv(t)
-	env.writeConfig(t, `aliases:
+func TestExec_Conditions(t *testing.T) {
+	const conditionalConfig = `aliases:
   cond:
     command: echo "condition-met"
     when:
       file: marker.txt
     else: echo "condition-missing"
-`)
-	env.allow(t)
-	require.NoError(t, os.WriteFile(filepath.Join(env.Dir, "marker.txt"), []byte("x"), 0o644))
+`
 
-	call := stubExecve(t)
-	_ = Exec(env.execParams("cond"))
+	t.Run("met uses the main command", func(t *testing.T) {
+		env := newTestEnv(t)
+		env.writeConfig(t, conditionalConfig)
+		env.allow(t)
+		require.NoError(t, os.WriteFile(filepath.Join(env.Dir, "marker.txt"), []byte("x"), 0o644))
 
-	require.True(t, call.called)
-	assert.Contains(t, strings.Join(call.argv, " "), "condition-met")
-}
+		call := stubExecve(t)
+		_ = Exec(env.execParams("cond"))
 
-func TestExec_ConditionNotMetWithoutFallback(t *testing.T) {
-	env := newTestEnv(t)
-	env.writeConfig(t, `aliases:
+		require.True(t, call.called)
+		assert.Contains(t, call.command(), "condition-met")
+	})
+
+	t.Run("unmet uses the else branch", func(t *testing.T) {
+		env := newTestEnv(t)
+		env.writeConfig(t, conditionalConfig)
+		env.allow(t)
+
+		call := stubExecve(t)
+		_ = Exec(env.execParams("cond"))
+
+		require.True(t, call.called)
+		assert.Contains(t, call.command(), "condition-missing")
+	})
+
+	t.Run("unmet without else keeps the main command", func(t *testing.T) {
+		env := newTestEnv(t)
+		env.writeConfig(t, `aliases:
   cond:
     command: echo "condition-met"
     when:
       var: DIRVANA_TEST_UNSET_VAR
 `)
-	env.allow(t)
+		env.allow(t)
 
-	// Without an else branch the main command stays selected
-	call := stubExecve(t)
-	_ = Exec(env.execParams("cond"))
+		call := stubExecve(t)
+		_ = Exec(env.execParams("cond"))
 
-	require.True(t, call.called)
-	assert.Contains(t, strings.Join(call.argv, " "), "condition-met")
-}
+		require.True(t, call.called)
+		assert.Contains(t, call.command(), "condition-met")
+	})
 
-func TestExec_UnparsableConditionFallsBackToMainCommand(t *testing.T) {
-	env := newTestEnv(t)
-	// Mixing an atomic condition with a composite one is rejected by the
-	// condition parser
-	env.writeConfig(t, `aliases:
+	t.Run("unparsable falls back to the main command", func(t *testing.T) {
+		env := newTestEnv(t)
+		// Mixing an atomic condition with a composite one is rejected by
+		// the condition parser
+		env.writeConfig(t, `aliases:
   cond:
     command: echo "main"
     when:
@@ -272,13 +176,14 @@ func TestExec_UnparsableConditionFallsBackToMainCommand(t *testing.T) {
       all:
         - var: SOME_VAR
 `)
-	env.allow(t)
+		env.allow(t)
 
-	call := stubExecve(t)
-	_ = Exec(env.execParams("cond"))
+		call := stubExecve(t)
+		_ = Exec(env.execParams("cond"))
 
-	require.True(t, call.called)
-	assert.Contains(t, strings.Join(call.argv, " "), "main")
+		require.True(t, call.called)
+		assert.Contains(t, call.command(), "main")
+	})
 }
 
 func TestExec_CompletionCallUsesCompletionCommand(t *testing.T) {
@@ -296,12 +201,11 @@ func TestExec_CompletionCallUsesCompletionCommand(t *testing.T) {
 			_ = Exec(env.execParams("k", arg, "get"))
 
 			require.True(t, call.called)
-			joined := strings.Join(call.argv, " ")
 			// The completion command replaces the alias command, so the
 			// completion protocol is not confused by the extra flags
-			assert.Contains(t, joined, "kubectl")
-			assert.Contains(t, joined, arg)
-			assert.NotContains(t, joined, "--context prod")
+			assert.Contains(t, call.command(), "kubectl")
+			assert.Contains(t, call.command(), arg)
+			assert.NotContains(t, call.command(), "--context prod")
 		})
 	}
 }
@@ -319,71 +223,16 @@ func TestExec_ShellNotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "shell not found")
 }
 
-func TestExec_ConditionalAliasUsesElseBranch(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	authPath := filepath.Join(tmpDir, "auth.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
+func TestExec_UnusableCachePath(t *testing.T) {
+	env := newTestEnv(t)
 
-	workDir, err := filepath.EvalSymlinks(workDir)
-	require.NoError(t, err)
-
-	configContent := `aliases:
-  cond:
-    command: echo "condition-met"
-    when:
-      file: marker.txt
-    else: echo "condition-missing"
-`
-	require.NoError(t, os.WriteFile(filepath.Join(workDir, ".dirvana.yml"), []byte(configContent), 0o644))
-
-	authMgr, err := auth.New(authPath)
-	require.NoError(t, err)
-	require.NoError(t, authMgr.Allow(workDir))
-
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	require.NoError(t, os.Chdir(workDir))
-
-	// No marker.txt: the else command must be selected
-	call := stubExecve(t)
-	_ = Exec(ExecParams{
-		CachePath: cachePath,
-		AuthPath:  authPath,
+	// A directory where the cache file is expected
+	err := Exec(ExecParams{
+		CachePath: env.Dir,
+		AuthPath:  env.AuthPath,
 		LogLevel:  "error",
-		Alias:     "cond",
+		Alias:     "test",
 	})
-	require.True(t, call.called)
-	assert.Contains(t, strings.Join(call.argv, " "), "condition-missing")
-}
-
-func TestExec_InvalidCachePath(t *testing.T) {
-	params := ExecParams{
-		CachePath: "/nonexistent/path/cache.json",
-		LogLevel:  "error",
-		Alias:     "test",
-		Args:      []string{},
-	}
-
-	err := Exec(params)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load configuration")
-}
-
-func TestExec_CacheLoadFailure(t *testing.T) {
-	// Use a directory path as cache path (will fail to load)
-	tmpDir := t.TempDir()
-
-	params := ExecParams{
-		CachePath: tmpDir, // Directory, not a file
-		LogLevel:  "error",
-		Alias:     "test",
-		Args:      []string{},
-	}
-
-	err := Exec(params)
-	assert.Error(t, err)
-	// Should fail at cache loading
 }
