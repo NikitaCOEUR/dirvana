@@ -84,8 +84,11 @@ func detectTargetShell() string {
 	return shell.DetectRaw("auto")
 }
 
-// checkUnauthorizedConfig warns if current directory has an unauthorized config
-func checkUnauthorizedConfig(currentDir string, currentActiveChain []string, targetShell string, log *logger.Logger) {
+// checkUnauthorizedConfig tells the user when the current directory has a
+// config that is not authorized. The message goes straight to /dev/tty:
+// the hook captures stdout and discards stderr, so a regular log line
+// would never be seen.
+func checkUnauthorizedConfig(currentDir string, currentActiveChain []string, log *logger.Logger) {
 	if !config.HasLocalConfig(currentDir) {
 		return
 	}
@@ -101,16 +104,10 @@ func checkUnauthorizedConfig(currentDir string, currentActiveChain []string, tar
 
 	if !isInActiveChain {
 		// Current directory has local config but is not authorized
-		suggestion := "dirvana allow " + currentDir
-		if targetShell != "" {
-			suggestion += "\n💡 Then reload with: eval \"$(DIRVANA_SHELL=" + targetShell + " dirvana export)\""
-		} else {
-			suggestion += "\n💡 Then reload with: eval \"$(dirvana export)\""
-		}
-
-		log.Warn().
+		notifyUser("dirvana: config found in " + currentDir + " but not authorized. Run: dirvana allow\n")
+		log.Debug().
 			Str("dir", currentDir).
-			Msg("Local dirvana config found but directory not authorized. Run: " + suggestion)
+			Msg("Local dirvana config found but directory not authorized")
 	}
 }
 
@@ -263,6 +260,11 @@ func Export(params ExportParams) error {
 	cleanupCode := generateCleanupCodeForDirs(cleanupDirs, comps.cache, targetShell, log)
 	timer.Mark("cleanup")
 
+	// Check if current directory has a local config but is not in the
+	// active chain. Must run before the empty-chain early return: the most
+	// common case (nothing authorized yet) is exactly an empty chain.
+	checkUnauthorizedConfig(currentDir, chains.current, log)
+
 	// If no active configs in current directory, just output cleanup and return
 	if len(chains.current) == 0 {
 		if cleanupCode != "" {
@@ -272,9 +274,6 @@ func Export(params ExportParams) error {
 		}
 		return nil
 	}
-
-	// Check if current directory has a local config but is not in the active chain
-	checkUnauthorizedConfig(currentDir, chains.current, targetShell, log)
 
 	// Load each config in the active chain and cache individual definitions
 	// This now uses LoadHierarchyWithAuth to properly handle global config, ignore_global, and local_only

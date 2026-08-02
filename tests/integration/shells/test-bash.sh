@@ -372,6 +372,14 @@ aliases:
   evilcmd: echo "should never be defined"
 EOF
 cd /test/unauth
+# The guidance message must reach the user even though the hook discards
+# stderr: it goes through /dev/tty (or stderr in test mode)
+WARN_OUTPUT=$(DIRVANA_TEST_MODE=1 dirvana export --prev /test/project/subglobal 2>&1 >/dev/null)
+if [[ "$WARN_OUTPUT" != *"not authorized"* ]]; then
+    echo "✗ Unauthorized-config notice not shown to the user"
+    exit 1
+fi
+echo "✓ Unauthorized-config notice is visible"
 SHELL_CODE=$(dirvana export --prev /test/project/subglobal 2>/dev/null)
 if [[ "$SHELL_CODE" == *"evilcmd"* ]]; then
     echo "✗ SECURITY: unauthorized config was loaded!"
