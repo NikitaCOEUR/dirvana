@@ -1,521 +1,384 @@
 package cli
 
 import (
-	"bytes"
-	"io"
-	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cache"
-	"github.com/NikitaCOEUR/dirvana/pkg/version"
+	"github.com/NikitaCOEUR/dirvana/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCompletion_EmptyWords(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
+// cobraTool answers the Cobra __complete protocol: it echoes one suggestion
+// per known subcommand plus the trailing directive line.
+const cobraTool = `#!/usr/bin/env bash
+if [ "$1" != "__complete" ]; then
+  exit 1
+fi
+printf "delete\tDelete a resource\n"
+printf "apply\tApply a configuration\n"
+printf "attach\tAttach to a container\n"
+printf ":4\n"
+`
 
-	params := CompletionParams{
-		CachePath: cachePath,
+// completionParams builds the params for the alias being completed
+func (e *testEnv) completionParams(words []string, cword int) CompletionParams {
+	return CompletionParams{
+		CachePath: e.CachePath,
+		AuthPath:  e.AuthPath,
 		LogLevel:  "error",
-		Words:     []string{},
-		CWord:     0,
+		Words:     words,
+		CWord:     cword,
 	}
-
-	err := Completion(params)
-	assert.NoError(t, err)
 }
 
-func TestCompletion_NoCacheEntry(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
+func TestCompletion_EmptyWords(t *testing.T) {
+	env := newTestEnv(t)
 
-	// Create empty cache
-	_, err := cache.New(cachePath)
-	require.NoError(t, err)
+	out := captureStdout(t, func() {
+		assert.NoError(t, Completion(env.completionParams([]string{}, 0)))
+	})
+	assert.Empty(t, out)
+}
 
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
+func TestCompletion_NoContext(t *testing.T) {
+	env := newTestEnv(t)
 
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"test"},
-		CWord:     0,
-	}
+	// No config at all: nothing to complete, and no error either
+	out := captureStdout(t, func() {
+		assert.NoError(t, Completion(env.completionParams([]string{"anything"}, 0)))
+	})
+	assert.Empty(t, out)
+}
 
-	err = Completion(params)
-	// Should not return error, just no completions
-	assert.NoError(t, err)
+func TestCompletion_UnauthorizedConfigIsIgnored(t *testing.T) {
+	env := newTestEnv(t)
+	tool := env.mockTool(t, "mock-cobra", cobraTool)
+	env.writeConfig(t, "aliases:\n  k: "+tool+"\n")
+	// Deliberately not authorized
+
+	out := captureStdout(t, func() {
+		assert.NoError(t, Completion(env.completionParams([]string{"k", ""}, 1)))
+	})
+	assert.Empty(t, out)
 }
 
 func TestCompletion_AliasNotFound(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
+	env := newTestEnv(t)
+	env.writeConfig(t, "aliases:\n  other: echo other\n")
+	env.allow(t)
 
-	// Create cache with entry but different alias
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
+	out := captureStdout(t, func() {
+		assert.NoError(t, Completion(env.completionParams([]string{"nonexistent", ""}, 1)))
 	})
-	require.NoError(t, err)
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"nonexistent"},
-		CWord:     0,
-	}
-
-	err = Completion(params)
-	// Should not return error, just no completions
-	assert.NoError(t, err)
+	assert.Empty(t, out)
 }
 
-func TestCompletion_WithCompletionOverride(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
+func TestCompletion_FunctionAliasHasNoSuggestions(t *testing.T) {
+	env := newTestEnv(t)
+	env.writeConfig(t, "functions:\n  myfunc: |\n    echo hello\n")
+	env.allow(t)
 
-	// Create cache with entry that has completion override
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
+	out := captureStdout(t, func() {
+		assert.NoError(t, Completion(env.completionParams([]string{"myfunc", "arg1"}, 1)))
 	})
-	require.NoError(t, err)
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"k", "get"},
-		CWord:     1,
-	}
-
-	// This will try to execute completion, which will fail since kubectl may not exist
-	// But we're testing the logic path
-	err = Completion(params)
-	// Error is acceptable here since the actual command may not exist
-	// We just want to verify the function doesn't panic
-	_ = err
-}
-
-func TestCompletion_BasicFlow(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
-
-	// Create cache with echo command (should exist on all systems)
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-	})
-	require.NoError(t, err)
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"e", "test"},
-		CWord:     1,
-	}
-
-	// Execute completion (may or may not produce output, but should not crash)
-	err = Completion(params)
-	// Error is acceptable - we're testing the code path
-	_ = err
-}
-
-func TestCompletion_FunctionAlias(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
-
-	// Create cache with function alias
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-	})
-	require.NoError(t, err)
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"myfunc", "arg1"},
-		CWord:     1,
-	}
-
-	// Functions don't have smart completions
-	err = Completion(params)
-	assert.NoError(t, err)
+	assert.Empty(t, out)
 }
 
 func TestCompletion_EmptyCommand(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
+	env := newTestEnv(t)
+	env.writeConfig(t, "aliases:\n  empty: \"\"\n")
+	env.allow(t)
 
-	// Create cache with empty command
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
+	out := captureStdout(t, func() {
+		assert.NoError(t, Completion(env.completionParams([]string{"empty", ""}, 1)))
 	})
-	require.NoError(t, err)
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"empty"},
-		CWord:     0,
-	}
-
-	err = Completion(params)
-	assert.NoError(t, err)
+	assert.Empty(t, out)
 }
 
 func TestCompletion_CommandNotFound(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
+	env := newTestEnv(t)
+	env.writeConfig(t, "aliases:\n  gone: dirvana-does-not-exist-anywhere\n")
+	env.allow(t)
 
-	// Create cache with non-existent command
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
+	out := captureStdout(t, func() {
+		assert.NoError(t, Completion(env.completionParams([]string{"gone", "arg"}, 1)))
 	})
-	require.NoError(t, err)
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"notfound", "arg"},
-		CWord:     1,
-	}
-
-	// Should not error, just no completions
-	err = Completion(params)
-	assert.NoError(t, err)
+	assert.Empty(t, out)
 }
 
-func TestCompletion_CompletionBeyondLastWord(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
+func TestCompletion_SuggestionsAreSortedWithDescriptions(t *testing.T) {
+	env := newTestEnv(t)
+	tool := env.mockTool(t, "mock-cobra", cobraTool)
+	env.writeConfig(t, "aliases:\n  k: "+tool+"\n")
+	env.allow(t)
 
-	// Create cache with echo command
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
+	out := captureStdout(t, func() {
+		require.NoError(t, Completion(env.completionParams([]string{"k", ""}, 1)))
 	})
-	require.NoError(t, err)
 
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	// CWord beyond existing words - completing a new word
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"e", "test"},
-		CWord:     2, // Beyond last word
-	}
-
-	err = Completion(params)
-	// May or may not error depending on completion engine
-	_ = err
+	lines := splitLines(out)
+	require.Len(t, lines, 3)
+	// Sorted by value, description kept after a tab
+	assert.Equal(t, "apply\tApply a configuration", lines[0])
+	assert.Equal(t, "attach\tAttach to a container", lines[1])
+	assert.Equal(t, "delete\tDelete a resource", lines[2])
 }
 
-func TestCompletion_WithCurrentWord(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
+func TestCompletion_FiltersOnCurrentWord(t *testing.T) {
+	env := newTestEnv(t)
+	tool := env.mockTool(t, "mock-cobra", cobraTool)
+	env.writeConfig(t, "aliases:\n  k: "+tool+"\n")
+	env.allow(t)
 
-	// Create cache with echo command
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
+	out := captureStdout(t, func() {
+		require.NoError(t, Completion(env.completionParams([]string{"k", "a"}, 1)))
 	})
-	require.NoError(t, err)
 
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	// Test with current word being completed
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"e", "tes"},
-		CWord:     1, // Completing "tes"
-	}
-
-	err = Completion(params)
-	// May or may not error depending on completion engine
-	_ = err
+	lines := splitLines(out)
+	require.Len(t, lines, 2)
+	assert.Equal(t, "apply\tApply a configuration", lines[0])
+	assert.Equal(t, "attach\tAttach to a container", lines[1])
 }
 
-func TestCompletion_SortsSuggestions(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
+func TestCompletion_CompletionOverrideDrivesSuggestions(t *testing.T) {
+	env := newTestEnv(t)
+	// The alias runs a command with no completion support, but completion is
+	// delegated to another tool
+	tool := env.mockTool(t, "mock-cobra", cobraTool)
+	env.writeConfig(t, "aliases:\n  k:\n    command: echo\n    completion: "+tool+"\n")
+	env.allow(t)
 
-	// Create a mock completion script that returns unordered suggestions
-	mockScript := `#!/bin/bash
-if [ -n "$COMP_LINE" ]; then
-    echo "zebra"
-    echo "apple"
-    echo "banana"
+	out := captureStdout(t, func() {
+		require.NoError(t, Completion(env.completionParams([]string{"k", "de"}, 1)))
+	})
+
+	assert.Equal(t, []string{"delete\tDelete a resource"}, splitLines(out))
+}
+
+func TestCompletion_ToolWithoutSuggestions(t *testing.T) {
+	env := newTestEnv(t)
+	// A tool that speaks no completion protocol at all
+	tool := env.mockTool(t, "mock-mute", "#!/usr/bin/env bash\nexit 1\n")
+	env.writeConfig(t, "aliases:\n  m: "+tool+"\n")
+	env.allow(t)
+
+	out := captureStdout(t, func() {
+		require.NoError(t, Completion(env.completionParams([]string{"m", ""}, 1)))
+	})
+
+	assert.Empty(t, out)
+}
+
+func TestCompletion_SecondCallUsesDetectionCache(t *testing.T) {
+	env := newTestEnv(t)
+	tool := env.mockTool(t, "mock-cobra", cobraTool)
+	env.writeConfig(t, "aliases:\n  k: "+tool+"\n")
+	env.allow(t)
+
+	// First call detects the protocol and persists it
+	first := captureStdout(t, func() {
+		require.NoError(t, Completion(env.completionParams([]string{"k", "de"}, 1)))
+	})
+	require.FileExists(t, filepath.Join(env.Root, "completion-detection.json"))
+
+	// Second call takes the cached-detection path, which skips the PATH
+	// lookup, and must yield the same suggestions
+	second := captureStdout(t, func() {
+		require.NoError(t, Completion(env.completionParams([]string{"k", "de"}, 1)))
+	})
+
+	assert.Equal(t, []string{"delete\tDelete a resource"}, splitLines(first))
+	assert.Equal(t, first, second)
+}
+
+func TestCompletion_PrefixMatchingNothing(t *testing.T) {
+	env := newTestEnv(t)
+	tool := env.mockTool(t, "mock-cobra", cobraTool)
+	env.writeConfig(t, "aliases:\n  k: "+tool+"\n")
+	env.allow(t)
+
+	out := captureStdout(t, func() {
+		require.NoError(t, Completion(env.completionParams([]string{"k", "zzz"}, 1)))
+	})
+
+	assert.Empty(t, out)
+}
+
+func TestCompletion_SuggestionsWithoutDescription(t *testing.T) {
+	env := newTestEnv(t)
+	tool := env.mockTool(t, "mock-plain", `#!/usr/bin/env bash
+if [ "$1" != "__complete" ]; then
+  exit 1
 fi
-`
-	scriptPath := filepath.Join(tmpDir, "mock-tool.sh")
-	require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0o755))
+printf "beta\n"
+printf "alpha\n"
+printf ":4\n"
+`)
+	env.writeConfig(t, "aliases:\n  p: "+tool+"\n")
+	env.allow(t)
 
-	// Create cache with mock script
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
+	out := captureStdout(t, func() {
+		require.NoError(t, Completion(env.completionParams([]string{"p", ""}, 1)))
 	})
-	require.NoError(t, err)
 
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
+	assert.Equal(t, []string{"alpha", "beta"}, splitLines(out))
+}
 
-	// Capture stdout to verify sorting
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+func TestCompletion_CommandWithArgumentsUsesBaseCommand(t *testing.T) {
+	env := newTestEnv(t)
+	tool := env.mockTool(t, "mock-cobra", cobraTool)
+	// Extra arguments in the command must not break the lookup: only the
+	// first field is the executable
+	env.writeConfig(t, "aliases:\n  k: "+tool+" --context prod\n")
+	env.allow(t)
 
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"mock"},
-		CWord:     0,
+	out := captureStdout(t, func() {
+		require.NoError(t, Completion(env.completionParams([]string{"k", "at"}, 1)))
+	})
+
+	assert.Equal(t, []string{"attach\tAttach to a container"}, splitLines(out))
+}
+
+func TestCompletion_InheritsParentConfig(t *testing.T) {
+	env := newTestEnv(t)
+	tool := env.mockTool(t, "mock-cobra", cobraTool)
+	env.writeConfig(t, "aliases:\n  k: "+tool+"\n")
+	env.allow(t)
+
+	child := filepath.Join(env.Dir, "child")
+	env.writeConfigIn(t, child, "aliases:\n  extra: echo extra\n")
+	env.allowDir(t, child)
+	chdir(t, child)
+
+	out := captureStdout(t, func() {
+		require.NoError(t, Completion(env.completionParams([]string{"k", "de"}, 1)))
+	})
+
+	assert.Equal(t, []string{"delete\tDelete a resource"}, splitLines(out))
+}
+
+func TestResolveCompletionCommand(t *testing.T) {
+	log := logger.New("error", nil)
+
+	t.Run("no context", func(t *testing.T) {
+		env := newTestEnv(t)
+
+		_, _, err := resolveCompletionCommand("k", env.Dir, env.CachePath, env.AuthPath, log)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no dirvana context")
+	})
+
+	t.Run("unknown alias", func(t *testing.T) {
+		env := newTestEnv(t)
+		env.writeConfig(t, "aliases:\n  k: kubectl\n")
+		env.allow(t)
+
+		_, _, err := resolveCompletionCommand("unknown", env.Dir, env.CachePath, env.AuthPath, log)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not a dirvana-managed alias")
+	})
+
+	t.Run("alias without override", func(t *testing.T) {
+		env := newTestEnv(t)
+		env.writeConfig(t, "aliases:\n  k: kubectl get pods\n")
+		env.allow(t)
+
+		command, completionCmd, err := resolveCompletionCommand("k", env.Dir, env.CachePath, env.AuthPath, log)
+		require.NoError(t, err)
+		assert.Equal(t, "kubectl get pods", command)
+		assert.Equal(t, "kubectl get pods", completionCmd)
+	})
+
+	t.Run("alias with override", func(t *testing.T) {
+		env := newTestEnv(t)
+		env.writeConfig(t, "aliases:\n  k:\n    command: kubectl get pods\n    completion: kubectl\n")
+		env.allow(t)
+
+		command, completionCmd, err := resolveCompletionCommand("k", env.Dir, env.CachePath, env.AuthPath, log)
+		require.NoError(t, err)
+		assert.Equal(t, "kubectl get pods", command)
+		assert.Equal(t, "kubectl", completionCmd)
+	})
+
+	t.Run("invalid cache path", func(t *testing.T) {
+		env := newTestEnv(t)
+		// A directory where the cache file is expected makes the engine fail
+		_, _, err := resolveCompletionCommand("k", env.Dir, env.Dir, env.AuthPath, log)
+		require.Error(t, err)
+	})
+}
+
+func TestPrepareCompletionArgs(t *testing.T) {
+	log := logger.New("error", nil)
+
+	tests := []struct {
+		name   string
+		words  []string
+		cword  int
+		expect []string
+	}{
+		{
+			name:   "alias alone gets an empty arg",
+			words:  []string{"k"},
+			cword:  0,
+			expect: []string{""},
+		},
+		{
+			name:   "word being completed is kept",
+			words:  []string{"k", "get"},
+			cword:  1,
+			expect: []string{"get"},
+		},
+		{
+			name:   "cword beyond the last word appends an empty one",
+			words:  []string{"k", "get"},
+			cword:  2,
+			expect: []string{"get", ""},
+		},
+		{
+			name:   "trailing empty word is not doubled",
+			words:  []string{"k", "get", ""},
+			cword:  3,
+			expect: []string{"get", ""},
+		},
 	}
 
-	err = Completion(params)
-
-	// Restore stdout
-	_ = w.Close()
-	os.Stdout = oldStdout
-
-	// Read captured output
-	var buf [1024]byte
-	n, _ := r.Read(buf[:])
-	output := string(buf[:n])
-
-	// The sort.Slice should have ordered them alphabetically
-	// We can't assert exact output since completion may fail,
-	// but if it succeeded, output should be sorted
-	if err == nil && len(output) > 0 {
-		// Check that suggestions appear in alphabetical order
-		// This tests the sort.Slice code path
-		t.Logf("Completion output:\n%s", output)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := prepareCompletionArgs(CompletionParams{Words: tt.words, CWord: tt.cword}, log)
+			assert.Equal(t, tt.expect, args)
+		})
 	}
 }
 
-func TestCompletion_OutputsDescriptions(t *testing.T) {
-	tmpDir := t.TempDir()
-	cachePath := filepath.Join(tmpDir, "cache.json")
-	workDir := filepath.Join(tmpDir, "work")
-	require.NoError(t, os.MkdirAll(workDir, 0o755))
-
-	// Create a mock Cobra command that returns suggestions with descriptions
-	// Use printf with explicit \t to ensure tab characters work on all platforms
-	mockScript := `#!/usr/bin/env bash
-printf "apply\tApply a configuration to a resource\n"
-printf "create\tCreate a resource from a file\n"
-printf "delete\tDelete resources by filenames\n"
-printf ":4\n"
-`
-	scriptPath := filepath.Join(tmpDir, "mock-cobra")
-	require.NoError(t, os.WriteFile(scriptPath, []byte(mockScript), 0o755))
-
-	// Verify the script works before using it in the test
-	testCmd := exec.Command(scriptPath)
-	testOutput, testErr := testCmd.Output()
-	if testErr != nil {
-		t.Skipf("Skipping test: mock script cannot execute on this platform: %v", testErr)
-	}
-	if !bytes.Contains(testOutput, []byte("apply")) {
-		t.Skipf("Skipping test: mock script output unexpected: %s", testOutput)
+func TestGetCurrentWord(t *testing.T) {
+	tests := []struct {
+		name   string
+		words  []string
+		cword  int
+		expect string
+	}{
+		{name: "alias itself", words: []string{"k", "get"}, cword: 0, expect: ""},
+		{name: "word being completed", words: []string{"k", "ge"}, cword: 1, expect: "ge"},
+		{name: "beyond the last word", words: []string{"k", "get"}, cword: 5, expect: ""},
 	}
 
-	// Create cache with mock cobra command
-	c, err := cache.New(cachePath)
-	require.NoError(t, err)
-
-	err = c.Set(&cache.Entry{
-		Path:      workDir,
-		Hash:      "hash1",
-		Timestamp: time.Now(),
-		Version:   version.Version,
-	})
-	require.NoError(t, err)
-
-	// Change to work directory
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	defer func() { _ = os.Chdir(origDir) }()
-	err = os.Chdir(workDir)
-	require.NoError(t, err)
-
-	// Capture stdout to verify description output format
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	params := CompletionParams{
-		CachePath: cachePath,
-		LogLevel:  "error",
-		Words:     []string{"k"},
-		CWord:     0,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expect, getCurrentWord(CompletionParams{Words: tt.words, CWord: tt.cword}))
+		})
 	}
+}
 
-	// Run completion in a goroutine to avoid blocking
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- Completion(params)
-	}()
-
-	// Wait for completion to finish
-	err = <-errChan
-
-	// Close write end and restore stdout
-	_ = w.Close()
-	os.Stdout = oldStdout
-
-	// Read all captured output
-	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
-	output := buf.String()
-
-	// The test succeeds if we get the expected output
-	// If the completion engine doesn't work on this platform, we skip
-	if output == "" {
-		t.Skipf("Skipping test: no completion output (engine may not support this platform)")
+// splitLines returns the non-empty lines of an output
+func splitLines(out string) []string {
+	var lines []string
+	for _, line := range strings.Split(out, "\n") {
+		if line != "" {
+			lines = append(lines, line)
+		}
 	}
-
-	t.Logf("Captured output:\n%s", output)
-
-	// Verify that descriptions are formatted correctly (value\tdescription)
-	require.NoError(t, err)
-	assert.Contains(t, output, "apply\tApply a configuration to a resource")
-	assert.Contains(t, output, "create\tCreate a resource from a file")
-	assert.Contains(t, output, "delete\tDelete resources by filenames")
+	return lines
 }
