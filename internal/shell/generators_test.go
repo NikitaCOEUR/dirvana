@@ -408,19 +408,22 @@ func TestFishCodeGenerator_GenerateCompletionFunction_FunctionFallback(t *testin
 	assert.Contains(t, script, "complete -c myfunc -a '(__dirvana_complete_fish)'")
 }
 
-func TestFishCodeGenerator_GenerateCompletionFunction_NativeDetection(t *testing.T) {
+func TestFishCodeGenerator_GenerateCompletionFunction_DefersToFishOnFirstLevel(t *testing.T) {
 	gen := &FishCodeGenerator{}
 
-	// When underlying command is set, the fish function should receive it
 	aliasCommands := map[string]string{"k": "kubectl"}
-	lines := gen.GenerateCompletionFunction(aliasCommands)
-	script := strings.Join(lines, "\n")
+	script := strings.Join(gen.GenerateCompletionFunction(aliasCommands), "\n")
 
-	// Should pass underlying command to __dirvana_complete_fish for native detection
+	// The wrapped command is handed to the completion function, which needs
+	// it to tell the two cases apart
 	assert.Contains(t, script, "__dirvana_complete_fish kubectl")
-
-	// The function template should have native detection logic
 	assert.Contains(t, script, "underlying_cmd")
+
+	// Fish covers the first level on its own through `complete -w`, and
+	// asking dirvana costs a fork on every keypress. The function must
+	// therefore bail out while the line holds no more than the command
+	// itself, and only for aliases that do wrap a command.
+	assert.Contains(t, script, `if test -n "$underlying_cmd"; and test (count $cmd) -le 1`)
 }
 
 func TestGenerateHookCode_Fish(t *testing.T) {
