@@ -67,7 +67,11 @@ __dirvana_complete_zsh() {
 }
 
 __dirvana_register_completion() {
-    local alias_name="$1" underlying_cmd="$2"
+    # Defaults matter: this runs inside the user's shell, and aliases with
+    # no underlying command are registered with a single argument. Under
+    # `setopt no_unset` an unguarded $2 aborts the whole eval, taking
+    # every later registration with it.
+    local alias_name="${1:-}" underlying_cmd="${2:-}"
     if [[ -n "$underlying_cmd" ]]; then
         # Check if native completion exists (loaded or autoloadable)
         if (( ${+_comps[$underlying_cmd]} )) || whence -w "_${underlying_cmd}" &>/dev/null 2>&1; then
