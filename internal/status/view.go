@@ -155,11 +155,11 @@ func renderConfigHierarchy(data *Data) string {
 			status = errorStyle.Render("✗")
 			note = subtleStyle.Render(" (ignored)")
 		}
-		b.WriteString(fmt.Sprintf("   %d. %s %s%s\n",
+		fmt.Fprintf(&b, "   %d. %s %s%s\n",
 			idx,
 			subtleStyle.Render(data.GlobalConfig.Path+" (global)"),
 			status,
-			note))
+			note)
 		idx++
 	}
 
@@ -176,11 +176,11 @@ func renderConfigHierarchy(data *Data) string {
 			statusText = subtleStyle.Render(" (local only)")
 		}
 
-		b.WriteString(fmt.Sprintf("   %d. %s %s%s\n",
+		fmt.Fprintf(&b, "   %d. %s %s%s\n",
 			idx,
 			valueStyle.Render(cfg.Path),
 			status,
-			statusText))
+			statusText)
 		idx++
 	}
 
@@ -193,22 +193,22 @@ func renderAliases(data *Data) string {
 	b.WriteString(sectionStyle.Render("🔗 Aliases:") + "\n")
 
 	for name, info := range data.Aliases {
-		b.WriteString(fmt.Sprintf("   %s → %s",
+		fmt.Fprintf(&b, "   %s → %s",
 			keyStyle.Render(name),
-			valueStyle.Render(info.Command)))
+			valueStyle.Render(info.Command))
 
 		// Show conditional information if present
 		if info.HasWhen {
 			b.WriteString("\n")
-			b.WriteString(fmt.Sprintf("      %s %s",
+			fmt.Fprintf(&b, "      %s %s",
 				subtleStyle.Render("when:"),
-				subtleStyle.Render(info.WhenSummary)))
+				subtleStyle.Render(info.WhenSummary))
 
 			if info.Else != "" {
 				b.WriteString("\n")
-				b.WriteString(fmt.Sprintf("      %s %s",
+				fmt.Fprintf(&b, "      %s %s",
 					subtleStyle.Render("else:"),
-					subtleStyle.Render(info.Else)))
+					subtleStyle.Render(info.Else))
 			}
 		}
 
@@ -237,9 +237,9 @@ func renderEnvVars(data *Data) string {
 		b.WriteString("   " + keyStyle.Render("Static:") + "\n")
 		for name, value := range data.EnvStatic {
 			displayValue := truncateString(value, 50)
-			b.WriteString(fmt.Sprintf("      %s=%s\n",
+			fmt.Fprintf(&b, "      %s=%s\n",
 				keyStyle.Render(name),
-				subtleStyle.Render(displayValue)))
+				subtleStyle.Render(displayValue))
 		}
 	}
 
@@ -251,10 +251,10 @@ func renderEnvVars(data *Data) string {
 			if v.Approved {
 				status = successStyle.Render("✓ approved")
 			}
-			b.WriteString(fmt.Sprintf("      %s=$(%s) [%s]\n",
+			fmt.Fprintf(&b, "      %s=$(%s) [%s]\n",
 				keyStyle.Render(name),
 				subtleStyle.Render(displayCmd),
-				status))
+				status)
 		}
 	}
 
@@ -317,10 +317,10 @@ func renderCompletionInfo(data *Data) string {
 			b.WriteString("   " + keyStyle.Render("Sources:") + "\n")
 			for _, source := range []string{"Cobra", "Flag", "Env", "Script"} {
 				if cmds, ok := sourceGroups[source]; ok {
-					b.WriteString(fmt.Sprintf("      %s (%s): %s\n",
+					fmt.Fprintf(&b, "      %s (%s): %s\n",
 						keyStyle.Render(source),
 						valueStyle.Render(fmt.Sprintf("%d", len(cmds))),
-						subtleStyle.Render(strings.Join(cmds, ", "))))
+						subtleStyle.Render(strings.Join(cmds, ", ")))
 				}
 			}
 		}
@@ -342,9 +342,9 @@ func renderCompletionInfo(data *Data) string {
 	if len(data.CompletionScripts) > 0 {
 		b.WriteString("\n   " + keyStyle.Render("Downloaded scripts:") + "\n")
 		for _, script := range data.CompletionScripts {
-			b.WriteString(fmt.Sprintf("      %s (%s)\n",
+			fmt.Fprintf(&b, "      %s (%s)\n",
 				valueStyle.Render(script.Tool),
-				subtleStyle.Render(formatBytes(script.Size))))
+				subtleStyle.Render(formatBytes(script.Size)))
 		}
 	}
 
@@ -352,9 +352,9 @@ func renderCompletionInfo(data *Data) string {
 	if len(data.CompletionOverrides) > 0 {
 		b.WriteString("\n   " + keyStyle.Render("Completion overrides:") + "\n")
 		for alias, cmd := range data.CompletionOverrides {
-			b.WriteString(fmt.Sprintf("      %s → %s\n",
+			fmt.Fprintf(&b, "      %s → %s\n",
 				keyStyle.Render(alias),
-				valueStyle.Render(cmd)))
+				valueStyle.Render(cmd))
 		}
 	}
 

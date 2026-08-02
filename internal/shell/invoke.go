@@ -1,18 +1,16 @@
 package shell
 
-// Executable returns the executable name for the given shell type
+// Executable returns the executable name for the given shell type.
+// The shell constants are the executable names, so this only has to
+// reject anything unknown.
 func Executable(shellType string) string {
 	switch shellType {
-	case Bash:
-		return "bash"
-	case Zsh:
-		return "zsh"
-	case Fish:
-		return "fish"
+	case Bash, Zsh, Fish:
+		return shellType
 	default:
 		// Detect always returns at least Bash, but keep bash as fallback for safety
 		// Note: sh (dash/busybox) is not supported as it doesn't support required flags
-		return "bash"
+		return Bash
 	}
 }
 

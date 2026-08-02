@@ -49,10 +49,12 @@ func TestCompletionBashScript(t *testing.T) {
 
 	output := buf.String()
 
-	// Verify bash completion script contains expected content
-	assert.Contains(t, output, "#!/bin/bash")
-	assert.Contains(t, output, "_dirvana")
-	assert.Contains(t, output, "bash-completion")
+	// What matters is that the script registers a completion handler for
+	// the binary. Its exact preamble belongs to urfave/cli and changes
+	// between releases: the shebang it used to carry is gone, which is
+	// correct for a script meant to be sourced rather than executed.
+	assert.Contains(t, output, "complete -o bashdefault -o default -F __dirvana_bash_autocomplete dirvana")
+	assert.Contains(t, output, "__dirvana_bash_autocomplete()")
 }
 
 func TestCompletionZshScript(t *testing.T) {

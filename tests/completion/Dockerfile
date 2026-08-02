@@ -3,10 +3,10 @@ FROM debian:bookworm-slim
 # =====================
 # Build variables
 # =====================
-ARG GO_VERSION=1.25.1
+ARG GO_VERSION=1.26.5
 ARG KUBECTL_VERSION=stable
-ARG TERRAFORM_VERSION=1.9.8
-ARG AQUA_VERSION=2.55.0
+ARG TERRAFORM_VERSION=1.15.8
+ARG AQUA_VERSION=2.62.3
 
 # =====================
 # System dependencies
