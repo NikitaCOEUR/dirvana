@@ -408,7 +408,7 @@ func TestFishCodeGenerator_GenerateCompletionFunction_FunctionFallback(t *testin
 	assert.Contains(t, script, "complete -c myfunc -a '(__dirvana_complete_fish)'")
 }
 
-func TestFishCodeGenerator_GenerateCompletionFunction_DefersToFishOnFirstLevel(t *testing.T) {
+func TestFishCodeGenerator_GenerateCompletionFunction_DefersToFishWhenCovered(t *testing.T) {
 	gen := &FishCodeGenerator{}
 
 	aliasCommands := map[string]string{"k": "kubectl"}
@@ -419,11 +419,19 @@ func TestFishCodeGenerator_GenerateCompletionFunction_DefersToFishOnFirstLevel(t
 	assert.Contains(t, script, "__dirvana_complete_fish kubectl")
 	assert.Contains(t, script, "underlying_cmd")
 
-	// Fish covers the first level on its own through `complete -w`, and
-	// asking dirvana costs a fork on every keypress. The function must
-	// therefore bail out while the line holds no more than the command
-	// itself, and only for aliases that do wrap a command.
-	assert.Contains(t, script, `if test -n "$underlying_cmd"; and test (count $cmd) -le 1`)
+	// Asking dirvana costs a fork on every keypress, so it must stand down
+	// whenever `complete -w` already forwards to real completions - and only
+	// then, since a command fish knows nothing about gets no completion at
+	// all without dirvana.
+	assert.Contains(t, script, "function __dirvana_fish_covers")
+	assert.Contains(t, script, `if test -n "$underlying_cmd"; and __dirvana_fish_covers $underlying_cmd`)
+
+	// The probe must ask for long flags: file names never match them, so a
+	// non-empty answer proves the command has completions of its own
+	assert.Contains(t, script, `complete -C"$cmd --"`)
+
+	// And it must be answered once per command, not on every keypress
+	assert.Contains(t, script, "set -g $varname")
 }
 
 func TestGenerateHookCode_Fish(t *testing.T) {

@@ -1,6 +1,32 @@
 #!/usr/bin/env fish
 # Fish completions
 
+# __dirvana_fish_covers reports whether fish can already complete a
+# command on its own, so dirvana can stay out of the way.
+#
+# Fish ships completions for over a thousand commands, and `complete -w`
+# forwards every level to them, dynamic values included. Where no such
+# completions exist, fish offers plain file names and dirvana is the only
+# thing that can help - from the very first word.
+#
+# The probe asks for long-flag completions: file names never match `--`,
+# so anything coming back proves real completions exist. The answer is
+# kept for the session, since it cannot change under a running shell.
+function __dirvana_fish_covers -a cmd
+  set -l key (string replace -a -r '[^a-zA-Z0-9_]' _ -- $cmd)
+  set -l varname __dirvana_fish_covers_$key
+
+  if not set -q $varname
+    if test (count (complete -C"$cmd --")) -gt 0
+      set -g $varname 1
+    else
+      set -g $varname 0
+    end
+  end
+
+  test $$varname -eq 1
+end
+
 function __dirvana_complete_fish
   # Get underlying command name (passed as argument)
   set -l underlying_cmd ""
@@ -8,25 +34,15 @@ function __dirvana_complete_fish
     set underlying_cmd $argv[1]
   end
 
-  # Get the current command line (all tokens except current word being completed)
-  set -l cmd (commandline -opc)
-
   # Fish evaluates every completion provider on each keypress, and asking
-  # dirvana costs a fork plus a run of the underlying tool - around 150ms.
-  # It is only worth paying where fish comes up short.
-  #
-  # When the alias wraps a command, `complete -w` already covers the first
-  # level: fish reads the command's own completion file, or derives one
-  # from its --help. What it cannot derive is anything deeper - subcommand
-  # arguments, resource names, dynamic values - which is exactly what the
-  # __complete protocol provides. So dirvana only steps in past the first
-  # token.
-  #
-  # Aliases with no underlying command have no `complete -w` to lean on,
-  # so dirvana answers from the start.
-  if test -n "$underlying_cmd"; and test (count $cmd) -le 1
+  # dirvana costs a fork plus a run of the underlying tool - around 200ms.
+  # Skip it entirely when `complete -w` already has the command covered.
+  if test -n "$underlying_cmd"; and __dirvana_fish_covers $underlying_cmd
     return 0
   end
+
+  # Get the current command line (all tokens except current word being completed)
+  set -l cmd (commandline -opc)
 
   # Get the current token being completed
   set -l current_token (commandline -ct)
