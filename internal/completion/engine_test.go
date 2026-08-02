@@ -2,6 +2,7 @@ package completion
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,6 +69,7 @@ type mockCompleter struct {
 	supportsResult bool
 	suggestions    []Suggestion
 	err            error
+	delay          time.Duration
 }
 
 func (m *mockCompleter) Supports(_ string, _ []string) bool {
@@ -75,6 +77,9 @@ func (m *mockCompleter) Supports(_ string, _ []string) bool {
 }
 
 func (m *mockCompleter) Complete(_ string, _ []string) ([]Suggestion, error) {
+	if m.delay > 0 {
+		time.Sleep(m.delay)
+	}
 	return m.suggestions, m.err
 }
 
@@ -183,8 +188,39 @@ func TestEngine_Complete_NoSuggestions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, 0, len(result.Suggestions))
-	// Now we cache and return the completer even with no suggestions
 	assert.Equal(t, "mock", result.Source)
+	// Empty results prove nothing about the tool's protocol: not cached
+	assert.False(t, engine.HasCachedDetection("tool"))
+}
+
+func TestEngine_Complete_EmptyResultDoesNotShadowSlowerCompleter(t *testing.T) {
+	// Regression: a fast completer returning zero suggestions used to win
+	// the race and get cached, permanently hiding the completer that
+	// actually works for the tool (seen with a stub bash-completion
+	// script beating kubectl's __complete protocol).
+	tmpDir := t.TempDir()
+	engine := NewEngine(tmpDir)
+
+	fastEmpty := &mockCompleter{
+		supportsResult: true,
+		suggestions:    []Suggestion{},
+	}
+	slowRich := &mockCompleter{
+		supportsResult: true,
+		suggestions: []Suggestion{
+			{Value: "get", Description: "Get resources"},
+			{Value: "apply", Description: "Apply configuration"},
+		},
+		delay: 30 * time.Millisecond,
+	}
+
+	engine.completers = []Completer{fastEmpty, slowRich}
+
+	result, err := engine.Complete("tool", []string{""})
+	assert.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Len(t, result.Suggestions, 2, "the slower non-empty completer must win")
+	assert.Equal(t, "get", result.Suggestions[0].Value)
 }
 
 func TestEngine_getCompleterType(t *testing.T) {
