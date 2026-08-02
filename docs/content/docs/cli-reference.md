@@ -34,7 +34,11 @@ dirvana hook --shell bash >> ~/.bashrc
 ### `dirvana allow [path]`
 
 Authorizes a directory (default: current directory) so its config loads automatically.
-`--auto-approve-shell` also approves the `env: {sh: ...}` commands without prompting
+
+If the effective configuration (inherited configs included) contains
+`env: {sh: ...}` commands — which run automatically on every `cd` — they are
+shown and consented to in the same interaction. You will only be prompted
+again when those commands change. `--auto-approve-shell` skips the prompt
 (useful for CI).
 
 ### `dirvana revoke [path]`

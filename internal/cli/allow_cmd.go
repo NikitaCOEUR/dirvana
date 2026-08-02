@@ -68,12 +68,10 @@ func AllowWithParams(params AllowParams) error {
 
 	fmt.Printf("Authorized: %s\n", params.PathToAllow)
 
-	// If auto-approve flag is set, approve shell commands immediately
-	if params.AutoApproveShell {
-		if err := approveShellCommandsForPath(params.PathToAllow, authMgr, params.LogLevel); err != nil {
-			return fmt.Errorf("failed to auto-approve shell commands: %w", err)
-		}
-		fmt.Println("✓ Shell commands auto-approved")
+	// Handle the env sh: commands consent in the same interaction instead
+	// of surprising the user with a prompt in the middle of the next cd
+	if err := handleShellApproval(params.PathToAllow, authMgr, params.AutoApproveShell, log); err != nil {
+		return err
 	}
 
 	// If we're in the authorized directory, suggest loading the environment
@@ -84,6 +82,65 @@ func AllowWithParams(params AllowParams) error {
 	}
 
 	return nil
+}
+
+// handleShellApproval settles the consent for the env sh: commands that
+// will run automatically on every cd. The commands are taken from the
+// MERGED hierarchy (inherited ones included), because that is exactly what
+// the export gate hashes and checks.
+func handleShellApproval(path string, authMgr *auth.Auth, autoApprove bool, log *logger.Logger) error {
+	shellEnv, err := mergedShellEnv(path, authMgr)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if len(shellEnv) == 0 {
+		log.Debug().Msg("No shell commands found in config hierarchy")
+		return nil
+	}
+	if !authMgr.RequiresShellApproval(path, shellEnv) {
+		return nil
+	}
+
+	if autoApprove {
+		if err := authMgr.ApproveShellCommands(path, shellEnv); err != nil {
+			return fmt.Errorf("failed to auto-approve shell commands: %w", err)
+		}
+		fmt.Println("✓ Shell commands auto-approved")
+		return nil
+	}
+
+	// Interactive consent, right now
+	if err := displayShellCommandsForApproval(shellEnv); err != nil {
+		return err
+	}
+	approved, err := promptShellApproval()
+	if err != nil || !approved {
+		// Not fatal: aliases and functions are usable, and the export
+		// gate will ask again on the next cd
+		fmt.Println("⚠️  Shell commands not approved - you will be asked again on the next cd")
+		fmt.Println("   (or rerun with: dirvana allow --auto-approve-shell)")
+		return nil
+	}
+	if err := authMgr.ApproveShellCommands(path, shellEnv); err != nil {
+		return fmt.Errorf("failed to approve shell commands: %w", err)
+	}
+	fmt.Println("✓ Shell commands approved")
+	return nil
+}
+
+// mergedShellEnv returns the env sh: commands effective in path, i.e. the
+// merged hierarchy as the export gate sees it
+func mergedShellEnv(path string, authMgr *auth.Auth) (map[string]string, error) {
+	merged, _, err := config.New().LoadHierarchyWithAuth(path, authMgr)
+	if err != nil {
+		return nil, err
+	}
+	if merged == nil {
+		return nil, nil
+	}
+	_, shellEnv := merged.GetEnvVars()
+	return shellEnv, nil
 }
 
 // RevokeParams contains parameters for the Revoke command
@@ -134,41 +191,6 @@ func RevokeWithParams(params RevokeParams) error {
 	if currentDir == params.PathToRevoke {
 		fmt.Println("\n💡 Tip: Run 'cd ..' then 'cd -' to unload the Dirvana environment")
 		fmt.Println("   Or run: 'eval \"$(dirvana export)\"' to reload the environment if you have parent configs")
-	}
-
-	return nil
-}
-
-// approveShellCommandsForPath is a helper that loads config and approves shell commands
-func approveShellCommandsForPath(path string, authMgr *auth.Auth, logLevel string) error {
-	log := logger.New(logLevel, os.Stderr)
-
-	// Initialize config loader
-	configLoader := config.New()
-
-	// Load config for this directory, whatever its supported filename
-	configPath := config.FindConfigInDir(path)
-	if configPath == "" {
-		log.Debug().Msg("No config file found, nothing to approve")
-		return nil
-	}
-	cfg, err := configLoader.Load(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	// Get shell environment variables
-	_, shellEnv := cfg.GetEnvVars()
-
-	// If no shell commands, nothing to approve
-	if len(shellEnv) == 0 {
-		log.Debug().Msg("No shell commands found in config")
-		return nil
-	}
-
-	// Approve the shell commands
-	if err := authMgr.ApproveShellCommands(path, shellEnv); err != nil {
-		return fmt.Errorf("failed to approve shell commands: %w", err)
 	}
 
 	return nil

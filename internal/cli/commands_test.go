@@ -802,8 +802,20 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 		configPath := filepath.Join(projectPath, ".dirvana.yml")
 		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
 
+		// allow now prompts for the sh: commands consent; decline it
+		// deterministically through the test-mode stdin fallback
+		t.Setenv("DIRVANA_TEST_MODE", "1")
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		origStdin := os.Stdin
+		os.Stdin = r
+		defer func() { os.Stdin = origStdin }()
+		_, err = w.WriteString("n\n")
+		require.NoError(t, err)
+		_ = w.Close()
+
 		// Allow without auto-approve
-		err := AllowWithParams(AllowParams{
+		err = AllowWithParams(AllowParams{
 			AuthPath:         authPath,
 			PathToAllow:      projectPath,
 			AutoApproveShell: false,
@@ -818,7 +830,7 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, allowed)
 
-		// Verify shell commands are NOT approved
+		// Verify shell commands are NOT approved (consent was declined)
 		shellEnv := map[string]string{
 			"TEST_VAR": "echo test",
 		}
@@ -864,70 +876,52 @@ func TestAllowWithParams_AutoApproveShell(t *testing.T) {
 	})
 }
 
-func TestApproveShellCommandsForPath(t *testing.T) {
-	t.Run("ApproveSuccessfully", func(t *testing.T) {
+func TestHandleShellApproval(t *testing.T) {
+	log := logger.New("error", os.Stderr)
+
+	t.Run("AutoApproveCoversInheritedCommands", func(t *testing.T) {
+		// Regression: --auto-approve-shell only approved the directory's
+		// OWN sh: commands while the export gate checks the MERGED set,
+		// so the flag silently failed in hierarchies (breaking CI usage)
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		parentDir := filepath.Join(tmpDir, "project")
+		childDir := filepath.Join(parentDir, "child")
+		require.NoError(t, os.MkdirAll(childDir, 0o755))
+
+		require.NoError(t, os.WriteFile(filepath.Join(parentDir, ".dirvana.yml"),
+			[]byte("env:\n  PARENT_USER:\n    sh: whoami\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(childDir, ".dirvana.yml"),
+			[]byte("env:\n  CHILD_DIR:\n    sh: pwd\n"), 0o644))
+
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+		require.NoError(t, authMgr.Allow(parentDir))
+		require.NoError(t, authMgr.Allow(childDir))
+
+		require.NoError(t, handleShellApproval(childDir, authMgr, true, log))
+
+		// The export gate checks the merged set: it must be satisfied
+		mergedEnv := map[string]string{
+			"PARENT_USER": "whoami",
+			"CHILD_DIR":   "pwd",
+		}
+		assert.False(t, authMgr.RequiresShellApproval(childDir, mergedEnv),
+			"auto-approve must cover inherited sh: commands")
+	})
+
+	t.Run("NoConfigAnywhere", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
 		require.NoError(t, os.MkdirAll(projectPath, 0o755))
 
-		// Create auth manager and allow directory
 		authMgr, err := auth.New(authPath)
 		require.NoError(t, err)
 		require.NoError(t, authMgr.Allow(projectPath))
 
-		// Create a config file with shell commands
-		configContent := `env:
-  USER:
-    sh: whoami
-  PWD:
-    sh: pwd
-`
-		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
-
-		// Approve shell commands
-		err = approveShellCommandsForPath(projectPath, authMgr, "error")
-		require.NoError(t, err)
-
-		// Verify approval
-		shellEnv := map[string]string{
-			"USER": "whoami",
-			"PWD":  "pwd",
-		}
-		requiresApproval := authMgr.RequiresShellApproval(projectPath, shellEnv)
-		assert.False(t, requiresApproval)
-	})
-
-	t.Run("NoConfigFile", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		authPath := filepath.Join(tmpDir, "auth.json")
-		projectPath := filepath.Join(tmpDir, "project")
-		require.NoError(t, os.MkdirAll(projectPath, 0o755))
-
-		authMgr, err := auth.New(authPath)
-		require.NoError(t, err)
-
-		// No config file - should trigger os.IsNotExist branch
-		err = approveShellCommandsForPath(projectPath, authMgr, "error")
-		require.Error(t, err)
-		// The error path goes through the general "failed to load config" path
-		assert.Contains(t, err.Error(), "failed to load config")
-	})
-
-	t.Run("ConfigFileDoesNotExist", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		authPath := filepath.Join(tmpDir, "auth.json")
-		// Use a path that definitely doesn't exist
-		projectPath := filepath.Join(tmpDir, "nonexistent_directory_xyz")
-
-		authMgr, err := auth.New(authPath)
-		require.NoError(t, err)
-
-		// This should trigger os.IsNotExist check
-		err = approveShellCommandsForPath(projectPath, authMgr, "error")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to load config")
+		// Nothing to approve, no error
+		require.NoError(t, handleShellApproval(projectPath, authMgr, true, log))
 	})
 
 	t.Run("NoShellCommands", func(t *testing.T) {
@@ -935,20 +929,14 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
 		require.NoError(t, os.MkdirAll(projectPath, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(projectPath, ".dirvana.yml"),
+			[]byte("env:\n  STATIC: value\n"), 0o644))
 
 		authMgr, err := auth.New(authPath)
 		require.NoError(t, err)
+		require.NoError(t, authMgr.Allow(projectPath))
 
-		// Config without shell commands
-		configContent := `env:
-  STATIC: "value"
-`
-		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
-
-		// Should succeed even without shell commands
-		err = approveShellCommandsForPath(projectPath, authMgr, "error")
-		require.NoError(t, err)
+		require.NoError(t, handleShellApproval(projectPath, authMgr, true, log))
 	})
 
 	t.Run("InvalidConfigFile", func(t *testing.T) {
@@ -956,42 +944,73 @@ func TestApproveShellCommandsForPath(t *testing.T) {
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
 		require.NoError(t, os.MkdirAll(projectPath, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(projectPath, ".dirvana.yml"),
+			[]byte("invalid: [yaml"), 0o644))
 
 		authMgr, err := auth.New(authPath)
 		require.NoError(t, err)
+		require.NoError(t, authMgr.Allow(projectPath))
 
-		// Invalid YAML
-		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte("invalid: [yaml"), 0o644))
-
-		err = approveShellCommandsForPath(projectPath, authMgr, "error")
+		err = handleShellApproval(projectPath, authMgr, true, log)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to load config")
 	})
 
-	t.Run("ApproveShellCommandsError", func(t *testing.T) {
+	t.Run("InteractiveDeclineKeepsAllowValid", func(t *testing.T) {
+		// Declining the sh: commands must not fail the allow: aliases stay
+		// usable and the export gate will re-ask on the next cd
 		tmpDir := t.TempDir()
 		authPath := filepath.Join(tmpDir, "auth.json")
 		projectPath := filepath.Join(tmpDir, "project")
 		require.NoError(t, os.MkdirAll(projectPath, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(projectPath, ".dirvana.yml"),
+			[]byte("env:\n  USER:\n    sh: whoami\n"), 0o644))
 
-		// Create auth manager but DON'T allow the directory
-		// This should cause ApproveShellCommands to fail
 		authMgr, err := auth.New(authPath)
 		require.NoError(t, err)
+		require.NoError(t, authMgr.Allow(projectPath))
 
-		// Create a config file with shell commands
-		configContent := `env:
-  USER:
-    sh: whoami
-`
-		configPath := filepath.Join(projectPath, ".dirvana.yml")
-		require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0o644))
+		// Route the prompt to stdin and answer "n"
+		t.Setenv("DIRVANA_TEST_MODE", "1")
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		origStdin := os.Stdin
+		os.Stdin = r
+		defer func() { os.Stdin = origStdin }()
+		_, err = w.WriteString("n\n")
+		require.NoError(t, err)
+		_ = w.Close()
 
-		// Try to approve shell commands without allowing directory first
-		err = approveShellCommandsForPath(projectPath, authMgr, "error")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to approve shell commands")
+		require.NoError(t, handleShellApproval(projectPath, authMgr, false, log))
+
+		// Still unapproved: the gate must ask again
+		assert.True(t, authMgr.RequiresShellApproval(projectPath, map[string]string{"USER": "whoami"}))
+	})
+
+	t.Run("InteractiveAccept", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "auth.json")
+		projectPath := filepath.Join(tmpDir, "project")
+		require.NoError(t, os.MkdirAll(projectPath, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(projectPath, ".dirvana.yml"),
+			[]byte("env:\n  USER:\n    sh: whoami\n"), 0o644))
+
+		authMgr, err := auth.New(authPath)
+		require.NoError(t, err)
+		require.NoError(t, authMgr.Allow(projectPath))
+
+		t.Setenv("DIRVANA_TEST_MODE", "1")
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		origStdin := os.Stdin
+		os.Stdin = r
+		defer func() { os.Stdin = origStdin }()
+		_, err = w.WriteString("y\n")
+		require.NoError(t, err)
+		_ = w.Close()
+
+		require.NoError(t, handleShellApproval(projectPath, authMgr, false, log))
+		assert.False(t, authMgr.RequiresShellApproval(projectPath, map[string]string{"USER": "whoami"}))
 	})
 }
 
