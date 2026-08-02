@@ -176,7 +176,7 @@ tasks:
         -f tests/completion/Dockerfile .
 
   test-completion:
-    desc: Test completion system in Docker (TEST_SHELL=bash|zsh)
+    desc: Test completion system in Docker (TEST_SHELL=bash|zsh|fish)
     deps: [build, build-completion-image]
     vars:
       SHELL_TYPE: '{{.TEST_SHELL | default "bash"}}'
