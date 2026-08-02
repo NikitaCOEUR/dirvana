@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,24 +36,26 @@ const (
 // Production builds will have this as empty string
 var DevMode = ""
 
-// httpClient is the HTTP client used for downloads (can be overridden in tests)
-var httpClient = http.DefaultClient
+// Registry resolves the external completion-scripts registry for one cache
+// directory, holding its own HTTP client and in-memory cache instead of
+// package-level globals.
+type Registry struct {
+	cacheDir string
+	client   *http.Client
+	baseURL  string
 
-// registryMemCache holds in-memory cache for registry to avoid repeated file I/O
-var registryMemCache struct {
-	mu        sync.RWMutex
-	config    *RegistryConfig
-	cacheDir  string
-	expiresAt time.Time
+	mu           sync.RWMutex
+	memConfig    *RegistryConfig
+	memExpiresAt time.Time
 }
 
-// clearRegistryCache clears the in-memory registry cache (used for testing)
-func clearRegistryCache() {
-	registryMemCache.mu.Lock()
-	defer registryMemCache.mu.Unlock()
-	registryMemCache.config = nil
-	registryMemCache.cacheDir = ""
-	registryMemCache.expiresAt = time.Time{}
+// NewRegistry creates a Registry backed by the given cache directory
+func NewRegistry(cacheDir string) *Registry {
+	return &Registry{
+		cacheDir: cacheDir,
+		client:   http.DefaultClient,
+		baseURL:  RegistryBaseURL,
+	}
 }
 
 // RegistryConfig represents the external completion scripts registry
@@ -77,7 +81,9 @@ type RegistryScript struct {
 // Note: We don't maintain a hardcoded list of tools anymore.
 // Instead, we auto-detect completion support using common patterns below.
 
-// validateURL validates that a URL uses HTTPS
+// validateURL validates that a URL uses HTTPS. Downloaded scripts are
+// executed through bash, so plain HTTP is only tolerated for loopback
+// hosts (local development and tests).
 func validateURL(rawURL string) error {
 	// Parse URL
 	u, err := url.Parse(rawURL)
@@ -85,22 +91,38 @@ func validateURL(rawURL string) error {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
 
-	// Must be HTTPS for security
-	if u.Scheme != "https" && u.Scheme != "http" {
-		return fmt.Errorf("URL must use HTTP or HTTPS scheme, got: %s", u.Scheme)
-	}
-
 	// Must have a host
 	if u.Host == "" {
 		return fmt.Errorf("URL must have a host")
 	}
 
-	return nil
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if isLoopbackHost(u.Hostname()) {
+			return nil
+		}
+		return fmt.Errorf("URL must use HTTPS (plain HTTP is only allowed for localhost)")
+	default:
+		return fmt.Errorf("URL must use HTTPS scheme, got: %s", u.Scheme)
+	}
+}
+
+// isLoopbackHost reports whether host is localhost or a loopback address
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 // downloadWithSizeLimit downloads data with a size limit
-func downloadWithSizeLimit(url string, maxSize int64) ([]byte, error) {
-	resp, err := httpClient.Get(url)
+func (r *Registry) downloadWithSizeLimit(url string, maxSize int64) ([]byte, error) {
+	resp, err := r.client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download: %w", err)
 	}
@@ -143,8 +165,10 @@ func getRegistryHashPath(cacheDir, version string) string {
 }
 
 // downloadRegistry downloads the registry from GitHub
-func downloadRegistry(version string) ([]byte, error) {
-	downloadURL := fmt.Sprintf("%s/%s/completion-scripts.yml", RegistryBaseURL, version)
+//
+//nolint:unparam // version parameter is kept for future registry format versioning
+func (r *Registry) downloadRegistry(version string) ([]byte, error) {
+	downloadURL := fmt.Sprintf("%s/%s/completion-scripts.yml", r.baseURL, version)
 
 	// Validate URL
 	if err := validateURL(downloadURL); err != nil {
@@ -152,7 +176,7 @@ func downloadRegistry(version string) ([]byte, error) {
 	}
 
 	// Download with size limit
-	data, err := downloadWithSizeLimit(downloadURL, MaxRegistrySize)
+	data, err := r.downloadWithSizeLimit(downloadURL, MaxRegistrySize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download registry: %w", err)
 	}
@@ -185,66 +209,59 @@ func getLocalRegistryPath(version string) string {
 	return ""
 }
 
-// LoadRegistry loads the registry, using cache if valid
+// Load loads the registry, using cache if valid
 // Dev builds: Use local registry/ by default (override with DIRVANA_REGISTRY_MODE=remote)
 // Prod builds: Always use remote registry (no local fallback)
-func LoadRegistry(cacheDir string) (*RegistryConfig, error) {
+func (r *Registry) Load() (*RegistryConfig, error) {
 	// Check in-memory cache first
-	registryMemCache.mu.RLock()
-	if registryMemCache.config != nil &&
-		registryMemCache.cacheDir == cacheDir &&
-		time.Now().Before(registryMemCache.expiresAt) {
-		config := registryMemCache.config
-		registryMemCache.mu.RUnlock()
+	r.mu.RLock()
+	if r.memConfig != nil && time.Now().Before(r.memExpiresAt) {
+		config := r.memConfig
+		r.mu.RUnlock()
 		return config, nil
 	}
-	registryMemCache.mu.RUnlock()
+	r.mu.RUnlock()
 
 	version := DefaultRegistryVersion
 
 	// Try to load from local registry (dev mode)
 	if config, ok := tryLoadLocalRegistry(version); ok {
-		// Update memory cache
-		updateMemoryCache(cacheDir, config)
+		r.updateMemoryCache(config)
 		return config, nil
 	}
 
 	// Try to load from cache
-	registryPath := getRegistryPath(cacheDir, version)
+	registryPath := getRegistryPath(r.cacheDir, version)
 	if config, ok := tryLoadCachedRegistry(registryPath); ok {
-		// Update memory cache
-		updateMemoryCache(cacheDir, config)
+		r.updateMemoryCache(config)
 		return config, nil
 	}
 
 	// Download fresh registry
-	data, err := downloadRegistry(version)
+	data, err := r.downloadRegistry(version)
 	if err != nil {
 		// If download fails, try to use expired cache
 		if config, ok := tryLoadExpiredCache(registryPath); ok {
-			// Update memory cache
-			updateMemoryCache(cacheDir, config)
+			r.updateMemoryCache(config)
 			return config, nil
 		}
 		return nil, err
 	}
 
 	// Save to cache and parse
-	config, err := saveCachedRegistry(cacheDir, version, data)
+	config, err := saveCachedRegistry(r.cacheDir, version, data)
 	if err == nil {
-		// Update memory cache
-		updateMemoryCache(cacheDir, config)
+		r.updateMemoryCache(config)
 	}
 	return config, err
 }
 
 // updateMemoryCache updates the in-memory registry cache
-func updateMemoryCache(cacheDir string, config *RegistryConfig) {
-	registryMemCache.mu.Lock()
-	defer registryMemCache.mu.Unlock()
-	registryMemCache.config = config
-	registryMemCache.cacheDir = cacheDir
-	registryMemCache.expiresAt = time.Now().Add(RegistryCacheTTL)
+func (r *Registry) updateMemoryCache(config *RegistryConfig) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.memConfig = config
+	r.memExpiresAt = time.Now().Add(RegistryCacheTTL)
 }
 
 // tryLoadLocalRegistry attempts to load registry from local filesystem (dev mode)
@@ -327,17 +344,17 @@ func saveCachedRegistry(cacheDir, version string, data []byte) (*RegistryConfig,
 	hash := computeHash(data)
 
 	// Create cache dir if needed
-	if err := os.MkdirAll(filepath.Dir(registryPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(registryPath), fsutil.StateDirPerm); err != nil {
 		return nil, fmt.Errorf("failed to create cache dir: %w", err)
 	}
 
 	// Save registry to cache
-	if err := os.WriteFile(registryPath, data, 0644); err != nil {
+	if err := fsutil.AtomicWrite(registryPath, data, fsutil.StateFilePerm); err != nil {
 		return nil, fmt.Errorf("failed to cache registry: %w", err)
 	}
 
 	// Save hash
-	_ = os.WriteFile(hashPath, []byte(hash), 0644)
+	_ = fsutil.AtomicWrite(hashPath, []byte(hash), fsutil.StateFilePerm)
 
 	// Parse registry
 	var config RegistryConfig
@@ -353,11 +370,11 @@ func GetCompletionScriptPath(cacheDir, tool, shell string) string {
 	return filepath.Join(cacheDir, "completion-scripts", shell, tool)
 }
 
-// DownloadCompletionScript downloads a completion script from registry
+// DownloadScript downloads a completion script from the registry config.
 // Note: shell parameter is kept for backward compatibility but only "bash" is supported
 //
 //nolint:revive // shell parameter kept for API compatibility
-func DownloadCompletionScript(cacheDir, tool, shell string, registry *RegistryConfig) error {
+func (r *Registry) DownloadScript(tool, shell string, registry *RegistryConfig) error {
 	// Check if tool is in registry
 	toolInfo, ok := registry.Tools[tool]
 	if !ok {
@@ -375,27 +392,32 @@ func DownloadCompletionScript(cacheDir, tool, shell string, registry *RegistryCo
 		return fmt.Errorf("invalid script URL for %s: %w", tool, err)
 	}
 
+	// Fail closed: downloaded scripts are executed through bash, so an
+	// entry without a checksum is refused rather than trusted
+	if scriptInfo.SHA256 == "" {
+		return fmt.Errorf("registry entry for %s has no sha256 checksum; refusing to execute unverified script", tool)
+	}
+
 	// Download script with size limit
-	data, err := downloadWithSizeLimit(scriptInfo.URL, MaxScriptSize)
+	data, err := r.downloadWithSizeLimit(scriptInfo.URL, MaxScriptSize)
 	if err != nil {
 		return fmt.Errorf("failed to download script for %s: %w", tool, err)
 	}
 
-	// Verify checksum if provided
-	if scriptInfo.SHA256 != "" {
-		hash := computeHash(data)
-		if hash != scriptInfo.SHA256 {
-			return fmt.Errorf("checksum mismatch for %s: expected %s, got %s", tool, scriptInfo.SHA256, hash)
-		}
+	// Verify checksum
+	if hash := computeHash(data); hash != scriptInfo.SHA256 {
+		return fmt.Errorf("checksum mismatch for %s: expected %s, got %s", tool, scriptInfo.SHA256, hash)
 	}
 
-	// Save script (always to bash location, regardless of shell parameter)
-	scriptPath := GetCompletionScriptPath(cacheDir, tool, "bash")
-	if err := os.MkdirAll(filepath.Dir(scriptPath), 0755); err != nil {
+	// Save script (always to bash location, regardless of shell parameter).
+	// Scripts are sourced through bash -c, never executed directly,
+	// so no execute bit is needed.
+	scriptPath := GetCompletionScriptPath(r.cacheDir, tool, "bash")
+	if err := os.MkdirAll(filepath.Dir(scriptPath), fsutil.StateDirPerm); err != nil {
 		return fmt.Errorf("failed to create script dir: %w", err)
 	}
 
-	if err := os.WriteFile(scriptPath, data, 0644); err != nil {
+	if err := fsutil.AtomicWrite(scriptPath, data, fsutil.StateFilePerm); err != nil {
 		return fmt.Errorf("failed to save script: %w", err)
 	}
 

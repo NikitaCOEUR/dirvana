@@ -23,11 +23,13 @@ Contributing to Dirvana.
 # Build binary
 task build
 
-# Build for all platforms
-task build-all
+# Build with dev features (tracing support)
+task build-dev
 ```
 
-Binary will be in `bin/dirvana`.
+Binary will be in `bin/dirvana`. Multi-platform release builds are
+handled by GoReleaser (`goreleaser release --snapshot --clean` for a
+local dry run).
 
 ---
 
@@ -49,6 +51,7 @@ task test-integration
 # Run specific shell integration test
 task test-integration-bash
 task test-integration-zsh
+task test-integration-fish
 
 # Run all tests (unit + integration)
 task test-all
@@ -62,12 +65,17 @@ Integration tests validate Dirvana in real shell environments using Docker:
 
 - **Bash** - Tests aliases, functions, env vars
 - **Zsh** - Tests hooks and features
+- **Fish** - Tests hooks and features
 
 Each test:
 1. Builds a Docker image with the shell
 2. Installs Dirvana and sets up hooks
 3. Creates test configuration
 4. Validates all features work
+
+A separate expect-based completion suite (`task test-completion`) exercises
+interactive TAB completion in Docker; it runs weekly in CI (bash only —
+the zsh variant is currently disabled due to expect scripting issues).
 
 ---
 

@@ -11,15 +11,7 @@ import (
 )
 
 func TestFishHookStrategy_Install(t *testing.T) {
-	// Create temp directory for test
-	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
-
-	// Override home directory
-	oldHome := os.Getenv("HOME")
-	require.NoError(t, os.Setenv("HOME", tmpDir))
-	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+	testHome(t)
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -54,15 +46,7 @@ func TestFishHookStrategy_Install(t *testing.T) {
 }
 
 func TestFishHookStrategy_InsertIntoExistingBlock(t *testing.T) {
-	// Create temp directory for test
-	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
-
-	// Override home directory
-	oldHome := os.Getenv("HOME")
-	require.NoError(t, os.Setenv("HOME", tmpDir))
-	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+	testHome(t)
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -74,9 +58,9 @@ if status is-interactive
     starship init fish | source
 end
 `
-	err = os.MkdirAll(filepath.Dir(strategy.rcFile), 0755)
+	err = os.MkdirAll(filepath.Dir(strategy.rcFile), 0o755)
 	require.NoError(t, err)
-	err = os.WriteFile(strategy.rcFile, []byte(existingContent), 0644)
+	err = os.WriteFile(strategy.rcFile, []byte(existingContent), 0o644)
 	require.NoError(t, err)
 
 	// Test installation
@@ -102,15 +86,7 @@ end
 }
 
 func TestFishHookStrategy_Uninstall(t *testing.T) {
-	// Create temp directory for test
-	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
-
-	// Override home directory
-	oldHome := os.Getenv("HOME")
-	require.NoError(t, os.Setenv("HOME", tmpDir))
-	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+	testHome(t)
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -140,15 +116,7 @@ func TestFishHookStrategy_Uninstall(t *testing.T) {
 }
 
 func TestFishHookStrategy_NeedsUpdate(t *testing.T) {
-	// Create temp directory for test
-	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
-
-	// Override home directory
-	oldHome := os.Getenv("HOME")
-	require.NoError(t, os.Setenv("HOME", tmpDir))
-	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+	testHome(t)
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -164,7 +132,7 @@ func TestFishHookStrategy_NeedsUpdate(t *testing.T) {
 	assert.False(t, strategy.NeedsUpdate())
 
 	// Modify hook file
-	err = os.WriteFile(strategy.hookPath, []byte("old content"), 0644)
+	err = os.WriteFile(strategy.hookPath, []byte("old content"), 0o644)
 	require.NoError(t, err)
 
 	// Should need update now
@@ -172,15 +140,7 @@ func TestFishHookStrategy_NeedsUpdate(t *testing.T) {
 }
 
 func TestFishHookStrategy_IdempotentInstall(t *testing.T) {
-	// Create temp directory for test
-	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
-
-	// Override home directory
-	oldHome := os.Getenv("HOME")
-	require.NoError(t, os.Setenv("HOME", tmpDir))
-	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+	testHome(t)
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -214,15 +174,7 @@ func TestFishHookStrategy_IdempotentInstall(t *testing.T) {
 }
 
 func TestFishHookStrategy_IsInstalled(t *testing.T) {
-	// Create temp directory for test
-	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
-
-	// Override home directory
-	oldHome := os.Getenv("HOME")
-	require.NoError(t, os.Setenv("HOME", tmpDir))
-	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+	testHome(t)
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -246,15 +198,7 @@ func TestFishHookStrategy_IsInstalled(t *testing.T) {
 }
 
 func TestFishHookStrategy_GetMessage(t *testing.T) {
-	// Create temp directory for test
-	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
-
-	// Override home directory
-	oldHome := os.Getenv("HOME")
-	require.NoError(t, os.Setenv("HOME", tmpDir))
-	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+	testHome(t)
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
@@ -272,20 +216,176 @@ func TestFishHookStrategy_GetMessage(t *testing.T) {
 	assert.Contains(t, msg, strategy.hookPath)
 }
 
-func TestFishHookStrategy_GetRCFile(t *testing.T) {
-	// Create temp directory for test
-	tmpDir, err := os.MkdirTemp("", "dirvana-fish-test-*")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+func TestFishHookStrategy_InsertWithoutInteractiveBlock(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing string
+	}{
+		{name: "content without trailing newline", existing: "set -g fish_greeting"},
+		{name: "content with one trailing newline", existing: "set -g fish_greeting\n"},
+		{name: "content with a blank line at the end", existing: "set -g fish_greeting\n\n"},
+		{name: "empty file", existing: ""},
+	}
 
-	// Override home directory
-	oldHome := os.Getenv("HOME")
-	require.NoError(t, os.Setenv("HOME", tmpDir))
-	t.Cleanup(func() { _ = os.Setenv("HOME", oldHome) })
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testHome(t)
+
+			strategy, err := NewFishHookStrategy()
+			require.NoError(t, err)
+
+			require.NoError(t, os.MkdirAll(filepath.Dir(strategy.rcFile), 0o755))
+			require.NoError(t, os.WriteFile(strategy.rcFile, []byte(tt.existing), 0o644))
+
+			require.NoError(t, strategy.Install())
+
+			content, err := os.ReadFile(strategy.rcFile)
+			require.NoError(t, err)
+			contentStr := string(content)
+
+			// A whole is-interactive block is appended, hook included
+			assert.Contains(t, contentStr, "if status is-interactive")
+			assert.Contains(t, contentStr, "# Dirvana")
+			assert.Contains(t, contentStr, "test -f "+strategy.hookPath)
+			assert.True(t, strings.HasSuffix(contentStr, "end\n"), "block must be closed: %q", contentStr)
+
+			// Pre-existing content is preserved and never glued to the block
+			if tt.existing != "" {
+				assert.Contains(t, contentStr, "set -g fish_greeting")
+				assert.Contains(t, contentStr, "\n\nif status is-interactive")
+			}
+
+			assert.True(t, strategy.IsInstalled())
+		})
+	}
+}
+
+func TestFishHookStrategy_InsertIntoLongFormInteractiveBlock(t *testing.T) {
+	testHome(t)
 
 	strategy, err := NewFishHookStrategy()
 	require.NoError(t, err)
 
-	expectedRCFile := filepath.Join(tmpDir, ".config", "fish", "config.fish")
+	// The deprecated `--is-interactive` spelling must be recognized too
+	existing := "if status --is-interactive\n    starship init fish | source\nend\n"
+	require.NoError(t, os.MkdirAll(filepath.Dir(strategy.rcFile), 0o755))
+	require.NoError(t, os.WriteFile(strategy.rcFile, []byte(existing), 0o644))
+
+	require.NoError(t, strategy.Install())
+
+	content, err := os.ReadFile(strategy.rcFile)
+	require.NoError(t, err)
+	contentStr := string(content)
+
+	// Reused rather than appending a second block
+	assert.Equal(t, 1, strings.Count(contentStr, "if status"))
+	assert.Contains(t, contentStr, "starship init fish")
+	assert.Contains(t, contentStr, "test -f "+strategy.hookPath)
+}
+
+func TestFishHookStrategy_InstallUnreadableConfig(t *testing.T) {
+	testHome(t)
+
+	strategy, err := NewFishHookStrategy()
+	require.NoError(t, err)
+
+	// A directory where the config file is expected: reading fails with
+	// something other than "not exist"
+	require.NoError(t, os.MkdirAll(strategy.rcFile, 0o755))
+
+	err = strategy.Install()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to read config file")
+}
+
+func TestFishHookStrategy_UninstallWithoutConfig(t *testing.T) {
+	testHome(t)
+
+	strategy, err := NewFishHookStrategy()
+	require.NoError(t, err)
+
+	// Neither the hook file nor the config file exist
+	require.NoError(t, strategy.Uninstall())
+	assert.Equal(t, "✓ Nothing to uninstall", strategy.GetMessage())
+}
+
+func TestFishHookStrategy_UninstallUnreadableConfig(t *testing.T) {
+	testHome(t)
+
+	strategy, err := NewFishHookStrategy()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(strategy.rcFile, 0o755))
+
+	err = strategy.Uninstall()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to read config file")
+}
+
+func TestFishHookStrategy_UninstallKeepsUnrelatedLines(t *testing.T) {
+	testHome(t)
+
+	strategy, err := NewFishHookStrategy()
+	require.NoError(t, err)
+	require.NoError(t, strategy.Install())
+
+	// A comment that looks like ours but is followed by something else must
+	// survive, along with the rest of the config
+	content, err := os.ReadFile(strategy.rcFile)
+	require.NoError(t, err)
+	updated := "# Dirvana\nset -g dirvana_like_setting 1\n" + string(content)
+	require.NoError(t, os.WriteFile(strategy.rcFile, []byte(updated), 0o644))
+
+	require.NoError(t, strategy.Uninstall())
+
+	after, err := os.ReadFile(strategy.rcFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(after), "set -g dirvana_like_setting 1")
+	assert.NotContains(t, string(after), strategy.hookPath)
+}
+
+func TestFishHookStrategy_IsInstalledWithoutConfig(t *testing.T) {
+	testHome(t)
+
+	strategy, err := NewFishHookStrategy()
+	require.NoError(t, err)
+
+	// Hook file present but no config file referencing it
+	require.NoError(t, os.MkdirAll(filepath.Dir(strategy.hookPath), 0o755))
+	require.NoError(t, os.WriteFile(strategy.hookPath, []byte("hook"), 0o644))
+
+	assert.False(t, strategy.IsInstalled())
+}
+
+func TestNewFishHookStrategy_NoHomeDirectory(t *testing.T) {
+	t.Setenv("HOME", "")
+
+	_, err := NewFishHookStrategy()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "home directory")
+}
+
+func TestFishHookStrategy_InstallUncreatableHookDirectory(t *testing.T) {
+	home := t.TempDir()
+	// A regular file where the home directory is expected: no directory of
+	// the hook path can be created under it
+	blocked := filepath.Join(home, "not-a-dir")
+	require.NoError(t, os.WriteFile(blocked, []byte("x"), 0o644))
+	t.Setenv("HOME", blocked)
+
+	strategy, err := NewFishHookStrategy()
+	require.NoError(t, err)
+
+	err = strategy.Install()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create config directory")
+}
+
+func TestFishHookStrategy_GetRCFile(t *testing.T) {
+	home := testHome(t)
+
+	strategy, err := NewFishHookStrategy()
+	require.NoError(t, err)
+
+	expectedRCFile := filepath.Join(home, ".config", "fish", "config.fish")
 	assert.Equal(t, expectedRCFile, strategy.GetRCFile())
 }

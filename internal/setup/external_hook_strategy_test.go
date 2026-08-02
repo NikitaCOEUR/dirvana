@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 func TestExternalHookStrategy_Install(t *testing.T) {
@@ -43,7 +43,10 @@ func TestExternalHookStrategy_Install(t *testing.T) {
 		t.Fatalf("Failed to read hook file: %v", err)
 	}
 
-	expectedHookCode := cli.GenerateHookCode("bash")
+	expectedHookCode, err := shell.GenerateHookCode("bash", shell.BinaryPath())
+	if err != nil {
+		t.Fatalf("GenerateHookCode failed: %v", err)
+	}
 	if string(hookContent) != expectedHookCode {
 		t.Error("Hook file content doesn't match expected")
 	}
@@ -216,7 +219,7 @@ func TestExternalHookStrategy_NeedsUpdate(t *testing.T) {
 	}
 
 	// Modify hook file to simulate outdated version
-	err = os.WriteFile(hookPath, []byte("# Old hook code"), 0644)
+	err = os.WriteFile(hookPath, []byte("# Old hook code"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to modify hook file: %v", err)
 	}
@@ -254,7 +257,7 @@ func TestExternalHookStrategy_UpdateOnlyTouchesHookFile(t *testing.T) {
 	}
 
 	// Modify hook file
-	err = os.WriteFile(hookPath, []byte("# Old hook code"), 0644)
+	err = os.WriteFile(hookPath, []byte("# Old hook code"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to modify hook file: %v", err)
 	}
@@ -285,22 +288,18 @@ func TestExternalHookStrategy_UpdateOnlyTouchesHookFile(t *testing.T) {
 
 func TestExternalHookStrategy_Install_ErrorCreatingConfigDir(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	// Create a file where .config should be to cause error
 	configPath := filepath.Join(tmpDir, ".config")
-	err := os.WriteFile(configPath, []byte("blocking file"), 0644)
+	err := os.WriteFile(configPath, []byte("blocking file"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create blocking file: %v", err)
 	}
 
 	// Create RC file
 	rcFile := filepath.Join(tmpDir, ".bashrc")
-	err = os.WriteFile(rcFile, []byte("# Test"), 0644)
+	err = os.WriteFile(rcFile, []byte("# Test"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
 	}
@@ -319,15 +318,11 @@ func TestExternalHookStrategy_Install_ErrorCreatingConfigDir(t *testing.T) {
 
 func TestExternalHookStrategy_Install_ErrorReadingRCFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	// Create a directory where RC file should be
 	rcFile := filepath.Join(tmpDir, ".bashrc")
-	err := os.Mkdir(rcFile, 0755)
+	err := os.Mkdir(rcFile, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create directory: %v", err)
 	}
@@ -346,11 +341,7 @@ func TestExternalHookStrategy_Install_ErrorReadingRCFile(t *testing.T) {
 
 func TestExternalHookStrategy_Uninstall_RCFileNotExist(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	// Don't create RC file
 	strategy, err := NewExternalHookStrategy("bash")
@@ -367,11 +358,7 @@ func TestExternalHookStrategy_Uninstall_RCFileNotExist(t *testing.T) {
 
 func TestExternalHookStrategy_IsInstalled_RCFileNotExist(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	strategy, err := NewExternalHookStrategy("bash")
 	if err != nil {
@@ -386,11 +373,7 @@ func TestExternalHookStrategy_IsInstalled_RCFileNotExist(t *testing.T) {
 
 func TestExternalHookStrategy_NeedsUpdate_HookFileNotExist(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	strategy, err := NewExternalHookStrategy("bash")
 	if err != nil {

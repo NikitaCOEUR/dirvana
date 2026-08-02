@@ -5,6 +5,13 @@ aliases:
   # Simple string alias
   testcmd: echo "Dirvana alias works in zsh"
 
+  # Conditional alias: resolves at execution time depending on marker.txt
+  condcmd:
+    command: echo "condition-met"
+    when:
+      file: marker.txt
+    else: echo "condition-missing"
+
   # Alias with pipes and redirection
   ll: ls -lah
 

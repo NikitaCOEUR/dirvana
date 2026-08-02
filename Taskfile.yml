@@ -11,7 +11,9 @@ vars:
     sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
   LDFLAGS: -ldflags "-X github.com/NikitaCOEUR/dirvana/pkg/version.Version={{.VERSION}} -X github.com/NikitaCOEUR/dirvana/pkg/version.BuildTime={{.BUILD_TIME}} -X github.com/NikitaCOEUR/dirvana/pkg/version.GitCommit={{.GIT_COMMIT}} -X github.com/NikitaCOEUR/dirvana/internal/completion.DevMode=dev"
   LDFLAGS_PROD: -ldflags "-X github.com/NikitaCOEUR/dirvana/pkg/version.Version={{.VERSION}} -X github.com/NikitaCOEUR/dirvana/pkg/version.BuildTime={{.BUILD_TIME}} -X github.com/NikitaCOEUR/dirvana/pkg/version.GitCommit={{.GIT_COMMIT}}"
-  GO_VERSION: "1.25.1"
+  # Single source of truth for the Go version: go.mod
+  GO_VERSION:
+    sh: awk '/^go /{print $2}' go.mod
   TEST_SHELL: "bash"
   IMAGE_TEST_COMPLETION: "dirvana-completion-test"
 
@@ -37,16 +39,16 @@ tasks:
 
   build:
     desc: Build the binary
-    deps: [deps]
     cmds:
       - echo "Building {{.BINARY_NAME}}..."
+      # Regenerate the schema BEFORE compiling: internal/config/schema.go
+      # embeds schema.json into the binary
+      - task: generate-schema
       - mkdir -p {{.BUILD_DIR}}
       - go build {{.LDFLAGS}} -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/dirvana
-      - task: generate-schema
 
   build-dev:
     desc: Build the binary with dev features (tracing support)
-    deps: [deps]
     cmds:
       - echo "Building {{.BINARY_NAME}} (dev mode with tracing)..."
       - mkdir -p {{.BUILD_DIR}}
@@ -61,10 +63,10 @@ tasks:
       - go install {{.LDFLAGS}} ./cmd/dirvana
 
   test:
-    desc: Run tests
+    desc: Run tests (race detector on, like CI)
     cmds:
       - echo "Running tests..."
-      - go test -v ./...
+      - go test -race ./...
 
   test-verbose:
     desc: Run tests with verbose output and race detector
@@ -114,7 +116,7 @@ tasks:
       - echo "Running Fish integration tests..."
       - docker build -t dirvana-test-fish -f tests/integration/shells/Dockerfile.fish .
       - docker run --rm dirvana-test-fish
-      - docker rmi dirvana-test-zsh
+      - docker rmi dirvana-test-fish
 
   test-all:
     desc: Run all tests (unit + integration)
@@ -167,11 +169,9 @@ tasks:
   # Completion testing tasks
   build-completion-image:
     desc: Build Docker image for completion tests
-    vars:
-      GO_VER: '{{.GO_VERSION | default "1.25.1"}}'
     cmds:
       - docker build
-        --build-arg GO_VERSION={{.GO_VER}}
+        --build-arg GO_VERSION={{.GO_VERSION}}
         -t {{.IMAGE_TEST_COMPLETION}}
         -f tests/completion/Dockerfile .
 

@@ -265,9 +265,9 @@ func TestScriptCompleter_EnsureScriptAvailable(t *testing.T) {
 
 		// Create a mock script
 		scriptPath := filepath.Join(tmpDir, "completion-scripts", "bash", "test-tool")
-		err := os.MkdirAll(filepath.Dir(scriptPath), 0755)
+		err := os.MkdirAll(filepath.Dir(scriptPath), 0o755)
 		assert.NoError(t, err)
-		err = os.WriteFile(scriptPath, []byte("#!/bin/bash\n"), 0644)
+		err = os.WriteFile(scriptPath, []byte("#!/bin/bash\n"), 0o644)
 		assert.NoError(t, err)
 
 		path, err := s.ensureScriptAvailable("test-tool")
@@ -314,7 +314,7 @@ tools:
       url: https://example.com/mock-tool
       sha256: abc123
 `
-		err := os.WriteFile(registryPath, []byte(registryContent), 0644)
+		err := os.WriteFile(registryPath, []byte(registryContent), 0o644)
 		assert.NoError(t, err)
 
 		// Tool should be supported even though script doesn't exist yet
@@ -332,7 +332,7 @@ tools:
 description: Empty registry
 tools: {}
 `
-		err := os.WriteFile(registryPath, []byte(registryContent), 0644)
+		err := os.WriteFile(registryPath, []byte(registryContent), 0o644)
 		assert.NoError(t, err)
 
 		// Tool should not be supported
@@ -349,11 +349,11 @@ func TestScriptCompleter_EnsureScriptAvailable_AutoDownload(t *testing.T) {
 
 		// Create a mock script to download
 		mockScriptDir := filepath.Join(tmpDir, "mock-source")
-		err := os.MkdirAll(mockScriptDir, 0755)
+		err := os.MkdirAll(mockScriptDir, 0o755)
 		assert.NoError(t, err)
 		mockScriptPath := filepath.Join(mockScriptDir, "mock-tool")
 		mockScriptContent := "#!/bin/bash\necho 'mock completion'"
-		err = os.WriteFile(mockScriptPath, []byte(mockScriptContent), 0644)
+		err = os.WriteFile(mockScriptPath, []byte(mockScriptContent), 0o644)
 		assert.NoError(t, err)
 
 		// Create a mock registry with a tool (YAML format, proper path)
@@ -369,7 +369,7 @@ tools:
       url: https://example.com/mock-tool
       sha256: abc123
 `
-		err = os.WriteFile(registryPath, []byte(registryContent), 0644)
+		err = os.WriteFile(registryPath, []byte(registryContent), 0o644)
 		assert.NoError(t, err)
 
 		// Call ensureScriptAvailable - it should attempt to download the script

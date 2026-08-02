@@ -39,6 +39,22 @@ func TestEdit_CreatesConfigIfNotExists(t *testing.T) {
 	require.NotNil(t, cfg)
 }
 
+func TestEdit_VisualTakesPrecedenceOverEditor(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	require.NoError(t, os.Chdir(tmpDir))
+
+	// POSIX convention: VISUAL wins over EDITOR. 'false' exits non-zero,
+	// so Edit would fail if EDITOR were picked.
+	t.Setenv("VISUAL", "true")
+	t.Setenv("EDITOR", "false")
+
+	require.NoError(t, Edit(false))
+}
+
 func TestEdit_OpensExistingConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -52,7 +68,7 @@ func TestEdit_OpensExistingConfig(t *testing.T) {
 
 	// Create existing config
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(testAliasConfig), 0o644))
 
 	// Set a valid editor that just exits (for testing)
 	t.Setenv("EDITOR", "true")
@@ -120,13 +136,13 @@ func TestEdit_Global_OpensExistingConfig(t *testing.T) {
 
 	// Create global config directory and file
 	globalConfigDir := filepath.Join(tmpDir, "dirvana")
-	err := os.MkdirAll(globalConfigDir, 0755)
+	err := os.MkdirAll(globalConfigDir, 0o755)
 	require.NoError(t, err)
 
 	globalConfigPath := filepath.Join(globalConfigDir, "global.yml")
 	testConfig := `aliases:
   test: echo test`
-	require.NoError(t, os.WriteFile(globalConfigPath, []byte(testConfig), 0644))
+	require.NoError(t, os.WriteFile(globalConfigPath, []byte(testConfig), 0o644))
 
 	// Set a valid editor that just exits (for testing)
 	t.Setenv("EDITOR", "true")

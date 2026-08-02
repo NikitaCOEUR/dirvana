@@ -1,6 +1,9 @@
 package completion
 
-import "context"
+import (
+	"context"
+	"slices"
+)
 
 // FlagCompleter handles tools that use --generate-shell-completion flag
 // This is used by tools built with github.com/urfave/cli and similar frameworks
@@ -30,8 +33,10 @@ func (f *FlagCompleter) Supports(tool string, _ []string) bool {
 // Complete uses --generate-shell-completion to get suggestions
 func (f *FlagCompleter) Complete(tool string, args []string) ([]Suggestion, error) {
 	// Build command: tool [args...] --generate-shell-completion
-	// Note: we pass all args INCLUDING the current word being completed
-	cmdArgs := append(args, "--generate-shell-completion")
+	// Note: we pass all args INCLUDING the current word being completed.
+	// The caller-owned slice is shared with other completers running
+	// concurrently in the engine, so never append to it in place.
+	cmdArgs := slices.Concat(args, []string{"--generate-shell-completion"})
 
 	ctx := context.Background()
 	output, err := execWithTimeout(ctx, tool, cmdArgs...)
@@ -39,12 +44,6 @@ func (f *FlagCompleter) Complete(tool string, args []string) ([]Suggestion, erro
 		return nil, err
 	}
 
-	return parseFlagOutput(output), nil
-}
-
-// parseFlagOutput parses flag-based completion output
-// Format: one suggestion per line, no descriptions (simple list)
-func parseFlagOutput(output []byte) []Suggestion {
-	// Use common parser without description support
-	return parseCompletionOutput(output, false)
+	// One suggestion per line, no descriptions
+	return parseCompletionOutput(output, false), nil
 }

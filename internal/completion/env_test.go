@@ -12,57 +12,6 @@ func TestEnvCompleter_New(t *testing.T) {
 	assert.NotNil(t, e)
 }
 
-func TestEnvCompleter_parseEnvOutput(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected []Suggestion
-	}{
-		{
-			name:  "simple list",
-			input: "init\nplan\napply\n",
-			expected: []Suggestion{
-				{Value: "init", Description: ""},
-				{Value: "plan", Description: ""},
-				{Value: "apply", Description: ""},
-			},
-		},
-		{
-			name:     "empty output",
-			input:    "",
-			expected: nil,
-		},
-		{
-			name:  "with blank lines",
-			input: "init\n\nplan\n\napply\n",
-			expected: []Suggestion{
-				{Value: "init", Description: ""},
-				{Value: "plan", Description: ""},
-				{Value: "apply", Description: ""},
-			},
-		},
-		{
-			name:  "with whitespace",
-			input: "  init  \n  plan  \n",
-			expected: []Suggestion{
-				{Value: "init", Description: ""},
-				{Value: "plan", Description: ""},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := parseEnvOutput([]byte(tt.input))
-			if tt.expected == nil {
-				assert.Empty(t, result)
-			} else {
-				assert.Equal(t, tt.expected, result)
-			}
-		})
-	}
-}
-
 func TestEnvCompleter_Supports_NonExistentCommand(t *testing.T) {
 	e := NewEnvCompleter()
 
@@ -103,13 +52,12 @@ fi
 	scriptPath := tmpDir + "/mock-completer.sh"
 
 	// Write script to file
-	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0o755); err != nil {
 		t.Skip("Cannot write test script")
 	}
 
 	// Test with our mock script
 	suggestions, err := e.Complete(scriptPath, []string{"arg1"})
-
 	// Should succeed and return suggestions
 	if err != nil {
 		t.Logf("Completion error: %v", err)
@@ -138,7 +86,7 @@ fi
 	tmpDir := t.TempDir()
 	scriptPath := tmpDir + "/mock-valid.sh"
 
-	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0o755); err != nil {
 		t.Skip("Cannot write test script")
 	}
 
@@ -162,7 +110,7 @@ echo "  init - Initialize"
 	tmpDir := t.TempDir()
 	scriptPath := tmpDir + "/mock-help.sh"
 
-	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0o755); err != nil {
 		t.Skip("Cannot write test script")
 	}
 
@@ -181,7 +129,7 @@ exit 0
 	tmpDir := t.TempDir()
 	scriptPath := tmpDir + "/mock-empty.sh"
 
-	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0o755); err != nil {
 		t.Skip("Cannot write test script")
 	}
 
@@ -201,7 +149,7 @@ echo "command2"
 	tmpDir := t.TempDir()
 	scriptPath := tmpDir + "/mock-mixed.sh"
 
-	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0o755); err != nil {
 		t.Skip("Cannot write test script")
 	}
 
@@ -222,12 +170,11 @@ fi
 	tmpDir := t.TempDir()
 	scriptPath := tmpDir + "/mock-noargs.sh"
 
-	if err := os.WriteFile(scriptPath, []byte(mockScript), 0755); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(mockScript), 0o755); err != nil {
 		t.Skip("Cannot write test script")
 	}
 
 	suggestions, err := e.Complete(scriptPath, []string{})
-
 	if err != nil {
 		t.Skip("Mock script failed to execute")
 	}

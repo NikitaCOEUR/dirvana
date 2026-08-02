@@ -2,21 +2,49 @@ version: "2"
 
 linters:
   enable:
+    - copyloopvar
     - errcheck
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - misspell
-    - unparam
-    - unconvert
+    - errorlint
     - goconst
     - gocyclo
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
     - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
 
   settings:
     gocyclo:
       min-complexity: 20
+    gosec:
+      excludes:
+        # G204 (subprocess with variable): executing user-defined commands
+        # and probing tools for completion IS the product
+        - G204
+        # G301/G306 (permissive modes): the remaining call sites write
+        # user-facing files (sample configs, shell hooks, RC files) where
+        # 0644/0755 is intentional; private state files go through
+        # internal/fsutil which enforces 0600/0700
+        - G301
+        - G306
+        # G304 (file inclusion via variable): config/cache/script paths are
+        # computed from the directory hierarchy by design
+        - G304
+
+  exclusions:
+    rules:
+      # Test fixtures legitimately use permissive modes and throwaway files
+      - path: _test\.go
+        linters:
+          - gosec
+
+formatters:
+  enable:
+    - gofumpt
 
 issues:
   max-issues-per-linter: 0

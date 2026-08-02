@@ -113,9 +113,9 @@ flag_management:
           target: auto
           threshold: 1%
 
-    - name: context
+    - name: core
       paths:
-        - "internal/context/**/*.go"
+        - "internal/core/**/*.go"
       carryforward: true
       statuses:
         - type: project
@@ -161,23 +161,12 @@ flag_management:
           target: auto
           threshold: 1%
 
-    # Entry point
-    - name: cmd
-      paths:
-        - "cmd/**/*.go"
-      carryforward: true
-      statuses:
-        - type: project
-          target: auto
-          threshold: 1%
-        - type: patch
-          target: auto
-          threshold: 1%
-
 ignore:
   - "**/*_test.go"
   - "**/testdata/**"
-  - "cmd/dirvana/main.go"  # Main entry point, hard to test in isolation
+  # CLI entry-point wiring (urfave/cli command literals), hard to test in
+  # isolation. Was a single ignored main.go before it was split per command.
+  - "cmd/**"
 
 comment:
   layout: "reach,diff,flags,tree"

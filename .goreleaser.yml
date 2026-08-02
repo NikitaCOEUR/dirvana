@@ -3,11 +3,6 @@
 
 version: 2
 
-before:
-  hooks:
-    - go mod tidy
-    - go test ./...
-
 builds:
   - env:
       - CGO_ENABLED=0
@@ -22,11 +17,11 @@ builds:
     ldflags:
       - -s -w
       - -X github.com/NikitaCOEUR/dirvana/pkg/version.Version={{.Version}}
-      - -X github.com/NikitaCOEUR/dirvana/pkg/version.Commit={{.Commit}}
-      - -X github.com/NikitaCOEUR/dirvana/pkg/version.Date={{.Date}}
+      - -X github.com/NikitaCOEUR/dirvana/pkg/version.GitCommit={{.ShortCommit}}
+      - -X github.com/NikitaCOEUR/dirvana/pkg/version.BuildTime={{.Date}}
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -36,13 +31,12 @@ archives:
     files:
       - README.md
       - LICENSE
-      - CHANGELOG.md
 
 checksum:
   name_template: 'checksums.txt'
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   use: github

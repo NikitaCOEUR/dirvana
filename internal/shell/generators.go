@@ -7,12 +7,6 @@ import (
 	"text/template"
 )
 
-const (
-	shellBash = "bash"
-	shellZsh  = "zsh"
-	shellFish = "fish"
-)
-
 // CodeGenerator is an interface for shell-specific completion code generation
 // Implementations generate shell code for bash, zsh, etc.
 type CodeGenerator interface {
@@ -23,36 +17,23 @@ type CodeGenerator interface {
 	Name() string
 }
 
-// BashCodeGenerator generates bash-specific shell completion code
-type BashCodeGenerator struct{}
-
-// Name returns the shell name for bash
-func (b *BashCodeGenerator) Name() string {
-	return shellBash
+// registrationGenerator generates completion code for shells whose per-alias
+// registration is a plain __dirvana_register_completion call (bash and zsh);
+// only the embedded template differs between them.
+type registrationGenerator struct {
+	shell    string
+	template string
 }
 
-// GenerateCompletionFunction generates bash-specific completion functions
-func (b *BashCodeGenerator) GenerateCompletionFunction(aliasCommands map[string]string) []string {
-	var lines []string
-	lines = append(lines, strings.Split(bashTemplate, "\n")...)
-	for _, alias := range sortedKeys(aliasCommands) {
-		lines = append(lines, fmt.Sprintf("__dirvana_register_completion %s %s", alias, aliasCommands[alias]))
-	}
-	return lines
+// Name returns the shell name
+func (g *registrationGenerator) Name() string {
+	return g.shell
 }
 
-// ZshCodeGenerator generates zsh-specific shell completion code
-type ZshCodeGenerator struct{}
-
-// Name returns the shell name for zsh
-func (z *ZshCodeGenerator) Name() string {
-	return shellZsh
-}
-
-// GenerateCompletionFunction generates zsh-specific completion functions
-func (z *ZshCodeGenerator) GenerateCompletionFunction(aliasCommands map[string]string) []string {
-	var lines []string
-	lines = append(lines, strings.Split(zshFunctionTemplate, "\n")...)
+// GenerateCompletionFunction emits the shell template followed by one
+// registration line per alias
+func (g *registrationGenerator) GenerateCompletionFunction(aliasCommands map[string]string) []string {
+	lines := strings.Split(g.template, "\n")
 	for _, alias := range sortedKeys(aliasCommands) {
 		lines = append(lines, fmt.Sprintf("__dirvana_register_completion %s %s", alias, aliasCommands[alias]))
 	}
@@ -64,7 +45,7 @@ type FishCodeGenerator struct{}
 
 // Name returns the shell name for fish
 func (f *FishCodeGenerator) Name() string {
-	return shellFish
+	return Fish
 }
 
 // GenerateCompletionFunction generates fish-specific completion functions
@@ -108,19 +89,19 @@ func (m *MultiShellCodeGenerator) GenerateCompletionFunction(aliasCommands map[s
 // NewCompletionGenerator creates appropriate shell code generator for the given shell type
 func NewCompletionGenerator(shell string) CodeGenerator {
 	switch shell {
-	case shellBash:
-		return &BashCodeGenerator{}
-	case shellZsh:
-		return &ZshCodeGenerator{}
-	case shellFish:
+	case Bash:
+		return &registrationGenerator{shell: Bash, template: bashTemplate}
+	case Zsh:
+		return &registrationGenerator{shell: Zsh, template: zshFunctionTemplate}
+	case Fish:
 		return &FishCodeGenerator{}
 	default:
 		// All shells
 		return &MultiShellCodeGenerator{
 			generators: []CodeGenerator{
-				&BashCodeGenerator{},
-				&ZshCodeGenerator{},
-				&FishCodeGenerator{},
+				NewCompletionGenerator(Bash),
+				NewCompletionGenerator(Zsh),
+				NewCompletionGenerator(Fish),
 			},
 		}
 	}
@@ -130,11 +111,11 @@ func NewCompletionGenerator(shell string) CodeGenerator {
 func GenerateHookCode(shell, binaryPath string) (string, error) {
 	var tmpl string
 	switch shell {
-	case shellBash:
+	case Bash:
 		tmpl = bashHookTemplate
-	case shellZsh:
+	case Zsh:
 		tmpl = zshHookTemplate
-	case shellFish:
+	case Fish:
 		tmpl = fishHookTemplate
 	default:
 		tmpl = bashHookTemplate // Default to bash

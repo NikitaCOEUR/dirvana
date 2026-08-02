@@ -21,7 +21,7 @@ func TestValidate_ValidConfig(t *testing.T) {
 functions:
   greet: echo hello
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	err := Validate(configPath)
 	require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestValidate_InvalidConfig(t *testing.T) {
   test: echo test
   empty: ""
 `
-	require.NoError(t, os.WriteFile(configPath, []byte(content), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o644))
 
 	err := Validate(configPath)
 	require.Error(t, err)
@@ -54,7 +54,7 @@ func TestValidate_AutoDetect(t *testing.T) {
 
 	// Create config
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configPath, []byte(validAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(configPath, []byte(validAliasConfig), 0o644))
 
 	// Should auto-detect config in current dir
 	err = Validate("")

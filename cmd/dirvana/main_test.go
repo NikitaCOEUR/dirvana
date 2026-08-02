@@ -1,14 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	dircli "github.com/NikitaCOEUR/dirvana/internal/cli"
 	"github.com/NikitaCOEUR/dirvana/internal/setup"
+	shellpkg "github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +62,7 @@ func TestDetectShell(t *testing.T) {
 				defer func() { _ = os.Unsetenv("SHELL") }()
 			}
 
-			got := dircli.DetectShell(tt.flag)
+			got := shellpkg.Detect(tt.flag)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -98,7 +97,8 @@ func TestGenerateHookCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			code := dircli.GenerateHookCode(tt.shell)
+			code, err := shellpkg.GenerateHookCode(tt.shell, shellpkg.BinaryPath())
+			require.NoError(t, err)
 			for _, expected := range tt.want {
 				assert.Contains(t, code, expected)
 			}
@@ -110,27 +110,23 @@ func TestSetupCommand_AlreadyInstalled(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
-	// Pre-create rc file with hook already installed (legacy markers)
-	hookCode := dircli.GenerateHookCode("bash")
-	existingContent := fmt.Sprintf(`# My bashrc
-export PATH=$PATH:/usr/local/bin
-
-%s
-%s
-%s
-`, setup.HookMarkerStart, hookCode, setup.HookMarkerEnd)
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte("# My bashrc\n"), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
 	_ = os.Setenv("HOME", tmpDir)
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
-	// Setup should migrate from legacy (so Updated = true)
+	// First install
 	result, err := setup.InstallHook("bash")
 	require.NoError(t, err)
-	assert.True(t, result.Updated)                 // Changed: Will migrate, so Updated = true
-	assert.Contains(t, result.Message, "Migrated") // Changed: Will show migration message
+	assert.True(t, result.Updated)
+
+	// Second install: already up to date, nothing to do
+	result, err = setup.InstallHook("bash")
+	require.NoError(t, err)
+	assert.False(t, result.Updated)
+	assert.Contains(t, result.Message, "up to date")
 }
 
 func TestSetupCommand_NewInstallation(t *testing.T) {
@@ -141,7 +137,7 @@ func TestSetupCommand_NewInstallation(t *testing.T) {
 	existingContent := `# My bashrc
 export PATH=$PATH:/usr/local/bin
 `
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
+	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
@@ -176,52 +172,41 @@ func TestSetupCommand_UpdateExisting(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
-	// Pre-create rc file with OLD hook version (legacy markers)
-	oldHook := fmt.Sprintf(`%s
-__dirvana_hook() {
-  # Old version
-  echo "old"
-}
-%s`, setup.HookMarkerStart, setup.HookMarkerEnd)
-
-	existingContent := fmt.Sprintf(`# My bashrc
+	existingContent := `# My bashrc
 export PATH=$PATH:/usr/local/bin
-
-%s
 
 # More config
 alias ll='ls -la'
-`, oldHook)
-	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0644))
+`
+	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0o644))
 
 	// Mock home directory
 	oldHome := os.Getenv("HOME")
 	_ = os.Setenv("HOME", tmpDir)
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
-	// Install should migrate from legacy
+	// Install, then corrupt the external hook file to simulate an outdated hook
+	_, err := setup.InstallHook("bash")
+	require.NoError(t, err)
+
+	hookPath := filepath.Join(tmpDir, ".config", "dirvana", "hook-bash.sh")
+	require.NoError(t, os.WriteFile(hookPath, []byte("# outdated hook\n"), 0o644))
+
+	// Install again: hook content differs, must be rewritten
 	result, err := setup.InstallHook("bash")
 	require.NoError(t, err)
 	assert.True(t, result.Updated)
-	assert.Contains(t, result.Message, "Migrated") // Changed from "updated" to "Migrated"
 
-	// Verify hook was migrated (legacy markers removed)
+	// Verify user content is preserved and hook file is fresh
 	updatedData, err := os.ReadFile(rcFile)
 	require.NoError(t, err)
-
 	updatedContent := string(updatedData)
 	assert.Contains(t, updatedContent, "# My bashrc")
 	assert.Contains(t, updatedContent, "alias ll='ls -la'")
-	// With new strategy, hook is external, not inline
-	assert.NotContains(t, updatedContent, setup.HookMarkerStart)
-	assert.NotContains(t, updatedContent, setup.HookMarkerEnd)
-	assert.NotContains(t, updatedContent, "# Old version")
-	assert.NotContains(t, updatedContent, `echo "old"`)
 
-	// Verify external hook file was created
-	hookPath := filepath.Join(tmpDir, ".config", "dirvana", "hook-bash.sh")
-	_, err = os.Stat(hookPath)
-	assert.NoError(t, err, "External hook file should exist")
+	hookData, err := os.ReadFile(hookPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(hookData), "__dirvana_hook")
 }
 
 func TestEnvVarSupport_Shell(t *testing.T) {
@@ -230,10 +215,10 @@ func TestEnvVarSupport_Shell(t *testing.T) {
 	defer func() { _ = os.Unsetenv("DIRVANA_SHELL") }()
 
 	// When DIRVANA_SHELL is set, DetectShell should return it
-	shell := dircli.DetectShell("auto")
+	shell := shellpkg.Detect("auto")
 	assert.Equal(t, "zsh", shell)
 
 	// When explicitly set, it should override env var
-	shell = dircli.DetectShell("bash")
+	shell = shellpkg.Detect("bash")
 	assert.Equal(t, "bash", shell)
 }

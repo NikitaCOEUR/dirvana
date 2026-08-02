@@ -25,8 +25,7 @@ func NewEngine(cacheDir string) *Engine {
 	script := NewScriptCompleter(cacheDir)
 
 	// Load detection cache
-	cachePath := filepath.Join(cacheDir, "completion-detection.json")
-	detectionCache, _ := NewDetectionCache(cachePath)
+	detectionCache := NewDetectionCache(filepath.Join(cacheDir, "completion-detection.json"))
 
 	return &Engine{
 		completers: []Completer{
@@ -114,10 +113,21 @@ func (e *Engine) Complete(tool string, args []string) (*Result, error) {
 		close(resultChan)
 	}()
 
-	// Wait for first result (even if empty) or all completions
+	// Wait for the first completer that actually produced suggestions.
+	// An empty result must not shadow a slower but richer completer
+	// (e.g. a stub bash-completion script racing ahead of kubectl's own
+	// __complete protocol), so empty results only win when every
+	// completer came back empty — and they are never cached, since they
+	// prove nothing about which protocol the tool speaks.
+	var emptySource string
 	for result := range resultChan {
-		// Cache and return first result immediately, even if no suggestions
-		// This prevents waiting for slower completers
+		if len(result.suggestions) == 0 {
+			if emptySource == "" {
+				emptySource = getCompleterType(result.completer)
+			}
+			continue
+		}
+
 		source := getCompleterType(result.completer)
 		e.detectionCache.Set(tool, source)
 		_ = e.detectionCache.Save()
@@ -132,6 +142,13 @@ func (e *Engine) Complete(tool string, args []string) (*Result, error) {
 		return &Result{
 			Suggestions: result.suggestions,
 			Source:      source,
+		}, nil
+	}
+
+	if emptySource != "" {
+		return &Result{
+			Suggestions: []Suggestion{},
+			Source:      emptySource,
 		}, nil
 	}
 

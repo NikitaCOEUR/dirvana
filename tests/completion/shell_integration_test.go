@@ -108,7 +108,6 @@ func TestShellIntegration_Completion(t *testing.T) {
 			// Run completion test script
 			cmd := exec.Command(scriptPath, tt.alias, configDir)
 			output, err := cmd.CombinedOutput()
-
 			if err != nil {
 				t.Logf("Script output:\n%s", string(output))
 				t.Fatalf("Completion test failed: %v", err)
@@ -195,9 +194,18 @@ func setupTestEnvironment(t *testing.T) {
 	configDir := "testdata"
 	require.DirExists(t, configDir, "testdata directory should exist")
 
-	// Allow the test directory
-	cmd := exec.Command("dirvana", "allow", configDir)
-	_ = cmd.Run() // Ignore error if already allowed
+	// Allow the test directory; the config contains env sh: commands, so
+	// they must be approved too or every export would prompt and fail
+	cmd := exec.Command("dirvana", "allow", "--auto-approve-shell", configDir)
+	output, err := cmd.CombinedOutput()
+	require.NoError(t, err, "dirvana allow failed: %s", string(output))
+
+	// Warm up the completion tools: their first execution in a cold
+	// container can exceed the engine's probe timeout, which would make
+	// the shell silently fall back to file completion
+	for _, tool := range []string{"kubectl", "terraform", "aqua"} {
+		_ = exec.Command(tool, "--help").Run()
+	}
 
 	t.Logf("Test environment ready (shell: %s)", testShell)
 }

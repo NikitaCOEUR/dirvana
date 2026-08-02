@@ -24,13 +24,13 @@ func TestFileCondition(t *testing.T) {
 
 	// Create a test file
 	testFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("test"), 0o644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
 	// Create a test directory (not a file)
 	testDir := filepath.Join(tmpDir, "testdir")
-	if err := os.Mkdir(testDir, 0755); err != nil {
+	if err := os.Mkdir(testDir, 0o755); err != nil {
 		t.Fatalf("Failed to create test dir: %v", err)
 	}
 
@@ -104,7 +104,6 @@ func TestFileCondition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cond := FileCondition{Path: tt.path}
 			ok, msg, err := cond.Evaluate(tt.ctx)
-
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -160,7 +159,6 @@ func TestVarCondition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cond := VarCondition{Name: tt.varName}
 			ok, _, err := cond.Evaluate(tt.ctx)
-
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -179,13 +177,13 @@ func TestDirCondition(t *testing.T) {
 
 	// Create a test directory
 	testDir := filepath.Join(tmpDir, "testdir")
-	if err := os.Mkdir(testDir, 0755); err != nil {
+	if err := os.Mkdir(testDir, 0o755); err != nil {
 		t.Fatalf("Failed to create test dir: %v", err)
 	}
 
 	// Create a test file (not a directory)
 	testFile := filepath.Join(tmpDir, "testfile.txt")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("test"), 0o644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
@@ -240,7 +238,6 @@ func TestDirCondition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cond := DirCondition{Path: tt.path}
 			ok, msg, err := cond.Evaluate(tt.ctx)
-
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -281,7 +278,6 @@ func TestCommandCondition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cond := CommandCondition{Name: tt.cmdName}
 			ok, _, err := cond.Evaluate(Context{})
-
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -298,7 +294,7 @@ func TestAllCondition(t *testing.T) {
 	// Resolve symlinks for macOS compatibility
 	tmpDir := resolveSymlinks(t, t.TempDir())
 	testFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("test"), 0o644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
@@ -342,7 +338,6 @@ func TestAllCondition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cond := AllCondition{Conditions: tt.conditions}
 			ok, _, err := cond.Evaluate(ctx)
-
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
@@ -359,7 +354,7 @@ func TestAnyCondition(t *testing.T) {
 	// Resolve symlinks for macOS compatibility
 	tmpDir := resolveSymlinks(t, t.TempDir())
 	testFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("test"), 0o644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
@@ -403,7 +398,6 @@ func TestAnyCondition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cond := AnyCondition{Conditions: tt.conditions}
 			ok, _, err := cond.Evaluate(ctx)
-
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}

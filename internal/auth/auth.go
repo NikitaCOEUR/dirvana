@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
 )
 
 const currentAuthVersion = 2
@@ -82,34 +84,23 @@ type File struct {
 
 // Auth manages project directory authorization and shell command approval
 type Auth struct {
-	pathV1     string // V1 file (read-only, never modified)
-	pathV2     string // V2 file (read/write)
+	path       string
 	mu         sync.RWMutex
 	authorized map[string]*DirAuth
 }
 
-// New creates or loads an Auth instance
+// New creates or loads an Auth instance from the given auth file path
 func New(path string) (*Auth, error) {
-	// path is the V1 path (e.g., authorized.json)
-	// V2 path is derived by adding _v2 suffix
-	dir := filepath.Dir(path)
-	base := filepath.Base(path)
-	ext := filepath.Ext(base)
-	nameWithoutExt := base[:len(base)-len(ext)]
-	pathV2 := filepath.Join(dir, nameWithoutExt+"_v2"+ext)
-
 	a := &Auth{
-		pathV1:     path,
-		pathV2:     pathV2,
+		path:       path,
 		authorized: make(map[string]*DirAuth),
 	}
 
 	// Ensure directory exists
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), fsutil.StateDirPerm); err != nil {
 		return nil, err
 	}
 
-	// Try to load: V2 first (if exists), then V1 (read-only)
 	if err := a.load(); err != nil && !os.IsNotExist(err) {
 		// Start with empty state on errors
 		a.authorized = make(map[string]*DirAuth)
@@ -117,8 +108,6 @@ func New(path string) (*Auth, error) {
 
 	return a, nil
 }
-
-// GetAuth returns the DirAuth structure for a given directory path
 
 // Allow adds a directory to the authorized list
 func (a *Auth) Allow(path string) error {
@@ -188,28 +177,17 @@ func (a *Auth) Clear() error {
 
 // load reads authorized directories from disk
 func (a *Auth) load() error {
-	// Try V2 first
-	if dataV2, err := os.ReadFile(a.pathV2); err == nil {
-		return a.loadV2(dataV2)
-	}
-
-	// Fallback to V1 (read-only, never modified)
-	dataV1, err := os.ReadFile(a.pathV1)
+	data, err := os.ReadFile(a.path)
 	if err != nil {
 		return err
 	}
 
-	return a.loadV1(dataV1)
-}
-
-// loadV2 parses V2 format with version field
-func (a *Auth) loadV2(data []byte) error {
 	var authFile File
 	if err := json.Unmarshal(data, &authFile); err != nil {
-		return fmt.Errorf("invalid v2 auth file: %w", err)
+		return fmt.Errorf("invalid auth file: %w", err)
 	}
 
-	if authFile.Version != 2 {
+	if authFile.Version != currentAuthVersion {
 		return fmt.Errorf("unsupported auth file version: %d", authFile.Version)
 	}
 
@@ -223,33 +201,7 @@ func (a *Auth) loadV2(data []byte) error {
 	return nil
 }
 
-// loadV1 parses V1 format ([]string) - read-only, never writes back
-func (a *Auth) loadV1(data []byte) error {
-	trimmed := strings.TrimSpace(string(data))
-	if trimmed == "" {
-		return nil
-	}
-
-	// V1 format: []string (array of authorized paths)
-	var paths []string
-	if err := json.Unmarshal(data, &paths); err != nil {
-		return fmt.Errorf("invalid v1 auth file: %w", err)
-	}
-
-	now := time.Now()
-	a.authorized = make(map[string]*DirAuth)
-	for _, path := range paths {
-		a.authorized[normalizePath(path)] = &DirAuth{
-			Allowed:   true,
-			AllowedAt: now,
-		}
-	}
-
-	// Don't auto-migrate - V1 stays untouched
-	return nil
-}
-
-// persist writes authorized directories to disk in V2 format
+// persist writes authorized directories to disk
 func (a *Auth) persist() error {
 	authFile := File{
 		Version:     currentAuthVersion,
@@ -260,8 +212,7 @@ func (a *Auth) persist() error {
 	if err != nil {
 		return err
 	}
-	// Always write to V2 file, never modify V1
-	return os.WriteFile(a.pathV2, data, 0600)
+	return fsutil.AtomicWrite(a.path, data, fsutil.StateFilePerm)
 }
 
 // normalizePath removes trailing slashes and cleans the path

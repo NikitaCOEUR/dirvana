@@ -252,8 +252,7 @@ func TestAuth_AllowIdempotent(t *testing.T) {
 	originalTimestamp := auth.AllowedAt
 
 	// Get the file modification time after first allow
-	v2Path := filepath.Join(tmpDir, "authorized_v2.json")
-	stat1, err := os.Stat(v2Path)
+	stat1, err := os.Stat(authPath)
 	require.NoError(t, err)
 	modTime1 := stat1.ModTime()
 
@@ -266,19 +265,18 @@ func TestAuth_AllowIdempotent(t *testing.T) {
 	assert.Equal(t, originalTimestamp, auth.AllowedAt, "AllowedAt should be preserved on idempotent call")
 
 	// File should not have been modified
-	stat2, err := os.Stat(v2Path)
+	stat2, err := os.Stat(authPath)
 	require.NoError(t, err)
 	assert.Equal(t, modTime1, stat2.ModTime(), "File should not be modified on idempotent call")
 }
 
 func TestAuth_AllowAfterDisabled(t *testing.T) {
 	tmpDir := t.TempDir()
-	authPath := filepath.Join(tmpDir, "authorized.json")
+	authPath := filepath.Join(tmpDir, "authorized_v2.json")
 
-	// Create a V2 file with a directory that has Allowed=false
-	v2Path := filepath.Join(tmpDir, "authorized_v2.json")
-	v2Data := `{"_version":2,"directories":{"/test/project":{"allowed":false,"allowed_at":"2020-01-01T00:00:00Z"}}}`
-	require.NoError(t, os.WriteFile(v2Path, []byte(v2Data), 0600))
+	// Create an auth file with a directory that has Allowed=false
+	authData := `{"_version":2,"directories":{"/test/project":{"allowed":false,"allowed_at":"2020-01-01T00:00:00Z"}}}`
+	require.NoError(t, os.WriteFile(authPath, []byte(authData), 0o600))
 
 	a, err := New(authPath)
 	require.NoError(t, err)
@@ -300,80 +298,6 @@ func TestAuth_AllowAfterDisabled(t *testing.T) {
 	auth := a.GetAuth(testProjectPath)
 	require.NotNil(t, auth)
 	assert.True(t, auth.AllowedAt.After(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)))
-}
-
-func TestAuth_MigrationWithCorruptedFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	authPath := filepath.Join(tmpDir, "authorized.json")
-
-	// Write corrupted JSON in V1 file
-	corruptedJSON := `{invalid json here`
-	require.NoError(t, os.WriteFile(authPath, []byte(corruptedJSON), 0644))
-
-	// Should succeed (start with empty state) but not load anything
-	a, err := New(authPath)
-	require.NoError(t, err)
-	assert.Empty(t, a.List(), "Corrupted file should result in empty auth list")
-
-	// Now write a corrupted V2 file
-	v2Path := filepath.Join(tmpDir, "authorized_v2.json")
-	require.NoError(t, os.WriteFile(v2Path, []byte(corruptedJSON), 0644))
-
-	// V2 corruption should also be handled gracefully
-	a2, err := New(authPath)
-	require.NoError(t, err)
-	assert.Empty(t, a2.List(), "Corrupted V2 file should result in empty auth list")
-}
-
-func TestAuth_MigrationFromV1Format(t *testing.T) {
-	tmpDir := t.TempDir()
-	authPath := filepath.Join(tmpDir, "authorized.json")
-
-	// Write V1 format ([]string) to file
-	v1FormatJSON := `[
-  "/home/user/project1",
-  "/home/user/project2",
-  "/home/user/project3"
-]`
-	require.NoError(t, os.WriteFile(authPath, []byte(v1FormatJSON), 0644))
-
-	// Load with new Auth structure - should migrate automatically
-	a, err := New(authPath)
-	require.NoError(t, err)
-
-	// Verify migration: all paths should be in the list
-	list := a.List()
-	assert.Len(t, list, 3)
-	assert.Contains(t, list, "/home/user/project1")
-	assert.Contains(t, list, "/home/user/project2")
-	assert.Contains(t, list, "/home/user/project3")
-
-	// Verify the migrated entries have proper DirAuth structure
-	auth1 := a.GetAuth("/home/user/project1")
-	require.NotNil(t, auth1)
-	assert.True(t, auth1.Allowed)
-	assert.False(t, auth1.AllowedAt.IsZero())
-
-	// V1 file should still exist and be UNTOUCHED
-	v1Data, err := os.ReadFile(authPath)
-	require.NoError(t, err)
-	assert.Equal(t, v1FormatJSON, string(v1Data), "V1 file should remain unchanged")
-
-	// But when we persist changes, V2 file should be created
-	require.NoError(t, a.Allow("/home/user/project4"))
-
-	// V2 file should now exist with versioned format
-	v2Path := filepath.Join(tmpDir, "authorized_v2.json")
-	v2Data, err := os.ReadFile(v2Path)
-	require.NoError(t, err)
-	assert.Contains(t, string(v2Data), `"_version"`)
-	assert.Contains(t, string(v2Data), `"directories"`)
-	assert.Contains(t, string(v2Data), `"/home/user/project4"`)
-
-	// V1 file should STILL be untouched
-	v1DataAfter, err := os.ReadFile(authPath)
-	require.NoError(t, err)
-	assert.Equal(t, v1FormatJSON, string(v1DataAfter), "V1 file should never be modified")
 }
 
 func TestAuth_RequiresShellApproval_EdgeCases(t *testing.T) {
@@ -421,14 +345,15 @@ func TestAuth_ApproveShellCommands_DirectoryNotAuthorized(t *testing.T) {
 	assert.Contains(t, err.Error(), "directory not authorized")
 }
 
-func TestAuth_LoadV1_EdgeCases(t *testing.T) {
-	t.Run("EmptyV1Array", func(t *testing.T) {
+func TestAuth_Load_EdgeCases(t *testing.T) {
+	t.Run("LegacyV1ArrayIgnored", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		authPath := filepath.Join(tmpDir, "authorized.json")
+		authPath := filepath.Join(tmpDir, "authorized_v2.json")
 
-		// Write empty V1 array
-		v1Data := []byte(`[]`)
-		require.NoError(t, os.WriteFile(authPath, v1Data, 0600))
+		// Legacy V1 format ([]string) is no longer supported and is
+		// treated like any unreadable file: empty state.
+		v1Data := []byte(`["/home/user/project1"]`)
+		require.NoError(t, os.WriteFile(authPath, v1Data, 0o600))
 
 		a, err := New(authPath)
 		require.NoError(t, err)
@@ -436,13 +361,11 @@ func TestAuth_LoadV1_EdgeCases(t *testing.T) {
 		assert.Empty(t, a.List())
 	})
 
-	t.Run("InvalidV1Format", func(t *testing.T) {
+	t.Run("InvalidJSON", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		authPath := filepath.Join(tmpDir, "authorized.json")
+		authPath := filepath.Join(tmpDir, "authorized_v2.json")
 
-		// Write invalid JSON - New() handles this gracefully
-		v1Data := []byte(`{invalid json}`)
-		require.NoError(t, os.WriteFile(authPath, v1Data, 0600))
+		require.NoError(t, os.WriteFile(authPath, []byte(`{invalid json}`), 0o600))
 
 		// New() should succeed but start with empty state
 		a, err := New(authPath)
@@ -453,29 +376,26 @@ func TestAuth_LoadV1_EdgeCases(t *testing.T) {
 
 	t.Run("EmptyFile", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		authPath := filepath.Join(tmpDir, "authorized.json")
+		authPath := filepath.Join(tmpDir, "authorized_v2.json")
 
-		// Write empty file
-		require.NoError(t, os.WriteFile(authPath, []byte(""), 0600))
+		require.NoError(t, os.WriteFile(authPath, []byte(""), 0o600))
 
 		a, err := New(authPath)
 		require.NoError(t, err)
 		assert.NotNil(t, a)
 		assert.Empty(t, a.List())
 	})
-}
 
-func TestAuth_LoadV2_InvalidVersion(t *testing.T) {
-	tmpDir := t.TempDir()
-	authPath := filepath.Join(tmpDir, "authorized_v2.json")
+	t.Run("UnsupportedVersion", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		authPath := filepath.Join(tmpDir, "authorized_v2.json")
 
-	// Write V2 file with invalid version - New() handles this gracefully
-	v2Data := `{"_version":99,"directories":{}}`
-	require.NoError(t, os.WriteFile(authPath, []byte(v2Data), 0600))
+		require.NoError(t, os.WriteFile(authPath, []byte(`{"_version":99,"directories":{}}`), 0o600))
 
-	// New() should succeed but start with empty state
-	a, err := New(filepath.Join(tmpDir, "authorized.json"))
-	require.NoError(t, err)
-	assert.NotNil(t, a)
-	assert.Empty(t, a.List())
+		// New() should succeed but start with empty state
+		a, err := New(authPath)
+		require.NoError(t, err)
+		assert.NotNil(t, a)
+		assert.Empty(t, a.List())
+	})
 }

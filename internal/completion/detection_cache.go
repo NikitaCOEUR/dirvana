@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
 )
 
 // CacheEntry stores completer type with timestamp for TTL
@@ -24,21 +26,22 @@ type DetectionCache struct {
 	ttl      time.Duration
 }
 
-// NewDetectionCache creates or loads a detection cache with a 24h TTL
-func NewDetectionCache(cachePath string) (*DetectionCache, error) {
+// NewDetectionCache creates or loads a detection cache with a 24h TTL.
+// A missing, unreadable or corrupt cache file yields an empty cache —
+// detection results are always recomputable, so this never fails.
+func NewDetectionCache(cachePath string) *DetectionCache {
 	c := &DetectionCache{
 		path:  cachePath,
 		cache: make(map[string]CacheEntry),
 		ttl:   24 * time.Hour,
 	}
 
-	// Try to load existing cache
-	if err := c.load(); err != nil && !os.IsNotExist(err) {
-		// Ignore if file doesn't exist, but return other errors
-		return nil, err
+	if err := c.load(); err != nil {
+		// Reset in case of a partially decoded corrupt file
+		c.cache = make(map[string]CacheEntry)
 	}
 
-	return c, nil
+	return c
 }
 
 // Get returns the completer type for a tool, or empty string if not cached or expired
@@ -90,7 +93,7 @@ func (c *DetectionCache) Save() error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(c.path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, fsutil.StateDirPerm); err != nil {
 		return err
 	}
 
@@ -101,7 +104,7 @@ func (c *DetectionCache) Save() error {
 	}
 
 	// Write to file
-	if err := os.WriteFile(c.path, data, 0644); err != nil {
+	if err := fsutil.AtomicWrite(c.path, data, fsutil.StateFilePerm); err != nil {
 		return err
 	}
 

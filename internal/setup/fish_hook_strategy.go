@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 // FishHookStrategy implements hook installation for Fish shell
@@ -29,7 +29,7 @@ func NewFishHookStrategy() (*FishHookStrategy, error) {
 	configDir := filepath.Join(home, ".config", "dirvana")
 	hookPath := filepath.Join(configDir, "hook-fish.sh")
 
-	rcFile, err := GetRCFilePath(cli.ShellFish)
+	rcFile, err := GetRCFilePath(shell.Fish)
 	if err != nil {
 		return nil, err
 	}
@@ -43,9 +43,12 @@ func NewFishHookStrategy() (*FishHookStrategy, error) {
 // Install installs the hook for Fish shell
 func (s *FishHookStrategy) Install() error {
 	// Step 1: Create hook file
-	hookCode := cli.GenerateHookCode(cli.ShellFish)
+	hookCode, err := shell.GenerateHookCode(shell.Fish, shell.BinaryPath())
+	if err != nil {
+		return fmt.Errorf("failed to generate hook code: %w", err)
+	}
 
-	if err := os.MkdirAll(filepath.Dir(s.hookPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.hookPath), 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -67,7 +70,7 @@ func (s *FishHookStrategy) Install() error {
 %s
 end
 `, sourceLine)
-			if err := os.MkdirAll(filepath.Dir(s.rcFile), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(s.rcFile), 0o755); err != nil {
 				return fmt.Errorf("failed to create fish config directory: %w", err)
 			}
 			if err := atomicWrite(s.rcFile, []byte(content)); err != nil {
@@ -242,7 +245,10 @@ func (s *FishHookStrategy) NeedsUpdate() bool {
 		return true
 	}
 
-	expectedHook := cli.GenerateHookCode(cli.ShellFish)
+	expectedHook, err := shell.GenerateHookCode(shell.Fish, shell.BinaryPath())
+	if err != nil {
+		return true
+	}
 	return string(currentHook) != expectedHook
 }
 

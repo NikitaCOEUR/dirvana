@@ -12,23 +12,19 @@ import (
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/completion"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
+	shellpkg "github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
-)
-
-const (
-	shellBash = "bash"
-	shellZsh  = "zsh"
 )
 
 // CollectAll gathers all status information from the current directory
 func CollectAll(cachePath, authPath string) (*Data, error) {
 	data := &Data{
-		Aliases:             make(map[string]config.AliasInfo),
+		Aliases:             make(map[string]AliasInfo),
 		Functions:           make([]string, 0),
 		EnvStatic:           make(map[string]string),
-		EnvShell:            make(map[string]config.EnvShellInfo),
+		EnvShell:            make(map[string]EnvShellInfo),
 		Flags:               make([]string, 0),
-		LocalConfigs:        make([]config.FileInfo, 0),
+		LocalConfigs:        make([]FileInfo, 0),
 		CompletionScripts:   make([]CompletionScriptInfo, 0),
 		CompletionOverrides: make(map[string]string),
 		CachePath:           cachePath,
@@ -58,7 +54,7 @@ func CollectAll(cachePath, authPath string) (*Data, error) {
 	}
 
 	// Collect config hierarchy info from config module
-	hierarchyInfo, err := config.GetHierarchyInfo(currentDir, authMgr)
+	hierarchyInfo, err := GetHierarchyInfo(currentDir, authMgr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config hierarchy: %w", err)
 	}
@@ -83,7 +79,7 @@ func CollectAll(cachePath, authPath string) (*Data, error) {
 		// If authorized and configs exist, collect details
 		if allowed {
 			// Get config details from config module
-			details := config.GetConfigDetails(hierarchyInfo.MergedConfig, authMgr, currentDir)
+			details := GetConfigDetails(hierarchyInfo.MergedConfig, authMgr, currentDir)
 			data.Aliases = details.Aliases
 			data.Functions = details.Functions
 			data.EnvStatic = details.EnvStatic
@@ -91,7 +87,7 @@ func CollectAll(cachePath, authPath string) (*Data, error) {
 			data.Flags = details.Flags
 
 			// Get completion overrides
-			data.CompletionOverrides = config.GetCompletionOverrides(hierarchyInfo.MergedConfig)
+			data.CompletionOverrides = GetCompletionOverrides(hierarchyInfo.MergedConfig)
 		}
 	} else {
 		// No configs, authorization is not applicable
@@ -109,25 +105,25 @@ func CollectAll(cachePath, authPath string) (*Data, error) {
 
 func collectSystemInfo(data *Data) {
 	// Detect current shell
-	shell := os.Getenv("SHELL")
+	sh := os.Getenv("SHELL")
 	shellName := "unknown"
-	if strings.Contains(shell, shellBash) {
-		shellName = shellBash
-	} else if strings.Contains(shell, shellZsh) {
-		shellName = shellZsh
+	if strings.Contains(sh, shellpkg.Bash) {
+		shellName = shellpkg.Bash
+	} else if strings.Contains(sh, shellpkg.Zsh) {
+		shellName = shellpkg.Zsh
 	}
 	data.Shell = shellName
 
 	// Check if hook is installed
 	hookInstalled := false
 	rcFile := ""
-	if shellName == shellBash || shellName == shellZsh {
+	if shellName == shellpkg.Bash || shellName == shellpkg.Zsh {
 		home, err := os.UserHomeDir()
 		if err == nil {
 			switch shellName {
-			case shellBash:
+			case shellpkg.Bash:
 				rcFile = filepath.Join(home, ".bashrc")
-			case shellZsh:
+			case shellpkg.Zsh:
 				rcFile = filepath.Join(home, ".zshrc")
 			}
 

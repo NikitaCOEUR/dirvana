@@ -28,7 +28,6 @@ func TestCache_Set(t *testing.T) {
 	entry := &Entry{
 		Path:      "/test/path",
 		Hash:      "abc123",
-		ShellCode: "export TEST=1",
 		Timestamp: time.Now(),
 		Version:   "1.0.0",
 		LocalOnly: false,
@@ -41,7 +40,6 @@ func TestCache_Set(t *testing.T) {
 	got, found := c.Get("/test/path")
 	assert.True(t, found)
 	assert.Equal(t, entry.Hash, got.Hash)
-	assert.Equal(t, entry.ShellCode, got.ShellCode)
 }
 
 func TestCache_Get(t *testing.T) {
@@ -93,10 +91,9 @@ func TestCache_Persistence(t *testing.T) {
 	require.NoError(t, err)
 
 	entry := &Entry{
-		Path:      "/test/path",
-		Hash:      "abc123",
-		ShellCode: "export TEST=1",
-		Version:   "1.0.0",
+		Path:    "/test/path",
+		Hash:    "abc123",
+		Version: "1.0.0",
 	}
 	require.NoError(t, c1.Set(entry))
 
@@ -107,7 +104,6 @@ func TestCache_Persistence(t *testing.T) {
 	got, found := c2.Get("/test/path")
 	assert.True(t, found)
 	assert.Equal(t, entry.Hash, got.Hash)
-	assert.Equal(t, entry.ShellCode, got.ShellCode)
 }
 
 func TestCache_InvalidPath(t *testing.T) {
@@ -146,7 +142,6 @@ func TestCache_IsValid(t *testing.T) {
 	entry := &Entry{
 		Path:      "/test/path",
 		Hash:      "abc123",
-		ShellCode: "export TEST=1",
 		Version:   "1.0.0",
 		Timestamp: time.Now(),
 	}
@@ -266,6 +261,20 @@ func TestIsParentOf(t *testing.T) {
 			name:     "child is parent",
 			parent:   "/home/user/project",
 			child:    "/home/user",
+			expected: false,
+		},
+		{
+			// Regression: rel[:2] used to panic when the relative
+			// path was a single character (1-char child basename)
+			name:     "single-character child basename",
+			parent:   "/home/user",
+			child:    "/home/user/a",
+			expected: true,
+		},
+		{
+			name:     "single-character sibling",
+			parent:   "/home/user/a",
+			child:    "/home/user/b",
 			expected: false,
 		},
 	}

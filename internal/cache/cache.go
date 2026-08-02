@@ -5,15 +5,18 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/NikitaCOEUR/dirvana/internal/config"
+	"github.com/NikitaCOEUR/dirvana/internal/fsutil"
 )
 
 // Entry represents a cached configuration entry
 type Entry struct {
 	Path      string    `json:"path"`
 	Hash      string    `json:"hash"`
-	ShellCode string    `json:"shell_code"`
 	Timestamp time.Time `json:"timestamp"`
 	Version   string    `json:"version"`
 	LocalOnly bool      `json:"local_only"`
@@ -21,16 +24,14 @@ type Entry struct {
 	Aliases   []string `json:"aliases,omitempty"`
 	Functions []string `json:"functions,omitempty"`
 	EnvVars   []string `json:"env_vars,omitempty"`
-	// Map of alias/function name to actual command (for dirvana exec)
-	CommandMap map[string]string `json:"command_map,omitempty"`
-	// Map of alias name to completion command (overrides CommandMap for completion)
-	// Example: k -> kubectl (when k executes kubecolor but completes with kubectl)
-	CompletionMap map[string]string `json:"completion_map,omitempty"`
 
-	// NEW: Merged configuration cache for fast completion/exec
-	// This stores the merged result after applying hierarchy, auth, global config, etc.
-	MergedCommandMap    map[string]string `json:"merged_command_map,omitempty"`
-	MergedCompletionMap map[string]string `json:"merged_completion_map,omitempty"`
+	// Merged configuration snapshot for fast completion/exec:
+	// the result after applying hierarchy, auth, global config, etc.
+	// Full alias specs are stored so exec keeps conditions (when/else)
+	// and completion overrides. No omitempty: an empty non-nil map is
+	// the marker that a merged snapshot exists.
+	MergedAliases   map[string]config.AliasConfig `json:"merged_aliases"`
+	MergedFunctions map[string]string             `json:"merged_functions"`
 	// Hash of the full hierarchy (all config files that contributed to the merge)
 	// Format: "hash1:hash2:hash3:..." from root to leaf
 	HierarchyHash string `json:"hierarchy_hash,omitempty"`
@@ -54,7 +55,7 @@ func New(path string) (*Cache, error) {
 
 	// Ensure directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, fsutil.StateDirPerm); err != nil {
 		return nil, err
 	}
 
@@ -164,8 +165,9 @@ func isParentOf(parent, child string) bool {
 	if err != nil {
 		return false
 	}
-	// If the relative path doesn't start with "..", child is under parent
-	return len(rel) > 0 && rel[0] != '.' && rel[:2] != ".."
+	// Child is strictly under parent when the relative path is neither
+	// "." (same directory) nor escapes upward with ".."
+	return rel != "." && !strings.HasPrefix(rel, "..")
 }
 
 // IsValid checks if cached entry is valid for given hash and version
@@ -201,5 +203,5 @@ func (c *Cache) persist() error {
 		return err
 	}
 
-	return os.WriteFile(c.path, data, 0600)
+	return fsutil.AtomicWrite(c.path, data, fsutil.StateFilePerm)
 }

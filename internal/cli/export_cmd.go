@@ -3,15 +3,14 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
-	"github.com/NikitaCOEUR/dirvana/internal/derrors"
+	"github.com/NikitaCOEUR/dirvana/internal/core"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
-	"github.com/NikitaCOEUR/dirvana/internal/shellctx"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/NikitaCOEUR/dirvana/internal/timing"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
@@ -35,18 +34,18 @@ func calculateActiveChains(prevDir, currentDir string, authMgr *auth.Auth, confi
 	chains := activeChains{}
 
 	if prevDir != "" && prevDir != currentDir {
-		chains.prev = shellctx.GetActiveConfigChain(prevDir, authMgr, configLoader)
-		chains.current = shellctx.GetActiveConfigChain(currentDir, authMgr, configLoader)
+		chains.prev = core.ActiveConfigChain(prevDir, authMgr, configLoader)
+		chains.current = core.ActiveConfigChain(currentDir, authMgr, configLoader)
 	} else {
 		// Same directory or no previous directory
-		chains.current = shellctx.GetActiveConfigChain(currentDir, authMgr, configLoader)
+		chains.current = core.ActiveConfigChain(currentDir, authMgr, configLoader)
 	}
 
 	return chains
 }
 
 // generateCleanupCodeForDirs generates cleanup code for directories that need cleanup
-func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache, shell string, log *logger.Logger) string {
+func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache, shellName string, log *logger.Logger) string {
 	var cleanupCode string
 
 	if len(cleanupDirs) == 0 {
@@ -57,11 +56,11 @@ func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache,
 	for _, dir := range cleanupDirs {
 		if entry, found := cacheStorage.Get(dir); found {
 			startTime := time.Now()
-			cleanupCode += shellctx.GenerateCleanupCode(
+			cleanupCode += shell.GenerateCleanupCode(
 				entry.Aliases,
 				entry.Functions,
 				entry.EnvVars,
-				shell,
+				shellName,
 			)
 			duration := time.Since(startTime)
 
@@ -78,24 +77,18 @@ func generateCleanupCodeForDirs(cleanupDirs []string, cacheStorage *cache.Cache,
 	return cleanupCode
 }
 
-// detectTargetShell determines the target shell for code generation
+// detectTargetShell determines the target shell for code generation.
+// Returns "" (generate for all shells) when no shell could actually be
+// detected, instead of silently assuming bash.
 func detectTargetShell() string {
-	targetShell := DetectShell("auto")
-
-	if targetShell == ShellBash {
-		// Check if it's a real detection or just the default fallback
-		if os.Getenv("DIRVANA_SHELL") == "" &&
-			detectShellFromParentProcess() == "" &&
-			!containsString(os.Getenv("SHELL"), "bash") {
-			targetShell = "" // Generate for all shells
-		}
-	}
-
-	return targetShell
+	return shell.DetectRaw("auto")
 }
 
-// checkUnauthorizedConfig warns if current directory has an unauthorized config
-func checkUnauthorizedConfig(currentDir string, currentActiveChain []string, targetShell string, log *logger.Logger) {
+// checkUnauthorizedConfig tells the user when the current directory has a
+// config that is not authorized. The message goes straight to /dev/tty:
+// the hook captures stdout and discards stderr, so a regular log line
+// would never be seen.
+func checkUnauthorizedConfig(currentDir string, currentActiveChain []string, log *logger.Logger) {
 	if !config.HasLocalConfig(currentDir) {
 		return
 	}
@@ -111,16 +104,10 @@ func checkUnauthorizedConfig(currentDir string, currentActiveChain []string, tar
 
 	if !isInActiveChain {
 		// Current directory has local config but is not authorized
-		suggestion := "dirvana allow " + currentDir
-		if targetShell != "" {
-			suggestion += "\n💡 Then reload with: eval \"$(DIRVANA_SHELL=" + targetShell + " dirvana export)\""
-		} else {
-			suggestion += "\n💡 Then reload with: eval \"$(dirvana export)\""
-		}
-
-		log.Warn().
+		notifyUser("dirvana: config found in " + currentDir + " but not authorized. Run: dirvana allow\n")
+		log.Debug().
 			Str("dir", currentDir).
-			Msg("Local dirvana config found but directory not authorized. Run: " + suggestion)
+			Msg("Local dirvana config found but directory not authorized")
 	}
 }
 
@@ -138,15 +125,7 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 	// We iterate through the active chain to cache each config separately
 	for _, configDir := range currentActiveChain {
 		// Find config file in this directory
-		var configPath string
-		for _, name := range config.SupportedConfigNames {
-			path := filepath.Join(configDir, name)
-			if _, err := os.Stat(path); err == nil {
-				configPath = path
-				break
-			}
-		}
-
+		configPath := config.FindConfigInDir(configDir)
 		if configPath == "" {
 			continue
 		}
@@ -162,24 +141,19 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 		hash, _ := comps.config.Hash(configPath)
 		staticEnv, shellEnv := cfg.GetEnvVars()
 		aliases := cfg.GetAliases()
-		aliasKeys := keysFromAliasMap(aliases)
-		functions := keysFromMap(cfg.Functions)
+		aliasKeys := mapKeys(aliases)
+		functions := mapKeys(cfg.Functions)
 		envVars := mergeTwoKeyLists(staticEnv, shellEnv)
-		commandMap := buildCommandMap(aliases, cfg.Functions)
-		completionMap := buildCompletionMap(aliases)
 
 		entry := &cache.Entry{
-			Path:          configDir,
-			Hash:          hash,
-			Timestamp:     time.Now(),
-			Version:       version.Version,
-			LocalOnly:     cfg.LocalOnly,
-			Aliases:       aliasKeys,
-			Functions:     functions,
-			EnvVars:       envVars,
-			CommandMap:    commandMap,
-			CompletionMap: completionMap,
-			// ShellCode is not stored for individual configs
+			Path:      configDir,
+			Hash:      hash,
+			Timestamp: time.Now(),
+			Version:   version.Version,
+			LocalOnly: cfg.LocalOnly,
+			Aliases:   aliasKeys,
+			Functions: functions,
+			EnvVars:   envVars,
 		}
 
 		if err := comps.cache.Set(entry); err != nil {
@@ -191,7 +165,7 @@ func loadAndMergeConfigs(currentActiveChain []string, comps *components, log *lo
 }
 
 // cacheMergedConfig creates and caches the merged configuration for the current directory
-func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths []string, mergedConfig *config.Config, aliases map[string]config.AliasConfig, mergedCommandMap, mergedCompletionMap map[string]string, comps *components, log *logger.Logger) {
+func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths []string, mergedConfig *config.Config, dctx *core.Context, comps *components, log *logger.Logger) {
 	if hierarchyHash == "" {
 		return
 	}
@@ -204,21 +178,21 @@ func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths [
 	// but without cleanup data since they only inherit configs (nothing new to clean up)
 	var aliasKeys, functions, envVars []string
 	if hasLocalConfig {
-		aliasKeys = keysFromAliasMap(aliases)
-		functions = keysFromMap(mergedConfig.Functions)
+		aliasKeys = mapKeys(dctx.Aliases)
+		functions = mapKeys(dctx.Functions)
 		staticEnv, shellEnv := mergedConfig.GetEnvVars()
 		envVars = mergeTwoKeyLists(staticEnv, shellEnv)
 	}
 
 	mergedEntry := &cache.Entry{
-		Path:                currentDir,
-		Hash:                hierarchyHash,
-		Timestamp:           time.Now(),
-		Version:             version.Version,
-		MergedCommandMap:    mergedCommandMap,
-		MergedCompletionMap: mergedCompletionMap,
-		HierarchyHash:       hierarchyHash,
-		HierarchyPaths:      hierarchyPaths,
+		Path:            currentDir,
+		Hash:            hierarchyHash,
+		Timestamp:       time.Now(),
+		Version:         version.Version,
+		MergedAliases:   dctx.Aliases,
+		MergedFunctions: dctx.Functions,
+		HierarchyHash:   hierarchyHash,
+		HierarchyPaths:  hierarchyPaths,
 		// Store cleanup data only for directories with local config
 		// This avoids duplicating cleanup data for inherited configs
 		Aliases:   aliasKeys, // nil if !hasLocalConfig
@@ -232,8 +206,8 @@ func cacheMergedConfig(currentDir string, hierarchyHash string, hierarchyPaths [
 		logEvent := log.Debug().
 			Str("dir", currentDir).
 			Bool("has_local_config", hasLocalConfig).
-			Int("merged_commands", len(mergedCommandMap)).
-			Int("merged_completions", len(mergedCompletionMap)).
+			Int("merged_aliases", len(dctx.Aliases)).
+			Int("merged_functions", len(dctx.Functions)).
 			Str("hierarchy_hash", hierarchyHash)
 
 		if hasLocalConfig {
@@ -262,7 +236,7 @@ func Export(params ExportParams) error {
 	// Get current directory
 	currentDir, err := os.Getwd()
 	if err != nil {
-		return derrors.NewExecutionError("export", "failed to get current directory", err)
+		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
 	log.Debug().Str("dir", currentDir).Str("prev", params.PrevDir).Msg("Exporting shell code")
@@ -282,9 +256,14 @@ func Export(params ExportParams) error {
 	timer.Mark("calc_chains")
 
 	// Determine what needs cleanup
-	cleanupDirs := shellctx.CalculateCleanup(chains.prev, chains.current)
+	cleanupDirs := core.CalculateCleanup(chains.prev, chains.current)
 	cleanupCode := generateCleanupCodeForDirs(cleanupDirs, comps.cache, targetShell, log)
 	timer.Mark("cleanup")
+
+	// Check if current directory has a local config but is not in the
+	// active chain. Must run before the empty-chain early return: the most
+	// common case (nothing authorized yet) is exactly an empty chain.
+	checkUnauthorizedConfig(currentDir, chains.current, log)
 
 	// If no active configs in current directory, just output cleanup and return
 	if len(chains.current) == 0 {
@@ -295,9 +274,6 @@ func Export(params ExportParams) error {
 		}
 		return nil
 	}
-
-	// Check if current directory has a local config but is not in the active chain
-	checkUnauthorizedConfig(currentDir, chains.current, targetShell, log)
 
 	// Load each config in the active chain and cache individual definitions
 	// This now uses LoadHierarchyWithAuth to properly handle global config, ignore_global, and local_only
@@ -315,19 +291,16 @@ func Export(params ExportParams) error {
 	timer.Mark("load_configs")
 
 	// Cache the merged configuration for fast completion/exec access
-	// Build merged command and completion maps from the final merged config
-	aliases := mergedConfig.GetAliases()
-	mergedCommandMap := buildCommandMap(aliases, mergedConfig.Functions)
-	mergedCompletionMap := buildCompletionMap(aliases)
+	dctx := core.NewContext(mergedConfig.GetAliases(), mergedConfig.Functions)
 
 	// Compute hierarchy hash from all active config paths
-	hierarchyHash, hierarchyPaths, err := computeHierarchyHash(chains.current, comps.config)
+	hierarchyHash, hierarchyPaths, err := core.HierarchyHash(chains.current, comps.config)
 	if err != nil {
 		log.Debug().Err(err).Msg("Failed to compute hierarchy hash")
 	}
 
 	// Cache the merged result for the current directory
-	cacheMergedConfig(currentDir, hierarchyHash, hierarchyPaths, mergedConfig, aliases, mergedCommandMap, mergedCompletionMap, comps, log)
+	cacheMergedConfig(currentDir, hierarchyHash, hierarchyPaths, mergedConfig, dctx, comps, log)
 	timer.Mark("cache_merged")
 
 	// Get environment variables and aliases
@@ -345,22 +318,14 @@ func Export(params ExportParams) error {
 			return err
 		}
 		if !approved {
-			return derrors.NewShellApprovalError(currentDir, "shell commands not approved", nil)
+			return fmt.Errorf("shell commands not approved")
 		}
 		// Save approval
 		if err := comps.auth.ApproveShellCommands(currentDir, shellEnv); err != nil {
 			return err
 		}
 
-		// Display confirmation message directly to terminal
-		tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
-		if err != nil {
-			// Fallback to stderr if /dev/tty is not available
-			_, _ = fmt.Fprintf(os.Stderr, "\n✓ Shell commands approved and cached\n\n")
-		} else {
-			_, _ = fmt.Fprintf(tty, "\n✓ Shell commands approved and cached\n\n")
-			_ = tty.Close()
-		}
+		notifyUser("\n✓ Shell commands approved and cached\n\n")
 	}
 
 	// Configure shell generator
@@ -369,7 +334,7 @@ func Export(params ExportParams) error {
 	}
 
 	// Generate shell code from merged config
-	shellCode := comps.shell.Generate(aliases, mergedConfig.Functions, staticEnv, shellEnv, mergedCompletionMap)
+	shellCode := comps.shell.Generate(dctx.Aliases, dctx.Functions, staticEnv, shellEnv, dctx.CompletionMap())
 	timer.Mark("generate_shell")
 
 	// Prepend cleanup code if needed
@@ -382,8 +347,8 @@ func Export(params ExportParams) error {
 	log.Debug().
 		Int("active_configs", len(chains.current)).
 		Int("cleanup_configs", len(cleanupDirs)).
-		Int("aliases", len(aliases)).
-		Int("functions", len(mergedConfig.Functions)).
+		Int("aliases", len(dctx.Aliases)).
+		Int("functions", len(dctx.Functions)).
 		Int("static_env", len(staticEnv)).
 		Int("shell_env", len(shellEnv)).
 		Dur("total_ms", totalDur).

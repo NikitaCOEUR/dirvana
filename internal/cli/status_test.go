@@ -54,7 +54,7 @@ func TestStatus_NotAuthorized(t *testing.T) {
 
 	// Create a config file
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte(testAliasConfig), 0644)
+	err = os.WriteFile(configPath, []byte(testAliasConfig), 0o644)
 	require.NoError(t, err)
 
 	params := StatusParams{
@@ -92,7 +92,7 @@ env:
   GIT_BRANCH:
     sh: git branch --show-current
 `
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -127,7 +127,7 @@ func TestStatus_WithCache(t *testing.T) {
 	configContent := `aliases:
   ll: ls -la
 `
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -161,18 +161,18 @@ func TestStatus_WithHierarchy(t *testing.T) {
 	// Create parent and child directories
 	parentDir := filepath.Join(tmpDir, "parent")
 	childDir := filepath.Join(tmpDir, "parent", "child")
-	require.NoError(t, os.MkdirAll(childDir, 0755))
+	require.NoError(t, os.MkdirAll(childDir, 0o755))
 
 	// Create parent config
 	parentConfig := filepath.Join(parentDir, ".dirvana.yml")
 	parentContent := `aliases:
   parent: echo parent
 `
-	require.NoError(t, os.WriteFile(parentConfig, []byte(parentContent), 0644))
+	require.NoError(t, os.WriteFile(parentConfig, []byte(parentContent), 0o644))
 
 	// Create child config
 	childConfig := filepath.Join(childDir, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(childConfig, []byte(childAliasConfig), 0644))
+	require.NoError(t, os.WriteFile(childConfig, []byte(childAliasConfig), 0o644))
 
 	// Authorize both directories
 	require.NoError(t, Allow(authPath, parentDir))
@@ -216,7 +216,7 @@ func TestStatus_WithFlags(t *testing.T) {
 local_only: true
 ignore_global: true
 `
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -250,7 +250,7 @@ func TestStatus_WithLongAlias(t *testing.T) {
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
 	longCommand := "echo this is a very long command that should be truncated when displayed in the status output to avoid cluttering the terminal"
 	configContent := "aliases:\n  longcmd: " + longCommand + "\n"
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -296,7 +296,7 @@ func TestStatus_WithAdvancedAliases(t *testing.T) {
     command: kubectl get pods
     completion: kubectl
 `
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize the directory
@@ -325,7 +325,7 @@ func TestStatus_InvalidCachePath(t *testing.T) {
 	require.NoError(t, err)
 
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte("aliases:\n  test: echo test\n"), 0644)
+	err = os.WriteFile(configPath, []byte("aliases:\n  test: echo test\n"), 0o644)
 	require.NoError(t, err)
 	err = Allow(authPath, tmpDir)
 	require.NoError(t, err)
@@ -360,17 +360,17 @@ func TestStatus_WithMixedAuthorizations(t *testing.T) {
 	dirA := filepath.Join(tmpDir, "A")
 	dirB := filepath.Join(dirA, "B")
 	dirC := filepath.Join(dirB, "C")
-	require.NoError(t, os.MkdirAll(dirC, 0755))
+	require.NoError(t, os.MkdirAll(dirC, 0o755))
 
 	// Create configs in each directory
 	configA := filepath.Join(dirA, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configA, []byte("aliases:\n  a: echo a\n"), 0644))
+	require.NoError(t, os.WriteFile(configA, []byte("aliases:\n  a: echo a\n"), 0o644))
 
 	configB := filepath.Join(dirB, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configB, []byte("aliases:\n  b: echo b\n"), 0644))
+	require.NoError(t, os.WriteFile(configB, []byte("aliases:\n  b: echo b\n"), 0o644))
 
 	configC := filepath.Join(dirC, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configC, []byte("aliases:\n  c: echo c\n"), 0644))
+	require.NoError(t, os.WriteFile(configC, []byte("aliases:\n  c: echo c\n"), 0o644))
 
 	// Authorize only A and C, not B
 	require.NoError(t, Allow(authPath, dirA))
@@ -400,15 +400,15 @@ func TestStatus_WithLocalOnly(t *testing.T) {
 	// Create directory hierarchy: parent/child
 	dirParent := filepath.Join(tmpDir, "parent")
 	dirChild := filepath.Join(dirParent, "child")
-	require.NoError(t, os.MkdirAll(dirChild, 0755))
+	require.NoError(t, os.MkdirAll(dirChild, 0o755))
 
 	// Create parent config
 	configParent := filepath.Join(dirParent, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configParent, []byte("aliases:\n  parent: echo parent\n"), 0644))
+	require.NoError(t, os.WriteFile(configParent, []byte("aliases:\n  parent: echo parent\n"), 0o644))
 
 	// Create child config with local_only
 	configChild := filepath.Join(dirChild, ".dirvana.yml")
-	require.NoError(t, os.WriteFile(configChild, []byte("local_only: true\naliases:\n  child: echo child\n"), 0644))
+	require.NoError(t, os.WriteFile(configChild, []byte("local_only: true\naliases:\n  child: echo child\n"), 0o644))
 
 	// Authorize both directories
 	require.NoError(t, Allow(authPath, dirParent))

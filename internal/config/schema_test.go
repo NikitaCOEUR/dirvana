@@ -118,6 +118,19 @@ aliases:
 	assert.NotEmpty(t, result.Errors)
 }
 
+func TestValidateWithSchema_UnparsableYAML(t *testing.T) {
+	// Genuinely broken syntax, as opposed to a well-formed document that
+	// does not match the schema
+	content := []byte("aliases:\n  ll: [unterminated\n")
+
+	result, err := ValidateWithSchema("test.yml", content)
+	require.NoError(t, err)
+	assert.False(t, result.Valid)
+	require.Len(t, result.Errors, 1)
+	assert.Equal(t, "syntax", result.Errors[0].Field)
+	assert.Contains(t, result.Errors[0].Message, "Invalid YAML syntax")
+}
+
 func TestValidateWithSchema_ValidTOML(t *testing.T) {
 	tmpDir := t.TempDir()
 	tomlFile := filepath.Join(tmpDir, "test.toml")
@@ -129,7 +142,7 @@ ll = "ls -lah"
 [env]
 PROJECT = "test"
 `)
-	require.NoError(t, os.WriteFile(tomlFile, content, 0644))
+	require.NoError(t, os.WriteFile(tomlFile, content, 0o644))
 
 	result, err := ValidateWithSchema(tomlFile, content)
 	require.NoError(t, err)

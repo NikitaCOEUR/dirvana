@@ -1,11 +1,19 @@
 package config
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
+	"sync"
 
-	"github.com/xeipuuv/gojsonschema"
+	"github.com/knadh/koanf/parsers/toml/v2"
+	"github.com/santhosh-tekuri/jsonschema/v6"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,6 +25,20 @@ func GetSchemaJSON() string {
 	return schemaJSON
 }
 
+// compiledSchema compiles the embedded schema once
+var compiledSchema = sync.OnceValues(func() (*jsonschema.Schema, error) {
+	doc, err := jsonschema.UnmarshalJSON(strings.NewReader(schemaJSON))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse embedded schema: %w", err)
+	}
+
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource("dirvana.schema.json", doc); err != nil {
+		return nil, fmt.Errorf("failed to load embedded schema: %w", err)
+	}
+	return compiler.Compile("dirvana.schema.json")
+})
+
 // ValidateWithSchema validates a config file against the JSON Schema
 func ValidateWithSchema(path string, content []byte) (*ValidationResult, error) {
 	result := &ValidationResult{
@@ -24,11 +46,13 @@ func ValidateWithSchema(path string, content []byte) (*ValidationResult, error) 
 		Errors: []ValidationError{},
 	}
 
-	// Determine file format and convert to JSON-compatible structure
+	// Determine file format and convert to JSON-compatible structure.
+	// All formats are parsed into a generic map so the schema sees the
+	// document as written, not a round-trip through typed config structs.
 	var data interface{}
 
-	switch {
-	case len(path) > 4 && (path[len(path)-4:] == ".yml" || path[len(path)-5:] == ".yaml"):
+	switch filepath.Ext(path) {
+	case ".yml", ".yaml":
 		if err := yaml.Unmarshal(content, &data); err != nil {
 			result.Valid = false
 			result.Errors = append(result.Errors, ValidationError{
@@ -37,7 +61,7 @@ func ValidateWithSchema(path string, content []byte) (*ValidationResult, error) 
 			})
 			return result, nil
 		}
-	case len(path) > 5 && path[len(path)-5:] == ".json":
+	case ".json":
 		if err := json.Unmarshal(content, &data); err != nil {
 			result.Valid = false
 			result.Errors = append(result.Errors, ValidationError{
@@ -46,10 +70,8 @@ func ValidateWithSchema(path string, content []byte) (*ValidationResult, error) 
 			})
 			return result, nil
 		}
-	case len(path) > 5 && path[len(path)-5:] == ".toml":
-		// For TOML, use the existing loader
-		loader := New()
-		cfg, err := loader.Load(path)
+	case ".toml":
+		parsed, err := toml.Parser().Unmarshal(content)
 		if err != nil {
 			result.Valid = false
 			result.Errors = append(result.Errors, ValidationError{
@@ -58,38 +80,54 @@ func ValidateWithSchema(path string, content []byte) (*ValidationResult, error) 
 			})
 			return result, nil
 		}
-
-		// Convert config to map
-		data = map[string]interface{}{
-			"aliases":       cfg.Aliases,
-			"functions":     cfg.Functions,
-			"env":           cfg.Env,
-			"local_only":    cfg.LocalOnly,
-			"ignore_global": cfg.IgnoreGlobal,
-		}
+		data = parsed
 	default:
 		return nil, fmt.Errorf("unsupported file format")
 	}
 
-	// Load schema
-	schemaLoader := gojsonschema.NewStringLoader(GetSchemaJSON())
-	documentLoader := gojsonschema.NewGoLoader(data)
-
-	// Validate
-	validationResult, err := gojsonschema.Validate(schemaLoader, documentLoader)
+	schema, err := compiledSchema()
 	if err != nil {
 		return nil, fmt.Errorf("schema validation error: %w", err)
 	}
 
-	if !validationResult.Valid() {
-		result.Valid = false
-		for _, err := range validationResult.Errors() {
-			result.Errors = append(result.Errors, ValidationError{
-				Field:   err.Field(),
-				Message: err.Description(),
-			})
+	// Round-trip through JSON so YAML/TOML values (e.g. int vs float64)
+	// take the shapes the validator expects
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to normalize document: %w", err)
+	}
+	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		return nil, fmt.Errorf("failed to normalize document: %w", err)
+	}
+
+	if err := schema.Validate(instance); err != nil {
+		var verr *jsonschema.ValidationError
+		if !errors.As(err, &verr) {
+			return nil, fmt.Errorf("schema validation error: %w", err)
 		}
+		result.Valid = false
+		appendValidationErrors(verr, result)
 	}
 
 	return result, nil
+}
+
+// errorPrinter renders schema validation messages
+var errorPrinter = message.NewPrinter(language.English)
+
+// appendValidationErrors flattens the validation error tree into
+// ValidationErrors, keeping only the leaf causes (the actual violations)
+func appendValidationErrors(verr *jsonschema.ValidationError, result *ValidationResult) {
+	if len(verr.Causes) == 0 {
+		field := "/" + strings.Join(verr.InstanceLocation, "/")
+		result.Errors = append(result.Errors, ValidationError{
+			Field:   field,
+			Message: fmt.Sprintf("%s: %s", field, verr.ErrorKind.LocalizedString(errorPrinter)),
+		})
+		return
+	}
+	for _, cause := range verr.Causes {
+		appendValidationErrors(cause, result)
+	}
 }

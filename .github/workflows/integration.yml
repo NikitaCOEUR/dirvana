@@ -9,83 +9,34 @@ on:
       - main
 
 jobs:
-  test-bash:
-    name: Test Bash Shell
+  shells:
+    name: Test ${{ matrix.shell }} Shell
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [bash, zsh, fish]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.25'
-          check-latest: true
-
-      - name: Build binary
-        run: go build -o bin/dirvana ./cmd/dirvana
-
+      # The Dockerfiles are multi-stage and build dirvana themselves;
+      # no host Go toolchain is needed.
       - name: Build Docker image
-        run: docker build -t dirvana-test-bash -f tests/integration/shells/Dockerfile.bash .
+        run: docker build -t dirvana-test-${{ matrix.shell }} -f tests/integration/shells/Dockerfile.${{ matrix.shell }} .
 
-      - name: Run Bash integration tests
-        run: docker run --rm dirvana-test-bash
-
-  test-zsh:
-    name: Test Zsh Shell
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.25'
-          check-latest: true
-
-      - name: Build binary
-        run: go build -o bin/dirvana ./cmd/dirvana
-
-      - name: Build Docker image
-        run: docker build -t dirvana-test-zsh -f tests/integration/shells/Dockerfile.zsh .
-
-      - name: Run Zsh integration tests
-        run: docker run --rm dirvana-test-zsh
-
-  test-fish:
-    name: Test Fish Shell
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: '1.25'
-          check-latest: true
-
-      - name: Build binary
-        run: go build -o bin/dirvana ./cmd/dirvana
-
-      - name: Build Docker image
-        run: docker build -t dirvana-test-fish -f tests/integration/shells/Dockerfile.fish .
-
-      - name: Run Fish integration tests
-        run: docker run --rm dirvana-test-fish
+      - name: Run ${{ matrix.shell }} integration tests
+        run: docker run --rm dirvana-test-${{ matrix.shell }}
 
   summary:
     name: Integration Tests Summary
     runs-on: ubuntu-latest
-    needs: [test-bash, test-zsh, test-fish]
+    needs: [shells]
     if: always()
     steps:
       - name: Check results
         run: |
-          if [ "${{ needs.test-bash.result }}" = "success" ] && \
-             [ "${{ needs.test-zsh.result }}" = "success" ] && \
-             [ "${{ needs.test-fish.result }}" = "success" ]; then
+          if [ "${{ needs.shells.result }}" = "success" ]; then
             echo "✅ All integration tests passed!"
           else
             echo "❌ Some integration tests failed"

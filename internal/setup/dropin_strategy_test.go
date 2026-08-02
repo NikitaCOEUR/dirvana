@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 const testBashrcDropInContent = "if [ -d ~/.bashrc.d ]; then\n  for rc in ~/.bashrc.d/*.sh; do\n    source $rc\n  done\nfi"
@@ -50,7 +50,7 @@ func TestDropInStrategy_IsSupported(t *testing.T) {
 			home := tmpDir
 
 			rcFile := filepath.Join(home, "."+tt.shell+"rc")
-			err := os.WriteFile(rcFile, []byte(tt.rcContent), 0644)
+			err := os.WriteFile(rcFile, []byte(tt.rcContent), 0o644)
 			if err != nil {
 				t.Fatalf("Failed to create RC file: %v", err)
 			}
@@ -80,7 +80,7 @@ func TestDropInStrategy_Install(t *testing.T) {
 	// Create RC file with drop-in support
 	rcFile := filepath.Join(home, ".bashrc")
 	rcContent := testBashrcDropInContent
-	err := os.WriteFile(rcFile, []byte(rcContent), 0644)
+	err := os.WriteFile(rcFile, []byte(rcContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
 	}
@@ -117,7 +117,10 @@ func TestDropInStrategy_Install(t *testing.T) {
 		t.Fatalf("Failed to read drop-in file: %v", err)
 	}
 
-	expectedHookCode := cli.GenerateHookCode("bash")
+	expectedHookCode, err := shell.GenerateHookCode("bash", shell.BinaryPath())
+	if err != nil {
+		t.Fatalf("GenerateHookCode failed: %v", err)
+	}
 	if string(dropInContent) != expectedHookCode {
 		t.Error("Drop-in file content doesn't match expected")
 	}
@@ -154,12 +157,12 @@ func TestDropInStrategy_Uninstall(t *testing.T) {
 	}
 
 	// Create drop-in file
-	err := os.MkdirAll(dropInDir, 0755)
+	err := os.MkdirAll(dropInDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	err = os.WriteFile(dropInFile, []byte("# Test hook"), 0644)
+	err = os.WriteFile(dropInFile, []byte("# Test hook"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in file: %v", err)
 	}
@@ -207,12 +210,12 @@ func TestDropInStrategy_IsInstalled(t *testing.T) {
 	}
 
 	// Create drop-in file
-	err := os.MkdirAll(dropInDir, 0755)
+	err := os.MkdirAll(dropInDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	err = os.WriteFile(dropInFile, []byte("# Test hook"), 0644)
+	err = os.WriteFile(dropInFile, []byte("# Test hook"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in file: %v", err)
 	}
@@ -244,13 +247,16 @@ func TestDropInStrategy_NeedsUpdate(t *testing.T) {
 	}
 
 	// Create drop-in file with current content
-	err := os.MkdirAll(dropInDir, 0755)
+	err := os.MkdirAll(dropInDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	currentHook := cli.GenerateHookCode("bash")
-	err = os.WriteFile(dropInFile, []byte(currentHook), 0644)
+	currentHook, err := shell.GenerateHookCode("bash", shell.BinaryPath())
+	if err != nil {
+		t.Fatalf("GenerateHookCode failed: %v", err)
+	}
+	err = os.WriteFile(dropInFile, []byte(currentHook), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in file: %v", err)
 	}
@@ -261,7 +267,7 @@ func TestDropInStrategy_NeedsUpdate(t *testing.T) {
 	}
 
 	// Modify with old content
-	err = os.WriteFile(dropInFile, []byte("# Old hook code"), 0644)
+	err = os.WriteFile(dropInFile, []byte("# Old hook code"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to modify drop-in file: %v", err)
 	}
@@ -279,7 +285,7 @@ func TestDropInStrategy_NoRCModificationDuringUpdate(t *testing.T) {
 	// Create RC file with drop-in support
 	rcFile := filepath.Join(home, ".bashrc")
 	rcContent := testBashrcDropInContent
-	err := os.WriteFile(rcFile, []byte(rcContent), 0644)
+	err := os.WriteFile(rcFile, []byte(rcContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
 	}
@@ -301,7 +307,7 @@ func TestDropInStrategy_NoRCModificationDuringUpdate(t *testing.T) {
 	}
 
 	// Modify drop-in file to simulate outdated version
-	err = os.WriteFile(dropInFile, []byte("# Old hook code"), 0644)
+	err = os.WriteFile(dropInFile, []byte("# Old hook code"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to modify drop-in file: %v", err)
 	}
@@ -383,13 +389,16 @@ func TestDropInStrategy_GetMessage_UpToDate(t *testing.T) {
 	}
 
 	// Create drop-in file with current content
-	err := os.MkdirAll(dropInDir, 0755)
+	err := os.MkdirAll(dropInDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	currentHook := cli.GenerateHookCode("bash")
-	err = os.WriteFile(dropInFile, []byte(currentHook), 0644)
+	currentHook, err := shell.GenerateHookCode("bash", shell.BinaryPath())
+	if err != nil {
+		t.Fatalf("GenerateHookCode failed: %v", err)
+	}
+	err = os.WriteFile(dropInFile, []byte(currentHook), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in file: %v", err)
 	}
@@ -407,7 +416,7 @@ func TestDropInStrategy_Install_ErrorCreatingDir(t *testing.T) {
 
 	// Create a file where the directory should be to cause error
 	invalidDropInDir := filepath.Join(tmpDir, ".bashrc.d")
-	err := os.WriteFile(invalidDropInDir, []byte("file blocking directory"), 0644)
+	err := os.WriteFile(invalidDropInDir, []byte("file blocking directory"), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create blocking file: %v", err)
 	}
@@ -416,7 +425,7 @@ func TestDropInStrategy_Install_ErrorCreatingDir(t *testing.T) {
 
 	// Create RC file with drop-in support
 	rcContent := testBashrcDropInContent
-	err = os.WriteFile(rcFile, []byte(rcContent), 0644)
+	err = os.WriteFile(rcFile, []byte(rcContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
 	}
@@ -441,14 +450,14 @@ func TestDropInStrategy_Uninstall_ErrorRemovingFile(t *testing.T) {
 	dropInDir := filepath.Join(tmpDir, ".bashrc.d")
 
 	// Create drop-in directory
-	err := os.MkdirAll(dropInDir, 0755)
+	err := os.MkdirAll(dropInDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
 	// Create a directory instead of a file to cause removal error
 	dropInFile := filepath.Join(dropInDir, "dirvana.sh")
-	err = os.Mkdir(dropInFile, 0755)
+	err = os.Mkdir(dropInFile, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create directory: %v", err)
 	}
@@ -473,7 +482,7 @@ func TestDropInStrategy_Install_AlreadyUpToDate(t *testing.T) {
 	// Create RC file with drop-in support
 	rcFile := filepath.Join(home, ".bashrc")
 	rcContent := testBashrcDropInContent
-	err := os.WriteFile(rcFile, []byte(rcContent), 0644)
+	err := os.WriteFile(rcFile, []byte(rcContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
 	}
@@ -482,13 +491,16 @@ func TestDropInStrategy_Install_AlreadyUpToDate(t *testing.T) {
 	dropInFile := filepath.Join(dropInDir, "dirvana.sh")
 
 	// Create drop-in directory and file with current hook
-	err = os.MkdirAll(dropInDir, 0755)
+	err = os.MkdirAll(dropInDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in dir: %v", err)
 	}
 
-	expectedHookCode := cli.GenerateHookCode("bash")
-	err = os.WriteFile(dropInFile, []byte(expectedHookCode), 0644)
+	expectedHookCode, err := shell.GenerateHookCode("bash", shell.BinaryPath())
+	if err != nil {
+		t.Fatalf("GenerateHookCode failed: %v", err)
+	}
+	err = os.WriteFile(dropInFile, []byte(expectedHookCode), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create drop-in file: %v", err)
 	}
@@ -534,16 +546,12 @@ func TestDropInStrategy_Uninstall_FileNotExist(t *testing.T) {
 
 func TestNewDropInStrategy_Zsh(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	// Create RC file with zsh drop-in support
 	rcFile := filepath.Join(tmpDir, ".zshrc")
 	rcContent := "if [ -d ~/.zshrc.d ]; then\n  for rc in ~/.zshrc.d/*.zsh; do\n    source $rc\n  done\nfi"
-	err := os.WriteFile(rcFile, []byte(rcContent), 0644)
+	err := os.WriteFile(rcFile, []byte(rcContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create RC file: %v", err)
 	}
@@ -560,11 +568,7 @@ func TestNewDropInStrategy_Zsh(t *testing.T) {
 
 func TestNewDropInStrategy_UnsupportedShell(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	_, err := NewDropInStrategy("unsupported")
 	if err == nil {

@@ -8,16 +8,25 @@ function __dirvana_complete_fish
     set underlying_cmd $argv[1]
   end
 
-  # If underlying command has native fish completions, skip dirvana's
-  # to avoid duplicates (complete -w already provides them)
-  if test -n "$underlying_cmd"
-    if complete -p $underlying_cmd 2>/dev/null | string length -q
-      return 0
-    end
-  end
-
   # Get the current command line (all tokens except current word being completed)
   set -l cmd (commandline -opc)
+
+  # Fish evaluates every completion provider on each keypress, and asking
+  # dirvana costs a fork plus a run of the underlying tool - around 150ms.
+  # It is only worth paying where fish comes up short.
+  #
+  # When the alias wraps a command, `complete -w` already covers the first
+  # level: fish reads the command's own completion file, or derives one
+  # from its --help. What it cannot derive is anything deeper - subcommand
+  # arguments, resource names, dynamic values - which is exactly what the
+  # __complete protocol provides. So dirvana only steps in past the first
+  # token.
+  #
+  # Aliases with no underlying command have no `complete -w` to lean on,
+  # so dirvana answers from the start.
+  if test -n "$underlying_cmd"; and test (count $cmd) -le 1
+    return 0
+  end
 
   # Get the current token being completed
   set -l current_token (commandline -ct)

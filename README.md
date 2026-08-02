@@ -153,6 +153,11 @@ Contributions are welcome! Please ensure:
 
 ---
 
+## Changelog
+
+Release notes are generated from conventional commits and published on the
+[GitHub Releases](https://github.com/NikitaCOEUR/dirvana/releases) page.
+
 ## License
 
 MIT License - See [LICENSE](LICENSE) file for details

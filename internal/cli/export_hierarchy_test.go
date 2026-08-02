@@ -24,6 +24,10 @@ func resolveSymlinks(t *testing.T, path string) string {
 //
 //nolint:gocyclo // Test function with multiple scenarios
 func TestExport_HierarchyWithUnauthorizedMiddle(t *testing.T) {
+	// Pin the target shell: the assertions expect bash-format output and
+	// the test process may run under a dirvana-enabled fish/zsh session
+	t.Setenv("DIRVANA_SHELL", "bash")
+
 	// Save and restore current directory
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -43,7 +47,7 @@ func TestExport_HierarchyWithUnauthorizedMiddle(t *testing.T) {
 
 	// Create directory structure
 	for _, dir := range []string{dirA, dirB, dirC} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("Failed to create directory %s: %v", dir, err)
 		}
 	}
@@ -59,13 +63,13 @@ func TestExport_HierarchyWithUnauthorizedMiddle(t *testing.T) {
   cmd_c: echo "from C"
 `
 
-	if err := os.WriteFile(filepath.Join(dirA, ".dirvana.yml"), []byte(configA), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dirA, ".dirvana.yml"), []byte(configA), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dirB, ".dirvana.yml"), []byte(configB), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dirB, ".dirvana.yml"), []byte(configB), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dirC, ".dirvana.yml"), []byte(configC), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dirC, ".dirvana.yml"), []byte(configC), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -202,6 +206,10 @@ func TestExport_HierarchyWithUnauthorizedMiddle(t *testing.T) {
 //
 //nolint:gocyclo // Test function with multiple scenarios
 func TestExport_LocalOnlyFlag(t *testing.T) {
+	// Pin the target shell: the assertions expect bash-format output and
+	// the test process may run under a dirvana-enabled fish/zsh session
+	t.Setenv("DIRVANA_SHELL", "bash")
+
 	// Save and restore current directory
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -224,7 +232,7 @@ func TestExport_LocalOnlyFlag(t *testing.T) {
 
 	// Create directory structures
 	for _, dir := range []string{dirA, dirB, dirC, dirE, dirF, dirG} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("Failed to create directory %s: %v", dir, err)
 		}
 	}
@@ -263,7 +271,7 @@ aliases:
 		{filepath.Join(dirF, ".dirvana.yml"), configF},
 		{filepath.Join(dirG, ".dirvana.yml"), configG},
 	} {
-		if err := os.WriteFile(cfg.path, []byte(cfg.content), 0644); err != nil {
+		if err := os.WriteFile(cfg.path, []byte(cfg.content), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -1,6 +1,6 @@
 //go:build linux
 
-package cli
+package shell
 
 import (
 	"fmt"
@@ -25,7 +25,7 @@ func TestDetectShellFromParentProcess_Linux(t *testing.T) {
 
 	// On Linux, if the test is running under bash or zsh, we should detect it
 	// Otherwise, it might return empty string (if parent is not a shell)
-	assert.Contains(t, []string{"", ShellBash, ShellZsh}, result,
+	assert.Contains(t, []string{"", Bash, Zsh}, result,
 		"Should return valid shell or empty string")
 
 	// If we got a result, verify it matches the actual parent process
@@ -58,10 +58,10 @@ func TestDetectShell_UsesParentProcess_Linux(t *testing.T) {
 	}()
 
 	// This should trigger the parent process detection path
-	result := DetectShell("auto")
+	result := Detect("auto")
 
 	// Should return a valid shell (either detected or fallback to bash)
-	assert.Contains(t, []string{ShellBash, ShellZsh}, result)
+	assert.Contains(t, []string{Bash, Zsh}, result)
 
 	// If parent process detection worked, the result should match
 	// what detectShellFromParentProcess returns
@@ -79,7 +79,7 @@ func TestDetectShellFromParentProcess_Coverage(t *testing.T) {
 
 	// On Linux with /proc available, this might return a shell
 	// Otherwise returns empty string
-	assert.Contains(t, []string{"", ShellBash, ShellZsh}, result)
+	assert.Contains(t, []string{"", Bash, Zsh}, result)
 
 	// If we got a shell back, verify it's from our parent
 	if result != "" {

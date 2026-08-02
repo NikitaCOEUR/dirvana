@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/condition"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
-	"github.com/NikitaCOEUR/dirvana/internal/derrors"
+	"github.com/NikitaCOEUR/dirvana/internal/core"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 )
 
 // ExecParams contains parameters for the Exec command
@@ -30,28 +29,37 @@ func Exec(params ExecParams) error {
 	// Get current directory
 	currentDir, err := os.Getwd()
 	if err != nil {
-		return derrors.NewExecutionError(params.Alias, "failed to get current directory", err)
+		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Get merged alias configs and functions from the full hierarchy
-	aliases, functions, err := getMergedAliasConfigs(currentDir, params.CachePath, params.AuthPath)
+	// Get the merged context from the full hierarchy (cached)
+	dctx, err := core.NewEngine(params.CachePath, params.AuthPath).Load(currentDir)
 	if err != nil {
-		return derrors.NewConfigurationError(currentDir, "failed to load configuration", err)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	if len(aliases) == 0 && len(functions) == 0 {
-		return derrors.NewNotFoundError(params.Alias, fmt.Sprintf("no dirvana context found for alias '%s'", params.Alias))
+	if dctx.Empty() {
+		return fmt.Errorf("no dirvana context found for alias '%s'", params.Alias)
 	}
 
 	// Resolve the command to execute
-	command, err := resolveCommand(params, aliases, functions, currentDir, log)
+	command, err := resolveCommand(params, dctx.Aliases, dctx.Functions, currentDir, log)
 	if err != nil {
 		return err
+	}
+
+	if command == "" {
+		return fmt.Errorf("empty command for alias '%s'", params.Alias)
 	}
 
 	// Execute the command via shell
 	return executeCommand(params, command, log)
 }
+
+// execve is a seam over syscall.Exec: the real call replaces the current
+// process, which would silently kill the test binary (remaining tests AND
+// the coverage flush) the moment a test reaches it
+var execve = syscall.Exec
 
 // resolveCommand resolves an alias or function and handles conditions/completion
 func resolveCommand(params ExecParams, aliases map[string]config.AliasConfig, functions map[string]string, currentDir string, log *logger.Logger) (string, error) {
@@ -60,7 +68,7 @@ func resolveCommand(params ExecParams, aliases map[string]config.AliasConfig, fu
 	functionBody, foundFunction := functions[params.Alias]
 
 	if !foundAlias && !foundFunction {
-		return "", derrors.NewNotFoundError(params.Alias, fmt.Sprintf("alias '%s' not found in dirvana context", params.Alias))
+		return "", fmt.Errorf("alias '%s' not found in dirvana context", params.Alias)
 	}
 
 	var command string
@@ -141,98 +149,31 @@ func resolveAliasCommand(params ExecParams, aliasConf config.AliasConfig, curren
 // executeCommand executes the resolved command via shell
 func executeCommand(params ExecParams, command string, log *logger.Logger) error {
 	// Detect shell type
-	shellType := DetectShell("auto")
+	shellType := shell.Detect("auto")
 
 	// Map shell type to executable name
-	shell := getShellExecutable(shellType)
+	shellExec := shell.Executable(shellType)
 
 	// Find shell executable path
-	execPath, err := exec.LookPath(shell)
+	execPath, err := exec.LookPath(shellExec)
 	if err != nil {
-		return derrors.NewExecutionError(params.Alias, fmt.Sprintf("shell not found: %s", shell), err)
+		return fmt.Errorf("shell not found: %s: %w", shellExec, err)
 	}
 
 	// Build argv for shell execution
-	argv := buildShellArgs(shell, shellType, command, params.Args)
+	argv := shell.BuildArgs(shellExec, shellType, command, params.Args)
 
 	log.Debug().
-		Str("shell", shell).
+		Str("shell", shellExec).
 		Str("argv", fmt.Sprintf("%q", argv)).
 		Msg("Executing command via shell")
 
 	// Execute the command via shell (replace current process)
 	// This allows shell variable expansion, pipes, redirections, etc.
-	err = syscall.Exec(execPath, argv, os.Environ())
+	err = execve(execPath, argv, os.Environ())
 
 	// If we reach here, syscall.Exec failed (extremely rare)
-	return derrors.NewExecutionError(command, "failed to execute command", err)
-}
-
-// getShellExecutable returns the executable name for the given shell type
-func getShellExecutable(shellType string) string {
-	switch shellType {
-	case ShellBash:
-		return "bash"
-	case ShellZsh:
-		return "zsh"
-	case ShellFish:
-		return "fish"
-	default:
-		// DetectShell always returns at least ShellBash, but keep bash as fallback for safety
-		// Note: sh (dash/busybox) is not supported as it doesn't support required flags
-		return "bash"
-	}
-}
-
-// getShellFlags returns the optimization flags for the given shell type
-func getShellFlags(shellType string) []string {
-	switch shellType {
-	case ShellFish:
-		return []string{"--no-config"}
-	case ShellBash:
-		return []string{"--norc", "--noprofile"}
-	case ShellZsh:
-		return []string{"--no-rcs"}
-	default:
-		return []string{}
-	}
-}
-
-// getArgSyntax returns the argument syntax for the given shell type
-func getArgSyntax(shellType string) string {
-	if shellType == ShellFish {
-		return " $argv"
-	}
-	return ` "$@"`
-}
-
-// needsExtraShellArg returns true if the shell needs an extra shell argument in argv
-func needsExtraShellArg(shellType string) bool {
-	return shellType != ShellFish
-}
-
-// buildShellArgs builds the argument list for shell execution
-func buildShellArgs(shell, shellType, command string, args []string) []string {
-	flags := getShellFlags(shellType)
-	argSyntax := getArgSyntax(shellType)
-	needsExtra := needsExtraShellArg(shellType)
-
-	var argv []string
-	argv = append(argv, shell)
-	argv = append(argv, flags...)
-
-	if len(args) > 0 {
-		argv = append(argv, "-c", command+argSyntax)
-		if needsExtra {
-			argv = append(argv, shell) // bash/zsh: $0 separator
-		} else {
-			argv = append(argv, "--") // fish: end-of-options marker
-		}
-		argv = append(argv, args...)
-	} else {
-		argv = append(argv, "-c", command)
-	}
-	return argv
+	return fmt.Errorf("failed to execute command: %w", err)
 }
 
 // buildEnvMap creates a map of environment variables for condition evaluation
@@ -250,30 +191,4 @@ func buildEnvMap() map[string]string {
 		}
 	}
 	return envMap
-}
-
-// findCacheEntry searches for a cache entry in the current directory or parent directories
-func findCacheEntry(c *cache.Cache, dir string) (*cache.Entry, bool) {
-	dir = filepath.Clean(dir)
-
-	// Try current directory first
-	if entry, found := c.Get(dir); found {
-		return entry, true
-	}
-
-	// Walk up the directory tree
-	for {
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			// Reached root
-			break
-		}
-		dir = parent
-
-		if entry, found := c.Get(dir); found {
-			return entry, true
-		}
-	}
-
-	return nil, false
 }

@@ -19,6 +19,14 @@ Dirvana supports two types of configuration files:
 > [!NOTE]
 > Configuration files are merged in this order: **global → root → parent → current directory** (child configs override parent values).
 
+### Supported formats
+
+Local configs can be written in YAML, TOML or JSON. The first file found in
+this order wins: `.dirvana.yml`, `.dirvana.yaml`, `.dirvana.toml`, `.dirvana.json`.
+All examples in this documentation use YAML; see
+[`examples/`](https://github.com/NikitaCOEUR/dirvana/tree/main/examples) in the
+repository for the equivalent TOML and JSON files.
+
 ---
 
 ## Basic Structure

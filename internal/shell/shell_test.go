@@ -256,10 +256,6 @@ func TestGenerator_CompletionCustom(t *testing.T) {
 	aliases := map[string]config.AliasConfig{
 		"deploy": {
 			Command: "./deploy.sh",
-			Completion: config.CompletionConfig{
-				Bash: "complete -W 'dev staging prod' deploy",
-				Zsh:  "compdef '_arguments \"1: :(dev staging prod)\"' deploy",
-			},
 		},
 	}
 

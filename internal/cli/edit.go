@@ -25,7 +25,7 @@ func Edit(global bool) error {
 		if _, err := os.Stat(configPath); os.IsNotExist(err) {
 			// Create directory if it doesn't exist
 			configDir := filepath.Dir(configPath)
-			if err := os.MkdirAll(configDir, 0755); err != nil {
+			if err := os.MkdirAll(configDir, 0o755); err != nil {
 				return fmt.Errorf("failed to create config directory: %w", err)
 			}
 			// Note: Will be created with default content below
@@ -38,13 +38,7 @@ func Edit(global bool) error {
 		}
 
 		// Look for existing config file
-		for _, name := range config.SupportedConfigNames {
-			path := filepath.Join(currentDir, name)
-			if _, err := os.Stat(path); err == nil {
-				configPath = path
-				break
-			}
-		}
+		configPath = config.FindConfigInDir(currentDir)
 
 		// If no config exists, use default name
 		if configPath == "" {
@@ -54,43 +48,7 @@ func Edit(global bool) error {
 
 	// If config doesn't exist, create default one
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		defaultContent := `# yaml-language-server: $schema=https://raw.githubusercontent.com/NikitaCOEUR/dirvana/main/schema/dirvana.schema.json
-# Dirvana configuration file
-# Documentation: https://github.com/NikitaCOEUR/dirvana
-
-# Shell aliases
-aliases:
-  # Simple string aliases (auto-detects completion)
-  # g: git
-
-  # Advanced format with completion control
-  # tf:
-  #  command: task terraform --
-  #  completion: terraform  # Inherits terraform's auto-completion
-
-# Shell functions - reusable command sequences with parameters
-functions:
-  # Simple greeting function
-  # greet: |
-  #   echo "Hello, $1!"
-
-# Environment variables
-env:
-  # Static values
-  # PROJECT_NAME: myproject
-
-  # Dynamic values from shell commands (evaluated on load)
-  # CURRENT_USER:
-  #	  sh: whoami
-
-# Configuration flags
-# Set to true to ignore parent configs (only use this directory's config)
-# local_only: false
-
-# Set to true to ignore global config (~/.config/dirvana/global.yml)
-# ignore_global: false
-`
-		if err := os.WriteFile(configPath, []byte(defaultContent), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(sampleConfig), 0o644); err != nil {
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 		if global {
@@ -106,10 +64,10 @@ env:
 		}
 	}
 
-	// Get editor from environment or use defaults
-	editor := os.Getenv("EDITOR")
+	// Get editor from environment (POSIX convention: VISUAL wins over EDITOR)
+	editor := os.Getenv("VISUAL")
 	if editor == "" {
-		editor = os.Getenv("VISUAL")
+		editor = os.Getenv("EDITOR")
 	}
 	if editor == "" {
 		// Try common editors

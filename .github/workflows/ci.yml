@@ -14,18 +14,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
-          check-latest: true
+          go-version-file: go.mod
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v8
+      - name: Set up aqua
+        uses: aquaproj/aqua-installer@11dd79b4e498d471a9385aa9fb7f62bb5f52a73c # v4.0.4
         with:
-          version: latest
+          aqua_version: v2.55.1
+
+      - name: Run linter
+        run: task lint
 
   test:
     name: Test
@@ -33,19 +35,17 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        go-version: ['1.25']
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: ${{ matrix.go-version }}
-          check-latest: true
+          go-version-file: go.mod
 
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest'
@@ -53,7 +53,6 @@ jobs:
         with:
           files: ./coverage.out
           flags: unittests
-          name: go${{ matrix.go-version }}
           token: ${{ secrets.CODECOV_TOKEN }}
 
   build:
@@ -61,23 +60,59 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
-          check-latest: true
+          go-version-file: go.mod
 
-      - name: Build
-        run: go build -v ./cmd/dirvana
+      - name: Set up aqua
+        uses: aquaproj/aqua-installer@11dd79b4e498d471a9385aa9fb7f62bb5f52a73c # v4.0.4
+        with:
+          aqua_version: v2.55.1
+
+      - name: Build with version injection
+        run: task build
+        env:
+          VERSION: ci-${{ github.sha }}
+
+      - name: Smoke-test version injection
+        run: |
+          ./bin/dirvana --version
+          ./bin/dirvana --version | grep -q "ci-${{ github.sha }}"
+
+      - name: Check goreleaser configuration
+        run: goreleaser check
+
+  schema:
+    name: Schema up to date
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Set up aqua
+        uses: aquaproj/aqua-installer@11dd79b4e498d471a9385aa9fb7f62bb5f52a73c # v4.0.4
+        with:
+          aqua_version: v2.55.1
+
+      - name: Regenerate schema and fail on drift
+        run: |
+          task generate-schema
+          git diff --exit-code internal/config/schema.json schema/dirvana.schema.json
 
   commitlint:
     name: Commit Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 

@@ -15,7 +15,7 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/knadh/koanf/parsers/json"
-	"github.com/knadh/koanf/parsers/toml"
+	"github.com/knadh/koanf/parsers/toml/v2"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/rawbytes"
 	"github.com/knadh/koanf/v2"
@@ -34,15 +34,21 @@ var SupportedConfigNames = []string{
 	".dirvana.json",
 }
 
-// HasLocalConfig checks if a directory has a local configuration file
-func HasLocalConfig(dir string) bool {
+// FindConfigInDir returns the path of the config file in dir, or "" if none exists.
+// When several supported names are present, the first match in SupportedConfigNames wins.
+func FindConfigInDir(dir string) string {
 	for _, name := range SupportedConfigNames {
 		path := filepath.Join(dir, name)
 		if _, err := os.Stat(path); err == nil {
-			return true
+			return path
 		}
 	}
-	return false
+	return ""
+}
+
+// HasLocalConfig checks if a directory has a local configuration file
+func HasLocalConfig(dir string) bool {
+	return FindConfigInDir(dir) != ""
 }
 
 const (
@@ -54,12 +60,6 @@ const (
 type EnvVar struct {
 	Value string // Static value or result of shell command
 	Sh    string // Shell command to execute (mutually exclusive with Value)
-}
-
-// CompletionConfig represents shell completion configuration for an alias
-type CompletionConfig struct {
-	Bash string `koanf:"bash"` // Bash completion code
-	Zsh  string `koanf:"zsh"`  // Zsh completion code
 }
 
 // When represents conditions that must be met for an alias to execute
@@ -78,7 +78,7 @@ type When struct {
 // AliasConfig represents an alias with optional completion override
 type AliasConfig struct {
 	Command    string      // The command to execute
-	Completion interface{} // Can be: string (inherit), false (disable), or CompletionConfig object
+	Completion interface{} // Can be: string (inherit) or false (disable)
 	When       *When       // Conditions that must be met for the alias to execute
 	Else       string      // Fallback command if conditions are not met
 }
@@ -271,16 +271,6 @@ func (c *Config) GetAliases() map[string]AliasConfig {
 					if !c {
 						alias.Completion = false
 					}
-				case map[string]interface{}:
-					// Custom completion with bash/zsh
-					compCfg := CompletionConfig{}
-					if bash, ok := c["bash"].(string); ok {
-						compCfg.Bash = bash
-					}
-					if zsh, ok := c["zsh"].(string); ok {
-						compCfg.Zsh = zsh
-					}
-					alias.Completion = compCfg
 				}
 			}
 
@@ -396,7 +386,7 @@ func New() *Loader {
 // FindConfigs finds all config directories from root to the given directory
 // Implements ConfigProvider interface from context package
 func (l *Loader) FindConfigs(dir string) []string {
-	configFiles, _ := FindConfigFiles(dir)
+	configFiles := FindConfigFiles(dir)
 	var dirs []string
 	for _, configFile := range configFiles {
 		dirs = append(dirs, filepath.Dir(configFile))
@@ -407,16 +397,7 @@ func (l *Loader) FindConfigs(dir string) []string {
 // IsLocalOnly checks if a directory's config has the local_only flag set
 // Implements ConfigProvider interface from context package
 func (l *Loader) IsLocalOnly(dir string) bool {
-	// Try to find config file in this directory
-	var configPath string
-	for _, name := range SupportedConfigNames {
-		path := filepath.Join(dir, name)
-		if _, err := os.Stat(path); err == nil {
-			configPath = path
-			break
-		}
-	}
-
+	configPath := FindConfigInDir(dir)
 	if configPath == "" {
 		return false
 	}
@@ -451,9 +432,11 @@ func (l *Loader) Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to stat config file: %w", err)
 	}
 
-	// Check cache with read lock
+	// Check cache with read lock.
+	// cached.config may be nil when Hash() populated the entry before any
+	// Load() — a hash-only entry must not short-circuit parsing.
 	l.mu.RLock()
-	if cached, exists := l.parsedCache[path]; exists {
+	if cached, exists := l.parsedCache[path]; exists && cached.config != nil {
 		// Verify file hasn't been modified (check both modtime and size)
 		if !fileInfo.ModTime().After(cached.modTime) && fileInfo.Size() == cached.size {
 			// Cache is still valid
@@ -634,19 +617,14 @@ func GetGlobalConfigPath() (string, error) {
 
 // FindConfigFiles searches for config files from current dir up to root
 // Returns paths in order from root to leaf (for proper merging)
-func FindConfigFiles(startDir string) ([]string, error) {
+func FindConfigFiles(startDir string) []string {
 	var configs []string
 	currentDir := startDir
 
 	// Walk up directory tree
 	for {
-		// Check for config files in current directory
-		for _, name := range SupportedConfigNames {
-			path := filepath.Join(currentDir, name)
-			if _, err := os.Stat(path); err == nil {
-				configs = append(configs, path)
-				break // Only one config per directory
-			}
+		if path := FindConfigInDir(currentDir); path != "" {
+			configs = append(configs, path)
 		}
 
 		// Move up to parent directory
@@ -663,61 +641,30 @@ func FindConfigFiles(startDir string) ([]string, error) {
 		configs[i], configs[j] = configs[j], configs[i]
 	}
 
-	return configs, nil
-}
-
-// LoadHierarchy loads and merges all configs from global to current directory
-// Order: global config → root → ... → parent → current
-func (l *Loader) LoadHierarchy(dir string) (*Config, []string, error) {
-	return l.LoadHierarchyWithAuth(dir, nil)
+	return configs
 }
 
 // LoadHierarchyWithAuth loads and merges all configs from global to current directory
 // with authorization checks for each directory in the hierarchy
 // Order: global config → root → ... → parent → current
 func (l *Loader) LoadHierarchyWithAuth(dir string, auth AuthChecker) (*Config, []string, error) {
-	var allConfigFiles []string
-	var merged *Config
-
-	// Try to load global config first
-	globalPath, err := GetGlobalConfigPath()
-	if err == nil {
-		if _, err := os.Stat(globalPath); err == nil {
-			globalCfg, err := l.Load(globalPath)
-			if err == nil {
-				// Successfully loaded global config
-				merged = globalCfg
-				allConfigFiles = append(allConfigFiles, globalPath)
-			}
-			// If global config is invalid, just skip it - user can still use local configs
-		}
+	// First pass: load the authorized local configs (root → leaf).
+	// A local_only config discards everything above it, matching
+	// core.ActiveConfigChain ("only use this directory's config").
+	type loadedConfig struct {
+		path string
+		cfg  *Config
 	}
+	var chain []loadedConfig
 
-	// Find local config files (from root to current directory)
-	configFiles, err := FindConfigFiles(dir)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// If no local configs and no global config, return empty config
-	if len(configFiles) == 0 && merged == nil {
-		return &Config{
-			Aliases:   make(map[string]interface{}),
-			Functions: make(map[string]string),
-			Env:       make(map[string]interface{}),
-		}, nil, nil
-	}
-
-	// Merge local configs with authorization checks
-	for _, path := range configFiles {
-		// Extract directory from config file path
+	for _, path := range FindConfigFiles(dir) {
 		configDir := filepath.Dir(path)
 
 		// If auth checker is provided, verify authorization for this directory
 		if auth != nil {
 			allowed, err := auth.IsAllowed(configDir)
 			if err != nil {
-				return nil, append(allConfigFiles, configFiles...), fmt.Errorf("failed to check authorization for %s: %w", configDir, err)
+				return nil, nil, fmt.Errorf("failed to check authorization for %s: %w", configDir, err)
 			}
 			if !allowed {
 				// Skip unauthorized config files
@@ -727,30 +674,59 @@ func (l *Loader) LoadHierarchyWithAuth(dir string, auth AuthChecker) (*Config, [
 
 		cfg, err := l.Load(path)
 		if err != nil {
-			return nil, append(allConfigFiles, configFiles...), err
+			return nil, nil, err
 		}
 
-		// Check if this config wants to ignore global
-		if cfg.IgnoreGlobal && merged != nil {
-			// If first local config has ignore_global, start fresh
-			if len(allConfigFiles) == 1 {
-				merged = nil
-				allConfigFiles = nil
-			}
-		}
-
-		if merged == nil {
-			merged = cfg
-		} else {
-			merged = Merge(merged, cfg)
-		}
-
-		allConfigFiles = append(allConfigFiles, path)
-
-		// If local_only is set, stop merging
 		if cfg.LocalOnly {
+			// local_only discards parent configs (children below still merge)
+			chain = chain[:0]
+		}
+		chain = append(chain, loadedConfig{path: path, cfg: cfg})
+	}
+
+	// The global config applies unless any config of the effective chain
+	// opts out with ignore_global
+	ignoreGlobal := false
+	for _, lc := range chain {
+		if lc.cfg.IgnoreGlobal {
+			ignoreGlobal = true
 			break
 		}
+	}
+
+	var allConfigFiles []string
+	var merged *Config
+
+	if !ignoreGlobal {
+		globalPath, err := GetGlobalConfigPath()
+		if err == nil {
+			if _, statErr := os.Stat(globalPath); statErr == nil {
+				if globalCfg, loadErr := l.Load(globalPath); loadErr == nil {
+					merged = globalCfg
+					allConfigFiles = append(allConfigFiles, globalPath)
+				}
+				// If global config is invalid, just skip it - user can still use local configs
+			}
+		}
+	}
+
+	// If no local configs and no global config, return empty config
+	if len(chain) == 0 && merged == nil {
+		return &Config{
+			Aliases:   make(map[string]interface{}),
+			Functions: make(map[string]string),
+			Env:       make(map[string]interface{}),
+		}, nil, nil
+	}
+
+	// Second pass: merge root → leaf on top of the global config
+	for _, lc := range chain {
+		if merged == nil {
+			merged = lc.cfg
+		} else {
+			merged = Merge(merged, lc.cfg)
+		}
+		allConfigFiles = append(allConfigFiles, lc.path)
 	}
 
 	return merged, allConfigFiles, nil

@@ -5,14 +5,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/NikitaCOEUR/dirvana/internal/cli"
+	"github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // TestZshHookContent verifies that zsh-specific hook code is correctly generated
 func TestZshHookContent(t *testing.T) {
-	hookCode := cli.GenerateHookCode("zsh")
+	hookCode, err := shell.GenerateHookCode("zsh", shell.BinaryPath())
+	require.NoError(t, err)
 
 	// Must have zsh-specific features
 	assert.Contains(t, hookCode, "__dirvana_hook()", "Must define __dirvana_hook function")
@@ -32,7 +33,8 @@ func TestZshHookContent(t *testing.T) {
 
 // TestBashHookContent verifies that bash-specific hook code is correctly generated
 func TestBashHookContent(t *testing.T) {
-	hookCode := cli.GenerateHookCode("bash")
+	hookCode, err := shell.GenerateHookCode("bash", shell.BinaryPath())
+	require.NoError(t, err)
 
 	// Must have bash-specific features
 	assert.Contains(t, hookCode, "__dirvana_hook()", "Must define __dirvana_hook function")
@@ -54,15 +56,13 @@ func TestBashHookContent(t *testing.T) {
 // simultaneously using the same strategy pattern
 func TestBothShellsUseSameStrategy(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	require.NoError(t, os.Setenv("HOME", tmpDir))
+	t.Setenv("HOME", tmpDir)
 
 	// Create RC files for both shells
 	bashRC := filepath.Join(tmpDir, ".bashrc")
 	zshRC := filepath.Join(tmpDir, ".zshrc")
-	require.NoError(t, os.WriteFile(bashRC, []byte("# bash\n"), 0644))
-	require.NoError(t, os.WriteFile(zshRC, []byte("# zsh\n"), 0644))
+	require.NoError(t, os.WriteFile(bashRC, []byte("# bash\n"), 0o644))
+	require.NoError(t, os.WriteFile(zshRC, []byte("# zsh\n"), 0o644))
 
 	// Install for bash
 	bashResult, err := InstallHook("bash")

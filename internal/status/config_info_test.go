@@ -1,9 +1,11 @@
-package config
+package status
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/NikitaCOEUR/dirvana/internal/config"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +37,7 @@ func TestGetConfigDetails_WithFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test with local_only flag
-	cfg := &Config{
+	cfg := &config.Config{
 		LocalOnly: true,
 	}
 	details := GetConfigDetails(cfg, authMgr, tmpDir)
@@ -43,7 +45,7 @@ func TestGetConfigDetails_WithFlags(t *testing.T) {
 	assert.NotContains(t, details.Flags, "ignore_global")
 
 	// Test with ignore_global flag
-	cfg = &Config{
+	cfg = &config.Config{
 		IgnoreGlobal: true,
 	}
 	details = GetConfigDetails(cfg, authMgr, tmpDir)
@@ -51,7 +53,7 @@ func TestGetConfigDetails_WithFlags(t *testing.T) {
 	assert.NotContains(t, details.Flags, "local_only")
 
 	// Test with both flags
-	cfg = &Config{
+	cfg = &config.Config{
 		LocalOnly:    true,
 		IgnoreGlobal: true,
 	}
@@ -75,7 +77,7 @@ func TestGetConfigDetails_WithShellEnvApproved(t *testing.T) {
 	err = authMgr.ApproveShellCommands(tmpDir, shellEnv)
 	require.NoError(t, err)
 
-	cfg := &Config{
+	cfg := &config.Config{
 		Env: map[string]interface{}{
 			"SHELL_VAR": map[string]interface{}{
 				"sh": "echo test",
@@ -91,7 +93,7 @@ func TestGetConfigDetails_WithShellEnvApproved(t *testing.T) {
 
 // TestGetConfigDetails_WithNilAuthManager tests with nil auth manager
 func TestGetConfigDetails_WithNilAuthManager(t *testing.T) {
-	cfg := &Config{
+	cfg := &config.Config{
 		Env: map[string]interface{}{
 			"SHELL_VAR": map[string]interface{}{
 				"sh": "echo test",
@@ -113,7 +115,7 @@ func TestGetCompletionOverrides_NilConfig(t *testing.T) {
 
 // TestGetCompletionOverrides_SimpleAliases tests with simple string aliases
 func TestGetCompletionOverrides_SimpleAliases(t *testing.T) {
-	cfg := &Config{
+	cfg := &config.Config{
 		Aliases: map[string]interface{}{
 			"simple": "echo test",
 		},
@@ -125,7 +127,7 @@ func TestGetCompletionOverrides_SimpleAliases(t *testing.T) {
 
 // TestGetCompletionOverrides_WithCompletionDisabled tests alias with completion disabled
 func TestGetCompletionOverrides_WithCompletionDisabled(t *testing.T) {
-	cfg := &Config{
+	cfg := &config.Config{
 		Aliases: map[string]interface{}{
 			"nocomp": map[string]interface{}{
 				"command":    "echo test",
@@ -136,27 +138,6 @@ func TestGetCompletionOverrides_WithCompletionDisabled(t *testing.T) {
 
 	result := GetCompletionOverrides(cfg)
 	assert.Empty(t, result) // completion: false doesn't create override
-}
-
-// TestConvertAliases_WithComplexAliases tests convertAliases with various alias types
-func TestConvertAliases_WithComplexAliases(t *testing.T) {
-	aliases := map[string]interface{}{
-		"simple":        "echo simple",
-		"complex_valid": map[string]interface{}{"command": "echo complex"},
-		"complex_invalid": map[string]interface{}{
-			"command": 123, // Invalid type
-		},
-		"no_command": map[string]interface{}{
-			"other": "value",
-		},
-	}
-
-	result := convertAliases(aliases)
-
-	assert.Equal(t, "echo simple", result["simple"])
-	assert.Equal(t, "echo complex", result["complex_valid"])
-	assert.NotContains(t, result, "complex_invalid") // Should be skipped
-	assert.NotContains(t, result, "no_command")      // Should be skipped
 }
 
 // TestGetFunctionsList tests getFunctionsList
@@ -224,7 +205,7 @@ func TestGetHierarchyInfo_WithLocalConfig(t *testing.T) {
   test: echo test
 `
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Change to tmpDir
@@ -265,7 +246,7 @@ func TestGetHierarchyInfo_WithUnauthorizedConfig(t *testing.T) {
   test: echo test
 `
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Change to tmpDir
@@ -306,7 +287,7 @@ func TestGetHierarchyInfo_WithLocalOnly(t *testing.T) {
 local_only: true
 `
 	configPath := filepath.Join(tmpDir, ".dirvana.yml")
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Change to tmpDir
@@ -337,14 +318,14 @@ func TestGetHierarchyInfo_WithGlobalConfig(t *testing.T) {
 
 	// Create global config directory
 	globalDir := filepath.Join(tmpDir, ".config", "dirvana")
-	err = os.MkdirAll(globalDir, 0755)
+	err = os.MkdirAll(globalDir, 0o755)
 	require.NoError(t, err)
 
 	globalConfigPath := filepath.Join(globalDir, "global.yml")
 	globalContent := `aliases:
   global_alias: echo global
 `
-	err = os.WriteFile(globalConfigPath, []byte(globalContent), 0644)
+	err = os.WriteFile(globalConfigPath, []byte(globalContent), 0o644)
 	require.NoError(t, err)
 
 	// Set XDG_CONFIG_HOME to use our temp directory
@@ -357,7 +338,7 @@ func TestGetHierarchyInfo_WithGlobalConfig(t *testing.T) {
 	configContent := `aliases:
   local_alias: echo local
 `
-	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0644)
+	err = os.WriteFile(filepath.Join(tmpDir, ".dirvana.yml"), []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Authorize
@@ -397,20 +378,20 @@ func TestGetHierarchyInfo_WithMultipleConfigs(t *testing.T) {
 
 	// Create parent config
 	parentDir := filepath.Join(tmpDir, "parent")
-	err = os.MkdirAll(parentDir, 0755)
+	err = os.MkdirAll(parentDir, 0o755)
 	require.NoError(t, err)
 
 	parentConfig := filepath.Join(parentDir, ".dirvana.yml")
-	err = os.WriteFile(parentConfig, []byte("aliases:\n  parent: echo parent\n"), 0644)
+	err = os.WriteFile(parentConfig, []byte("aliases:\n  parent: echo parent\n"), 0o644)
 	require.NoError(t, err)
 
 	// Create child config
 	childDir := filepath.Join(parentDir, "child")
-	err = os.MkdirAll(childDir, 0755)
+	err = os.MkdirAll(childDir, 0o755)
 	require.NoError(t, err)
 
 	childConfig := filepath.Join(childDir, ".dirvana.yml")
-	err = os.WriteFile(childConfig, []byte("aliases:\n  child: echo child\n"), 0644)
+	err = os.WriteFile(childConfig, []byte("aliases:\n  child: echo child\n"), 0o644)
 	require.NoError(t, err)
 
 	// Authorize both directories
@@ -447,35 +428,35 @@ func TestSummarizeWhen_NilCondition(t *testing.T) {
 
 // TestSummarizeWhen_FileCondition tests file condition summary
 func TestSummarizeWhen_FileCondition(t *testing.T) {
-	when := &When{File: "package.json"}
+	when := &config.When{File: "package.json"}
 	result := summarizeWhen(when)
 	assert.Equal(t, "file:package.json", result)
 }
 
 // TestSummarizeWhen_VarCondition tests variable condition summary
 func TestSummarizeWhen_VarCondition(t *testing.T) {
-	when := &When{Var: "KUBECONFIG"}
+	when := &config.When{Var: "KUBECONFIG"}
 	result := summarizeWhen(when)
 	assert.Equal(t, "var:KUBECONFIG", result)
 }
 
 // TestSummarizeWhen_DirCondition tests directory condition summary
 func TestSummarizeWhen_DirCondition(t *testing.T) {
-	when := &When{Dir: "node_modules"}
+	when := &config.When{Dir: "node_modules"}
 	result := summarizeWhen(when)
 	assert.Equal(t, "dir:node_modules", result)
 }
 
 // TestSummarizeWhen_CommandCondition tests command condition summary
 func TestSummarizeWhen_CommandCondition(t *testing.T) {
-	when := &When{Command: "docker"}
+	when := &config.When{Command: "docker"}
 	result := summarizeWhen(when)
 	assert.Equal(t, "cmd:docker", result)
 }
 
 // TestSummarizeWhen_MultipleAtomicConditions tests multiple atomic conditions (AND)
 func TestSummarizeWhen_MultipleAtomicConditions(t *testing.T) {
-	when := &When{
+	when := &config.When{
 		File: "$KUBECONFIG",
 		Var:  "KUBECONFIG",
 	}
@@ -488,8 +469,8 @@ func TestSummarizeWhen_MultipleAtomicConditions(t *testing.T) {
 
 // TestSummarizeWhen_AllCondition tests all (AND) composite condition
 func TestSummarizeWhen_AllCondition(t *testing.T) {
-	when := &When{
-		All: []When{
+	when := &config.When{
+		All: []config.When{
 			{Var: "AWS_PROFILE"},
 			{Command: "aws"},
 			{File: ".env"},
@@ -504,8 +485,8 @@ func TestSummarizeWhen_AllCondition(t *testing.T) {
 
 // TestSummarizeWhen_AnyCondition tests any (OR) composite condition
 func TestSummarizeWhen_AnyCondition(t *testing.T) {
-	when := &When{
-		Any: []When{
+	when := &config.When{
+		Any: []config.When{
 			{File: ".env.local"},
 			{File: ".env"},
 			{File: ".env.example"},
@@ -520,11 +501,11 @@ func TestSummarizeWhen_AnyCondition(t *testing.T) {
 
 // TestSummarizeWhen_NestedConditions tests nested all/any conditions
 func TestSummarizeWhen_NestedConditions(t *testing.T) {
-	when := &When{
-		All: []When{
+	when := &config.When{
+		All: []config.When{
 			{Var: "AWS_PROFILE"},
 			{
-				Any: []When{
+				Any: []config.When{
 					{File: ".env.production"},
 					{File: ".env"},
 				},
@@ -541,15 +522,15 @@ func TestSummarizeWhen_NestedConditions(t *testing.T) {
 
 // TestSummarizeWhen_EmptyCondition tests empty when structure
 func TestSummarizeWhen_EmptyCondition(t *testing.T) {
-	when := &When{}
+	when := &config.When{}
 	result := summarizeWhen(when)
 	assert.Empty(t, result)
 }
 
 // TestSummarizeWhen_EmptyAllCondition tests empty all array
 func TestSummarizeWhen_EmptyAllCondition(t *testing.T) {
-	when := &When{
-		All: []When{},
+	when := &config.When{
+		All: []config.When{},
 	}
 	result := summarizeWhen(when)
 	// Empty all should result in empty string
@@ -558,7 +539,7 @@ func TestSummarizeWhen_EmptyAllCondition(t *testing.T) {
 
 // TestConvertAliasesWithInfo_SimpleAliases tests simple aliases conversion
 func TestConvertAliasesWithInfo_SimpleAliases(t *testing.T) {
-	aliases := map[string]AliasConfig{
+	aliases := map[string]config.AliasConfig{
 		"simple": {Command: "echo simple"},
 		"test":   {Command: "npm test"},
 	}
@@ -577,10 +558,10 @@ func TestConvertAliasesWithInfo_SimpleAliases(t *testing.T) {
 
 // TestConvertAliasesWithInfo_ConditionalAliases tests conditional aliases conversion
 func TestConvertAliasesWithInfo_ConditionalAliases(t *testing.T) {
-	aliases := map[string]AliasConfig{
+	aliases := map[string]config.AliasConfig{
 		"k": {
 			Command: "kubectl",
-			When: &When{
+			When: &config.When{
 				Var:  "KUBECONFIG",
 				File: "$KUBECONFIG",
 			},
@@ -588,7 +569,7 @@ func TestConvertAliasesWithInfo_ConditionalAliases(t *testing.T) {
 		},
 		"dev": {
 			Command: "npm run dev",
-			When: &When{
+			When: &config.When{
 				File: "package.json",
 			},
 			Else: "echo 'package.json not found'",
@@ -615,10 +596,10 @@ func TestConvertAliasesWithInfo_ConditionalAliases(t *testing.T) {
 
 // TestConvertAliasesWithInfo_ConditionalWithoutElse tests conditional without else
 func TestConvertAliasesWithInfo_ConditionalWithoutElse(t *testing.T) {
-	aliases := map[string]AliasConfig{
+	aliases := map[string]config.AliasConfig{
 		"test": {
 			Command: "npm test",
-			When: &When{
+			When: &config.When{
 				Dir: "node_modules",
 			},
 		},
@@ -635,11 +616,11 @@ func TestConvertAliasesWithInfo_ConditionalWithoutElse(t *testing.T) {
 
 // TestConvertAliasesWithInfo_MixedAliases tests mix of simple and conditional
 func TestConvertAliasesWithInfo_MixedAliases(t *testing.T) {
-	aliases := map[string]AliasConfig{
+	aliases := map[string]config.AliasConfig{
 		"simple": {Command: "echo simple"},
 		"conditional": {
 			Command: "docker compose",
-			When:    &When{Command: "docker"},
+			When:    &config.When{Command: "docker"},
 			Else:    "echo 'Docker not installed'",
 		},
 	}
@@ -661,7 +642,7 @@ func TestConvertAliasesWithInfo_MixedAliases(t *testing.T) {
 
 // TestConvertAliasesWithInfo_EmptyMap tests with empty alias map
 func TestConvertAliasesWithInfo_EmptyMap(t *testing.T) {
-	aliases := map[string]AliasConfig{}
+	aliases := map[string]config.AliasConfig{}
 
 	result := convertAliasesWithInfo(aliases)
 

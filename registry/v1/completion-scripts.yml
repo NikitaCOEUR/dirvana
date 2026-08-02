@@ -15,19 +15,23 @@ description: "Registry of bash completion scripts for tools without dynamic comp
 # - Have static bash completion scripts that can be downloaded
 # - Do NOT have built-in dynamic completion (kubectl, helm, terraform, etc. are excluded)
 # - Are commonly used and would benefit from completion support
+#
+# Entry requirements (scripts are executed through bash, fail closed):
+# - url MUST be HTTPS and point to an immutable revision (tag or commit, never a branch)
+# - sha256 is REQUIRED and must match the downloaded content
 
 tools:
   govc:
     description: "VMware vSphere CLI - govmomi"
     homepage: "https://github.com/vmware/govmomi"
     script:
-      url: "https://raw.githubusercontent.com/vmware/govmomi/main/scripts/govc_bash_completion"
-      sha256: null  # Optional: add checksum for security verification
+      url: "https://raw.githubusercontent.com/vmware/govmomi/v0.52.0/scripts/govc_bash_completion"
+      sha256: "fab72fb274a9ce3aaf2e68b78f1e103fbe06e06be8723d6f2d1ed08215a6b33e"
 
   # Example for future additions:
   # tool-name:
   #   description: "Brief description of the tool"
   #   homepage: "https://github.com/..."
   #   script:
-  #     url: "https://..."
-  #     sha256: "abc123..."  # Optional checksum
+  #     url: "https://.../<tag-or-commit>/..."
+  #     sha256: "abc123..."  # Required checksum of the script content

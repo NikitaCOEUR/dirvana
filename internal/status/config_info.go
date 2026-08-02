@@ -1,4 +1,4 @@
-package config
+package status
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
+	"github.com/NikitaCOEUR/dirvana/internal/config"
 )
 
 // FileInfo represents information about a configuration file
@@ -28,12 +29,12 @@ type GlobalInfo struct {
 type HierarchyInfo struct {
 	GlobalConfig *GlobalInfo
 	LocalConfigs []FileInfo
-	MergedConfig *Config
+	MergedConfig *config.Config
 }
 
 // GetHierarchyInfo returns information about the configuration hierarchy for a directory
 func GetHierarchyInfo(currentDir string, authMgr *auth.Auth) (*HierarchyInfo, error) {
-	loader := New()
+	loader := config.New()
 
 	// Load config hierarchy with auth
 	merged, loadedConfigFiles, err := loader.LoadHierarchyWithAuth(currentDir, authMgr)
@@ -47,10 +48,10 @@ func GetHierarchyInfo(currentDir string, authMgr *auth.Auth) (*HierarchyInfo, er
 	}
 
 	// Find all config files in the hierarchy
-	allConfigFiles, _ := FindConfigFiles(currentDir)
+	allConfigFiles := config.FindConfigFiles(currentDir)
 
 	// Check global config
-	globalPath, err := GetGlobalConfigPath()
+	globalPath, err := config.GetGlobalConfigPath()
 	if err == nil {
 		if _, err := os.Stat(globalPath); err == nil {
 			globalLoaded := false
@@ -104,10 +105,10 @@ func GetHierarchyInfo(currentDir string, authMgr *auth.Auth) (*HierarchyInfo, er
 
 // AliasInfo contains information about a single alias
 type AliasInfo struct {
-	Command    string
-	HasWhen    bool
+	Command     string
+	HasWhen     bool
 	WhenSummary string
-	Else       string
+	Else        string
 }
 
 // DetailsInfo contains detailed information about the merged configuration
@@ -126,7 +127,7 @@ type EnvShellInfo struct {
 }
 
 // GetConfigDetails extracts detailed information from a merged configuration
-func GetConfigDetails(merged *Config, authMgr *auth.Auth, currentDir string) *DetailsInfo {
+func GetConfigDetails(merged *config.Config, authMgr *auth.Auth, currentDir string) *DetailsInfo {
 	if merged == nil {
 		return &DetailsInfo{
 			Aliases:   make(map[string]AliasInfo),
@@ -174,7 +175,7 @@ func GetConfigDetails(merged *Config, authMgr *auth.Auth, currentDir string) *De
 }
 
 // GetCompletionOverrides extracts completion overrides from aliases
-func GetCompletionOverrides(merged *Config) map[string]string {
+func GetCompletionOverrides(merged *config.Config) map[string]string {
 	if merged == nil {
 		return make(map[string]string)
 	}
@@ -192,7 +193,7 @@ func GetCompletionOverrides(merged *Config) map[string]string {
 }
 
 // Helper to convert aliases with full information including conditions
-func convertAliasesWithInfo(aliases map[string]AliasConfig) map[string]AliasInfo {
+func convertAliasesWithInfo(aliases map[string]config.AliasConfig) map[string]AliasInfo {
 	result := make(map[string]AliasInfo)
 	for name, aliasConfig := range aliases {
 		info := AliasInfo{
@@ -211,28 +212,8 @@ func convertAliasesWithInfo(aliases map[string]AliasConfig) map[string]AliasInfo
 	return result
 }
 
-// Helper to convert aliases (legacy, kept for compatibility)
-func convertAliases(aliases map[string]interface{}) map[string]string {
-	result := make(map[string]string)
-	for name, value := range aliases {
-		var cmd string
-		switch v := value.(type) {
-		case string:
-			cmd = v
-		case map[string]interface{}:
-			if c, ok := v["command"].(string); ok {
-				cmd = c
-			}
-		}
-		if cmd != "" {
-			result[name] = cmd
-		}
-	}
-	return result
-}
-
 // summarizeWhen creates a human-readable summary of a When condition
-func summarizeWhen(when *When) string {
+func summarizeWhen(when *config.When) string {
 	if when == nil {
 		return ""
 	}

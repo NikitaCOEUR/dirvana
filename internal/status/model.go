@@ -2,8 +2,6 @@ package status
 
 import (
 	"time"
-
-	"github.com/NikitaCOEUR/dirvana/internal/config"
 )
 
 // Data contains all the information to display in status
@@ -20,18 +18,18 @@ type Data struct {
 	AuthPath      string
 
 	// Authorization
-	Authorized     bool
-	HasAnyConfig   bool // Whether there's any config (local or global) to authorize
+	Authorized   bool
+	HasAnyConfig bool // Whether there's any config (local or global) to authorize
 
 	// Configuration
-	GlobalConfig *config.GlobalInfo
-	LocalConfigs []config.FileInfo
+	GlobalConfig *GlobalInfo
+	LocalConfigs []FileInfo
 
 	// Config Details
-	Aliases   map[string]config.AliasInfo
+	Aliases   map[string]AliasInfo
 	Functions []string
 	EnvStatic map[string]string
-	EnvShell  map[string]config.EnvShellInfo
+	EnvShell  map[string]EnvShellInfo
 	Flags     []string
 
 	// Cache
@@ -68,4 +66,3 @@ type CompletionScriptInfo struct {
 	Path string
 	Size int64
 }
-

@@ -30,7 +30,7 @@ func TestGetCacheInfo_InvalidJSON(t *testing.T) {
 	cachePath := filepath.Join(tmpDir, "cache.json")
 
 	// Write invalid JSON
-	err := os.WriteFile(cachePath, []byte("not valid json"), 0644)
+	err := os.WriteFile(cachePath, []byte("not valid json"), 0o644)
 	require.NoError(t, err)
 
 	result, err := GetCacheInfo(cachePath)
@@ -48,7 +48,7 @@ func TestGetCacheInfo_EmptyJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	cachePath := filepath.Join(tmpDir, "cache.json")
 
-	err := os.WriteFile(cachePath, []byte("{}"), 0644)
+	err := os.WriteFile(cachePath, []byte("{}"), 0o644)
 	require.NoError(t, err)
 
 	result, err := GetCacheInfo(cachePath)
@@ -69,7 +69,7 @@ func TestGetCacheInfo_WithEntries(t *testing.T) {
 		"/path/2": {"hash": "def456"},
 		"/path/3": {"hash": "ghi789"}
 	}`
-	err := os.WriteFile(cachePath, []byte(cacheContent), 0644)
+	err := os.WriteFile(cachePath, []byte(cacheContent), 0o644)
 	require.NoError(t, err)
 
 	result, err := GetCacheInfo(cachePath)
@@ -87,7 +87,7 @@ func TestGetCacheInfo_JSONArray(t *testing.T) {
 	cachePath := filepath.Join(tmpDir, "cache.json")
 
 	// Write JSON array (invalid format for cache)
-	err := os.WriteFile(cachePath, []byte("[1, 2, 3]"), 0644)
+	err := os.WriteFile(cachePath, []byte("[1, 2, 3]"), 0o644)
 	require.NoError(t, err)
 
 	result, err := GetCacheInfo(cachePath)

@@ -3,15 +3,14 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
-	"github.com/NikitaCOEUR/dirvana/internal/derrors"
 	"github.com/NikitaCOEUR/dirvana/internal/logger"
 )
 
@@ -39,13 +38,13 @@ func AllowWithParams(params AllowParams) error {
 
 	authMgr, err := auth.New(params.AuthPath)
 	if err != nil {
-		return derrors.NewAuthorizationError(params.PathToAllow, "failed to initialize auth", err)
+		return fmt.Errorf("failed to initialize auth: %w", err)
 	}
 
 	// Check if already allowed - idempotent operation
 	alreadyAllowed, err := authMgr.IsAllowed(params.PathToAllow)
 	if err != nil {
-		return derrors.NewAuthorizationError(params.PathToAllow, "failed to check authorization", err)
+		return fmt.Errorf("failed to check authorization: %w", err)
 	}
 	if alreadyAllowed {
 		log.Debug().Msg("already authorized: " + params.PathToAllow)
@@ -53,7 +52,7 @@ func AllowWithParams(params AllowParams) error {
 	}
 
 	if err := authMgr.Allow(params.PathToAllow); err != nil {
-		return derrors.NewAuthorizationError(params.PathToAllow, "failed to authorize", err)
+		return fmt.Errorf("failed to authorize: %w", err)
 	}
 
 	// Invalidate cache for the authorized directory
@@ -70,12 +69,10 @@ func AllowWithParams(params AllowParams) error {
 
 	fmt.Printf("Authorized: %s\n", params.PathToAllow)
 
-	// If auto-approve flag is set, approve shell commands immediately
-	if params.AutoApproveShell {
-		if err := approveShellCommandsForPath(params.PathToAllow, authMgr, params.LogLevel); err != nil {
-			return derrors.NewShellApprovalError(params.PathToAllow, "failed to auto-approve shell commands", err)
-		}
-		fmt.Println("✓ Shell commands auto-approved")
+	// Handle the env sh: commands consent in the same interaction instead
+	// of surprising the user with a prompt in the middle of the next cd
+	if err := handleShellApproval(params.PathToAllow, authMgr, params.AutoApproveShell, log); err != nil {
+		return err
 	}
 
 	// If we're in the authorized directory, suggest loading the environment
@@ -86,6 +83,65 @@ func AllowWithParams(params AllowParams) error {
 	}
 
 	return nil
+}
+
+// handleShellApproval settles the consent for the env sh: commands that
+// will run automatically on every cd. The commands are taken from the
+// MERGED hierarchy (inherited ones included), because that is exactly what
+// the export gate hashes and checks.
+func handleShellApproval(path string, authMgr *auth.Auth, autoApprove bool, log *logger.Logger) error {
+	shellEnv, err := mergedShellEnv(path, authMgr)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if len(shellEnv) == 0 {
+		log.Debug().Msg("No shell commands found in config hierarchy")
+		return nil
+	}
+	if !authMgr.RequiresShellApproval(path, shellEnv) {
+		return nil
+	}
+
+	if autoApprove {
+		if err := authMgr.ApproveShellCommands(path, shellEnv); err != nil {
+			return fmt.Errorf("failed to auto-approve shell commands: %w", err)
+		}
+		fmt.Println("✓ Shell commands auto-approved")
+		return nil
+	}
+
+	// Interactive consent, right now
+	if err := displayShellCommandsForApproval(shellEnv); err != nil {
+		return err
+	}
+	approved, err := promptShellApproval()
+	if err != nil || !approved {
+		// Not fatal: aliases and functions are usable, and the export
+		// gate will ask again on the next cd
+		fmt.Println("⚠️  Shell commands not approved - you will be asked again on the next cd")
+		fmt.Println("   (or rerun with: dirvana allow --auto-approve-shell)")
+		return nil
+	}
+	if err := authMgr.ApproveShellCommands(path, shellEnv); err != nil {
+		return fmt.Errorf("failed to approve shell commands: %w", err)
+	}
+	fmt.Println("✓ Shell commands approved")
+	return nil
+}
+
+// mergedShellEnv returns the env sh: commands effective in path, i.e. the
+// merged hierarchy as the export gate sees it
+func mergedShellEnv(path string, authMgr *auth.Auth) (map[string]string, error) {
+	merged, _, err := config.New().LoadHierarchyWithAuth(path, authMgr)
+	if err != nil {
+		return nil, err
+	}
+	if merged == nil {
+		return nil, nil
+	}
+	_, shellEnv := merged.GetEnvVars()
+	return shellEnv, nil
 }
 
 // RevokeParams contains parameters for the Revoke command
@@ -111,11 +167,11 @@ func RevokeWithParams(params RevokeParams) error {
 
 	authMgr, err := auth.New(params.AuthPath)
 	if err != nil {
-		return derrors.NewAuthorizationError(params.PathToRevoke, "failed to initialize auth", err)
+		return fmt.Errorf("failed to initialize auth: %w", err)
 	}
 
 	if err := authMgr.Revoke(params.PathToRevoke); err != nil {
-		return derrors.NewAuthorizationError(params.PathToRevoke, "failed to revoke", err)
+		return fmt.Errorf("failed to revoke: %w", err)
 	}
 
 	// Invalidate cache for the revoked directory and all its subdirectories
@@ -141,100 +197,51 @@ func RevokeWithParams(params RevokeParams) error {
 	return nil
 }
 
-// approveShellCommandsForPath is a helper that loads config and approves shell commands
-func approveShellCommandsForPath(path string, authMgr *auth.Auth, logLevel string) error {
-	log := logger.New(logLevel, os.Stderr)
-
-	// Initialize config loader
-	configLoader := config.New()
-
-	// Load config for this directory
-	cfg, err := configLoader.Load(filepath.Join(path, ".dirvana.yml"))
-	if err != nil {
-		return derrors.NewConfigurationError(path, "failed to load config", err)
-	}
-
-	// Get shell environment variables
-	_, shellEnv := cfg.GetEnvVars()
-
-	// If no shell commands, nothing to approve
-	if len(shellEnv) == 0 {
-		log.Debug().Msg("No shell commands found in config")
-		return nil
-	}
-
-	// Approve the shell commands
-	if err := authMgr.ApproveShellCommands(path, shellEnv); err != nil {
-		return derrors.NewShellApprovalError(path, "failed to approve shell commands", err)
-	}
-
-	return nil
-}
-
-// Display dynamic shell commands for approval
+// Display dynamic shell commands for approval. The message goes through
+// notifyUser so it reaches the terminal even inside $(dirvana export).
 func displayShellCommandsForApproval(shellEnv map[string]string) error {
 	if len(shellEnv) == 0 {
 		return nil
 	}
 
-	// Open /dev/tty to write directly to the terminal
-	// This ensures messages are visible even when stdout/stderr are redirected (e.g., in eval)
-	tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
-	if err != nil {
-		// Fallback to stderr if /dev/tty is not available
-		tty = os.Stderr
-	} else {
-		defer func() { _ = tty.Close() }()
-	}
-
-	_, _ = fmt.Fprintf(tty, "\n⚠️  This configuration contains dynamic shell commands:\n\n")
+	var b strings.Builder
+	b.WriteString("\n⚠️  This configuration contains dynamic shell commands:\n\n")
 	keys := make([]string, 0, len(shellEnv))
 	for k := range shellEnv {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		_, _ = fmt.Fprintf(tty, "   • %s: %s\n", key, shellEnv[key])
+		fmt.Fprintf(&b, "   • %s: %s\n", key, shellEnv[key])
 	}
-	_, _ = fmt.Fprintf(tty, "\nThese commands will execute to set environment variables.\n")
+	b.WriteString("\nThese commands will execute to set environment variables.\n")
+	notifyUser(b.String())
 	return nil
 }
 
-// Prompt user for shell command approval
+// promptShellApproval asks the user to approve the dynamic shell commands.
+// The prompt goes to the terminal so it stays visible inside
+// $(dirvana export), and falls back to stderr/stdin when there is none.
 func promptShellApproval() (bool, error) {
-	// For testing: use stdin/stderr fallback if DIRVANA_TEST_MODE is set
-	useFallback := os.Getenv("DIRVANA_TEST_MODE") != ""
-
-	// Open /dev/tty for both reading and writing to interact with the user
-	// This ensures prompts are visible even when stdout/stderr are redirected (e.g., in eval)
-	var tty *os.File
-	var err error
-
-	if !useFallback {
-		tty, err = os.OpenFile("/dev/tty", os.O_RDWR, 0)
-	} else {
-		err = fmt.Errorf("test mode: skip /dev/tty")
-	}
-
+	tty, err := openTTY(os.O_RDWR)
 	if err != nil {
-		// Fallback to stderr for output and stdin for input
-		_, _ = fmt.Fprintf(os.Stderr, "Approve execution? [y/N]: ")
-		reader := bufio.NewReader(os.Stdin)
-		response, err := reader.ReadString('\n')
-		if err != nil {
-			return false, err
-		}
-		response = strings.TrimSpace(strings.ToLower(response))
-		return response == "y" || response == "yes", nil
+		return readApproval(os.Stderr, os.Stdin)
 	}
 	defer func() { _ = tty.Close() }()
 
-	_, _ = fmt.Fprintf(tty, "Approve execution? [y/N]: ")
-	reader := bufio.NewReader(tty)
-	response, err := reader.ReadString('\n')
+	return readApproval(tty, tty)
+}
+
+// readApproval writes the prompt to out and reads the answer from in.
+// Anything but an explicit yes is a refusal.
+func readApproval(out io.Writer, in io.Reader) (bool, error) {
+	_, _ = fmt.Fprintf(out, "Approve execution? [y/N]: ")
+
+	response, err := bufio.NewReader(in).ReadString('\n')
 	if err != nil {
 		return false, err
 	}
+
 	response = strings.TrimSpace(strings.ToLower(response))
 	return response == "y" || response == "yes", nil
 }
@@ -243,7 +250,7 @@ func promptShellApproval() (bool, error) {
 func List(authPath string) error {
 	authMgr, err := auth.New(authPath)
 	if err != nil {
-		return derrors.NewAuthorizationError("", "failed to initialize auth", err)
+		return fmt.Errorf("failed to initialize auth: %w", err)
 	}
 
 	paths := authMgr.List()
