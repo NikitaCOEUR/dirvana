@@ -42,6 +42,7 @@ var DevMode = ""
 type Registry struct {
 	cacheDir string
 	client   *http.Client
+	baseURL  string
 
 	mu           sync.RWMutex
 	memConfig    *RegistryConfig
@@ -53,6 +54,7 @@ func NewRegistry(cacheDir string) *Registry {
 	return &Registry{
 		cacheDir: cacheDir,
 		client:   http.DefaultClient,
+		baseURL:  RegistryBaseURL,
 	}
 }
 
@@ -163,8 +165,10 @@ func getRegistryHashPath(cacheDir, version string) string {
 }
 
 // downloadRegistry downloads the registry from GitHub
+//
+//nolint:unparam // version parameter is kept for future registry format versioning
 func (r *Registry) downloadRegistry(version string) ([]byte, error) {
-	downloadURL := fmt.Sprintf("%s/%s/completion-scripts.yml", RegistryBaseURL, version)
+	downloadURL := fmt.Sprintf("%s/%s/completion-scripts.yml", r.baseURL, version)
 
 	// Validate URL
 	if err := validateURL(downloadURL); err != nil {

@@ -17,10 +17,11 @@ import (
 
 const testCacheDir = "/tmp/cache"
 
-// newTestRegistry builds a Registry whose HTTP client trusts the test
-// server's TLS certificates
+// newTestRegistry builds a Registry pointing at the test server, with an
+// HTTP client that trusts its TLS certificates
 func newTestRegistry(cacheDir string, server *httptest.Server) *Registry {
 	r := NewRegistry(cacheDir)
+	r.baseURL = server.URL
 	r.client = server.Client()
 	// Configure to accept insecure certificates for tests
 	r.client.Transport = &http.Transport{
@@ -815,26 +816,150 @@ func TestRegistryPaths(t *testing.T) {
 
 // TestDownloadRegistry tests registry downloading (integration-like)
 func TestDownloadRegistry(t *testing.T) {
-	t.Run("downloads registry from mock server", func(t *testing.T) {
-		registryData := RegistryConfig{
-			Version:     "v1",
-			Description: "Test",
-			Tools:       map[string]RegistryTool{},
-		}
-		yamlData, err := yaml.Marshal(registryData)
-		require.NoError(t, err)
+	registryData := RegistryConfig{
+		Version:     "v1",
+		Description: "Test",
+		Tools:       map[string]RegistryTool{},
+	}
+	yamlData, err := yaml.Marshal(registryData)
+	require.NoError(t, err)
 
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Contains(t, r.URL.Path, "completion-scripts.yml")
-			w.WriteHeader(http.StatusOK)
+	t.Run("downloads registry from mock server", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Contains(t, r.URL.Path, "v1/completion-scripts.yml")
 			_, _ = w.Write(yamlData)
 		}))
 		defer server.Close()
 
-		// Note: downloadRegistry is not exported, so we can't test it directly
-		// This shows how it would be tested if it were exported or if we had
-		// a test-only export
-		t.Skip("downloadRegistry is not exported - testing via LoadRegistry instead")
+		data, err := newTestRegistry(t.TempDir(), server).downloadRegistry("v1")
+		require.NoError(t, err)
+		assert.Equal(t, yamlData, data)
+	})
+
+	t.Run("rejects a plain HTTP registry", func(t *testing.T) {
+		r := NewRegistry(t.TempDir())
+		// Not loopback, not HTTPS: the registry drives script execution, so
+		// it must not be fetched over a tamperable channel
+		r.baseURL = "http://registry.example.com/registry"
+
+		_, err := r.downloadRegistry("v1")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid registry URL")
+	})
+
+	t.Run("reports a failing server", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer server.Close()
+
+		_, err := newTestRegistry(t.TempDir(), server).downloadRegistry("v1")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to download registry")
+	})
+}
+
+func TestLoadRegistry_DownloadPaths(t *testing.T) {
+	registryData := RegistryConfig{
+		Version:     "v1",
+		Description: "Downloaded registry",
+		Tools:       map[string]RegistryTool{},
+	}
+	yamlData, err := yaml.Marshal(registryData)
+	require.NoError(t, err)
+
+	t.Run("downloads and caches when nothing is cached", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write(yamlData)
+		}))
+		defer server.Close()
+
+		config, err := newTestRegistry(tmpDir, server).Load()
+		require.NoError(t, err)
+		assert.Equal(t, "Downloaded registry", config.Description)
+
+		// The download is persisted, along with its checksum
+		assert.FileExists(t, getRegistryPath(tmpDir, DefaultRegistryVersion))
+		assert.FileExists(t, getRegistryHashPath(tmpDir, DefaultRegistryVersion))
+	})
+
+	t.Run("falls back to the expired cache when the download fails", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		expired := RegistryConfig{Version: "v1", Description: "Stale but usable"}
+		expiredData, err := yaml.Marshal(expired)
+		require.NoError(t, err)
+		registryPath := getRegistryPath(tmpDir, DefaultRegistryVersion)
+		require.NoError(t, os.WriteFile(registryPath, expiredData, 0o644))
+		stale := time.Now().Add(-2 * RegistryTTL)
+		require.NoError(t, os.Chtimes(registryPath, stale, stale))
+
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer server.Close()
+
+		config, err := newTestRegistry(tmpDir, server).Load()
+		require.NoError(t, err)
+		assert.Equal(t, "Stale but usable", config.Description)
+	})
+
+	t.Run("reports the download error when no cache can help", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer server.Close()
+
+		_, err := newTestRegistry(t.TempDir(), server).Load()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to download registry")
+	})
+
+	t.Run("reports an unparsable download", func(t *testing.T) {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("not: [valid: yaml"))
+		}))
+		defer server.Close()
+
+		_, err := newTestRegistry(t.TempDir(), server).Load()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to parse registry")
+	})
+}
+
+func TestLoadRegistry_IgnoresCorruptedCaches(t *testing.T) {
+	t.Run("valid but unparsable cache is re-downloaded", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		require.NoError(t, os.WriteFile(getRegistryPath(tmpDir, DefaultRegistryVersion), []byte("not: [valid: yaml"), 0o644))
+
+		fresh := RegistryConfig{Version: "v1", Description: "Fresh"}
+		freshData, err := yaml.Marshal(fresh)
+		require.NoError(t, err)
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write(freshData)
+		}))
+		defer server.Close()
+
+		config, err := newTestRegistry(tmpDir, server).Load()
+		require.NoError(t, err)
+		assert.Equal(t, "Fresh", config.Description)
+	})
+
+	t.Run("expired and unparsable cache is not used as fallback", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		registryPath := getRegistryPath(tmpDir, DefaultRegistryVersion)
+		require.NoError(t, os.WriteFile(registryPath, []byte("not: [valid: yaml"), 0o644))
+		stale := time.Now().Add(-2 * RegistryTTL)
+		require.NoError(t, os.Chtimes(registryPath, stale, stale))
+
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer server.Close()
+
+		_, err := newTestRegistry(tmpDir, server).Load()
+		require.Error(t, err)
 	})
 }
 
