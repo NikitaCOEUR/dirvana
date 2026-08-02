@@ -79,9 +79,7 @@ func TestCleanupLegacyHook(t *testing.T) {
 
 func TestInstallHook_CleansLegacyInlineHook(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// RC file as left by a pre-strategy release: user content + inline hook
 	rcFile := filepath.Join(tmpDir, ".bashrc")
@@ -110,9 +108,7 @@ func TestInstallHook_CleansLegacyInlineHook(t *testing.T) {
 
 func TestUninstallHook_CleansLegacyInlineHook(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Only the legacy inline hook is present (new hook never installed)
 	rcFile := filepath.Join(tmpDir, ".bashrc")

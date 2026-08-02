@@ -63,10 +63,7 @@ func TestInstallHook_NewInstallation(t *testing.T) {
 	// Pre-create rc file without hook
 	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0o644))
 
-	// Mock home directory
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Install hook
 	result, err := InstallHook("bash")
@@ -95,10 +92,7 @@ func TestIsHookInstalled(t *testing.T) {
 	tmpDir := t.TempDir()
 	rcFile := filepath.Join(tmpDir, ".bashrc")
 
-	// Mock home directory
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Test when file doesn't exist
 	installed, err := IsHookInstalled("bash")
@@ -134,10 +128,7 @@ function myfunction() {
 `
 	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0o644))
 
-	// Mock home directory
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Install hook
 	result, err := InstallHook("zsh")
@@ -176,10 +167,7 @@ func TestInstallHook_ReadOnlyFile(t *testing.T) {
 	// Create a read-only file
 	require.NoError(t, os.WriteFile(rcFile, []byte("# test\n"), 0o444))
 
-	// Mock home directory
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Try to install hook - should error on write
 	_, err := InstallHook("bash")
@@ -198,10 +186,7 @@ eval "$(direnv hook bash)"
 `, testBashrcContent)
 	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0o644))
 
-	// Mock home directory
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Install hook - should warn about direnv
 	result, err := InstallHook("bash")
@@ -216,10 +201,7 @@ func TestUninstallHook(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent+"\nSome other content\n"), 0o644))
 
-	// Mock home directory
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Install then uninstall
 	_, err := InstallHook("bash")
@@ -247,10 +229,7 @@ func TestUninstallHook_NotInstalled(t *testing.T) {
 	// Create rc file without hook
 	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0o644))
 
-	// Mock home directory
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Uninstall when nothing is installed
 	result, err := UninstallHook("bash")
@@ -263,9 +242,7 @@ func TestUninstallHook_FileDoesNotExist(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Mock home directory (no .bashrc exists)
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Uninstall when file doesn't exist
 	result, err := UninstallHook("bash")
@@ -283,10 +260,7 @@ func TestInstallHook_NoDirenvWarning(t *testing.T) {
 	existingContent := testBashrcContent
 	require.NoError(t, os.WriteFile(rcFile, []byte(existingContent), 0o644))
 
-	// Mock home directory
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Install hook - should NOT warn about direnv
 	result, err := InstallHook("bash")
@@ -305,10 +279,7 @@ func TestInstallHook_WithoutStaticCompletion(t *testing.T) {
 	// Create rc file without hook
 	require.NoError(t, os.WriteFile(rcFile, []byte(testBashrcContent), 0o644))
 
-	// Mock home directory
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Install hook (completion is now handled dynamically by dirvana export)
 	result, err := InstallHook("bash")
@@ -327,10 +298,7 @@ func TestInstallHook_FileDoesNotExist(t *testing.T) {
 	tmpDir := t.TempDir()
 	// Don't create the rc file
 
-	// Mock home directory
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Install hook - should create the file
 	result, err := InstallHook("bash")
@@ -346,9 +314,7 @@ func TestInstallHook_FileDoesNotExist(t *testing.T) {
 
 func TestUninstallHook_WithDropInStrategy(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Create RC file with drop-in support
 	rcFile := filepath.Join(tmpDir, ".bashrc")
@@ -376,9 +342,7 @@ func TestUninstallHook_WithDropInStrategy(t *testing.T) {
 
 func TestUninstallHook_WithExternalHook(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Create external hook file
 	configDir := filepath.Join(tmpDir, ".config", "dirvana")
@@ -502,9 +466,7 @@ func TestCheckDirenvConflict_FileNotExist(t *testing.T) {
 
 func TestInstallHook_UpToDateNoUpdate(t *testing.T) {
 	tmpDir := t.TempDir()
-	oldHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tmpDir)
-	defer func() { _ = os.Setenv("HOME", oldHome) }()
+	t.Setenv("HOME", tmpDir)
 
 	// Create external hook that's already up to date
 	configDir := filepath.Join(tmpDir, ".config", "dirvana")

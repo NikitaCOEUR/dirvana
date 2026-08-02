@@ -288,11 +288,7 @@ func TestExternalHookStrategy_UpdateOnlyTouchesHookFile(t *testing.T) {
 
 func TestExternalHookStrategy_Install_ErrorCreatingConfigDir(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	// Create a file where .config should be to cause error
 	configPath := filepath.Join(tmpDir, ".config")
@@ -322,11 +318,7 @@ func TestExternalHookStrategy_Install_ErrorCreatingConfigDir(t *testing.T) {
 
 func TestExternalHookStrategy_Install_ErrorReadingRCFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	// Create a directory where RC file should be
 	rcFile := filepath.Join(tmpDir, ".bashrc")
@@ -349,11 +341,7 @@ func TestExternalHookStrategy_Install_ErrorReadingRCFile(t *testing.T) {
 
 func TestExternalHookStrategy_Uninstall_RCFileNotExist(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	// Don't create RC file
 	strategy, err := NewExternalHookStrategy("bash")
@@ -370,11 +358,7 @@ func TestExternalHookStrategy_Uninstall_RCFileNotExist(t *testing.T) {
 
 func TestExternalHookStrategy_IsInstalled_RCFileNotExist(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	strategy, err := NewExternalHookStrategy("bash")
 	if err != nil {
@@ -389,11 +373,7 @@ func TestExternalHookStrategy_IsInstalled_RCFileNotExist(t *testing.T) {
 
 func TestExternalHookStrategy_NeedsUpdate_HookFileNotExist(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	strategy, err := NewExternalHookStrategy("bash")
 	if err != nil {

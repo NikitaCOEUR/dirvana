@@ -8,11 +8,7 @@ import (
 
 func TestSelectInstallStrategy_PrefersDropIn(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	// Create RC file with drop-in support
 	rcFile := filepath.Join(tmpDir, ".bashrc")
@@ -35,11 +31,7 @@ func TestSelectInstallStrategy_PrefersDropIn(t *testing.T) {
 
 func TestSelectInstallStrategy_FallbackToExternal(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	// Create RC file without drop-in support
 	rcFile := filepath.Join(tmpDir, ".bashrc")

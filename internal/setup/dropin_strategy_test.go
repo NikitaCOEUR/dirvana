@@ -546,11 +546,7 @@ func TestDropInStrategy_Uninstall_FileNotExist(t *testing.T) {
 
 func TestNewDropInStrategy_Zsh(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	// Create RC file with zsh drop-in support
 	rcFile := filepath.Join(tmpDir, ".zshrc")
@@ -572,11 +568,7 @@ func TestNewDropInStrategy_Zsh(t *testing.T) {
 
 func TestNewDropInStrategy_UnsupportedShell(t *testing.T) {
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", originalHome) }()
-	if err := os.Setenv("HOME", tmpDir); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	t.Setenv("HOME", tmpDir)
 
 	_, err := NewDropInStrategy("unsupported")
 	if err == nil {
