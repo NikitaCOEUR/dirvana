@@ -648,45 +648,23 @@ func FindConfigFiles(startDir string) []string {
 // with authorization checks for each directory in the hierarchy
 // Order: global config → root → ... → parent → current
 func (l *Loader) LoadHierarchyWithAuth(dir string, auth AuthChecker) (*Config, []string, error) {
-	var allConfigFiles []string
-	var merged *Config
-
-	// Try to load global config first
-	globalPath, err := GetGlobalConfigPath()
-	if err == nil {
-		if _, err := os.Stat(globalPath); err == nil {
-			globalCfg, err := l.Load(globalPath)
-			if err == nil {
-				// Successfully loaded global config
-				merged = globalCfg
-				allConfigFiles = append(allConfigFiles, globalPath)
-			}
-			// If global config is invalid, just skip it - user can still use local configs
-		}
+	// First pass: load the authorized local configs (root → leaf).
+	// A local_only config discards everything above it, matching
+	// core.ActiveConfigChain ("only use this directory's config").
+	type loadedConfig struct {
+		path string
+		cfg  *Config
 	}
+	var chain []loadedConfig
 
-	// Find local config files (from root to current directory)
-	configFiles := FindConfigFiles(dir)
-
-	// If no local configs and no global config, return empty config
-	if len(configFiles) == 0 && merged == nil {
-		return &Config{
-			Aliases:   make(map[string]interface{}),
-			Functions: make(map[string]string),
-			Env:       make(map[string]interface{}),
-		}, nil, nil
-	}
-
-	// Merge local configs with authorization checks
-	for _, path := range configFiles {
-		// Extract directory from config file path
+	for _, path := range FindConfigFiles(dir) {
 		configDir := filepath.Dir(path)
 
 		// If auth checker is provided, verify authorization for this directory
 		if auth != nil {
 			allowed, err := auth.IsAllowed(configDir)
 			if err != nil {
-				return nil, append(allConfigFiles, configFiles...), fmt.Errorf("failed to check authorization for %s: %w", configDir, err)
+				return nil, nil, fmt.Errorf("failed to check authorization for %s: %w", configDir, err)
 			}
 			if !allowed {
 				// Skip unauthorized config files
@@ -696,30 +674,59 @@ func (l *Loader) LoadHierarchyWithAuth(dir string, auth AuthChecker) (*Config, [
 
 		cfg, err := l.Load(path)
 		if err != nil {
-			return nil, append(allConfigFiles, configFiles...), err
+			return nil, nil, err
 		}
 
-		// Check if this config wants to ignore global
-		if cfg.IgnoreGlobal && merged != nil {
-			// If first local config has ignore_global, start fresh
-			if len(allConfigFiles) == 1 {
-				merged = nil
-				allConfigFiles = nil
-			}
-		}
-
-		if merged == nil {
-			merged = cfg
-		} else {
-			merged = Merge(merged, cfg)
-		}
-
-		allConfigFiles = append(allConfigFiles, path)
-
-		// If local_only is set, stop merging
 		if cfg.LocalOnly {
+			// local_only discards parent configs (children below still merge)
+			chain = chain[:0]
+		}
+		chain = append(chain, loadedConfig{path: path, cfg: cfg})
+	}
+
+	// The global config applies unless any config of the effective chain
+	// opts out with ignore_global
+	ignoreGlobal := false
+	for _, lc := range chain {
+		if lc.cfg.IgnoreGlobal {
+			ignoreGlobal = true
 			break
 		}
+	}
+
+	var allConfigFiles []string
+	var merged *Config
+
+	if !ignoreGlobal {
+		globalPath, err := GetGlobalConfigPath()
+		if err == nil {
+			if _, statErr := os.Stat(globalPath); statErr == nil {
+				if globalCfg, loadErr := l.Load(globalPath); loadErr == nil {
+					merged = globalCfg
+					allConfigFiles = append(allConfigFiles, globalPath)
+				}
+				// If global config is invalid, just skip it - user can still use local configs
+			}
+		}
+	}
+
+	// If no local configs and no global config, return empty config
+	if len(chain) == 0 && merged == nil {
+		return &Config{
+			Aliases:   make(map[string]interface{}),
+			Functions: make(map[string]string),
+			Env:       make(map[string]interface{}),
+		}, nil, nil
+	}
+
+	// Second pass: merge root → leaf on top of the global config
+	for _, lc := range chain {
+		if merged == nil {
+			merged = lc.cfg
+		} else {
+			merged = Merge(merged, lc.cfg)
+		}
+		allConfigFiles = append(allConfigFiles, lc.path)
 	}
 
 	return merged, allConfigFiles, nil

@@ -387,12 +387,80 @@ local_only: true
 	loader := New()
 	merged, files, err := loader.LoadHierarchyWithAuth(childDir, nil)
 	require.NoError(t, err)
-	assert.Len(t, files, 2)
+	// Only the child config actually contributes (local_only)
+	assert.Len(t, files, 1)
+	assert.Equal(t, childConfig, files[0])
 
 	// Should only have child alias (local_only)
 	assert.Len(t, merged.Aliases, 1)
 	assert.Equal(t, "git diff", merged.Aliases["gd"])
 	assert.True(t, merged.LocalOnly)
+}
+
+func TestConfig_LoadHierarchy_LocalOnlyAncestorKeepsDescendants(t *testing.T) {
+	// Regression: a local_only config used to cut off the configs of its
+	// OWN subdirectories instead of only discarding its parents.
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	rootDir := filepath.Join(tmpDir, "root")
+	midDir := filepath.Join(rootDir, "mid")
+	leafDir := filepath.Join(midDir, "leaf")
+	require.NoError(t, os.MkdirAll(leafDir, 0o755))
+
+	require.NoError(t, os.WriteFile(filepath.Join(rootDir, ".dirvana.yml"),
+		[]byte("aliases:\n  fromroot: echo root\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(midDir, ".dirvana.yml"),
+		[]byte("local_only: true\naliases:\n  frommid: echo mid\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(leafDir, ".dirvana.yml"),
+		[]byte("aliases:\n  fromleaf: echo leaf\n"), 0o644))
+
+	loader := New()
+	merged, files, err := loader.LoadHierarchyWithAuth(leafDir, nil)
+	require.NoError(t, err)
+
+	// mid (local_only) discards root, but leaf still merges on top of mid
+	assert.Len(t, files, 2)
+	assert.NotContains(t, merged.Aliases, "fromroot")
+	assert.Contains(t, merged.Aliases, "frommid")
+	assert.Contains(t, merged.Aliases, "fromleaf")
+}
+
+func TestConfig_LoadHierarchy_IgnoreGlobalInChild(t *testing.T) {
+	// Regression: ignore_global was only honored when declared by the
+	// root-most local config; a child declaring it was silently ignored.
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	// Global config
+	globalDir := filepath.Join(tmpDir, "dirvana")
+	require.NoError(t, os.MkdirAll(globalDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(globalDir, GlobalConfigName),
+		[]byte("aliases:\n  fromglobal: echo global\n"), 0o644))
+
+	// Parent (no ignore_global) and child (ignore_global)
+	parentDir := filepath.Join(tmpDir, "project")
+	childDir := filepath.Join(parentDir, "child")
+	require.NoError(t, os.MkdirAll(childDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(parentDir, ".dirvana.yml"),
+		[]byte("aliases:\n  fromparent: echo parent\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(childDir, ".dirvana.yml"),
+		[]byte("ignore_global: true\naliases:\n  fromchild: echo child\n"), 0o644))
+
+	loader := New()
+
+	// In the parent: global applies
+	merged, _, err := loader.LoadHierarchyWithAuth(parentDir, nil)
+	require.NoError(t, err)
+	assert.Contains(t, merged.Aliases, "fromglobal")
+
+	// In the child: global excluded, local hierarchy preserved
+	loader2 := New()
+	merged, _, err = loader2.LoadHierarchyWithAuth(childDir, nil)
+	require.NoError(t, err)
+	assert.NotContains(t, merged.Aliases, "fromglobal")
+	assert.Contains(t, merged.Aliases, "fromparent")
+	assert.Contains(t, merged.Aliases, "fromchild")
 }
 
 func TestConfig_LoadHierarchy_NoConfigs(t *testing.T) {
