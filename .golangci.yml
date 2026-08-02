@@ -20,11 +20,20 @@ linters:
   settings:
     gocyclo:
       min-complexity: 20
+    goconst:
+      # Test files repeat shell names, aliases and fixture paths by nature;
+      # naming each one would obscure what the test sets up
+      ignore-tests: true
+      min-occurrences: 5
     gosec:
       excludes:
         # G204 (subprocess with variable): executing user-defined commands
         # and probing tools for completion IS the product
         - G204
+        # G702 (command injection via taint analysis): same call sites as
+        # G204 above, reported through the newer taint analysis. Running
+        # the editor named by $VISUAL/$EDITOR is what `dirvana edit` is for
+        - G702
         # G301/G306 (permissive modes): the remaining call sites write
         # user-facing files (sample configs, shell hooks, RC files) where
         # 0644/0755 is intentional; private state files go through

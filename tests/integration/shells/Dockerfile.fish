@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git
@@ -19,7 +19,7 @@ COPY pkg/ ./pkg/
 RUN CGO_ENABLED=0 go build -o dirvana ./cmd/dirvana
 
 # Final stage
-FROM alpine:3.19
+FROM alpine:3.22
 
 # Install fish shell and required tools
 RUN apk add --no-cache fish git bash

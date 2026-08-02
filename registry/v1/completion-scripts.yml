@@ -25,7 +25,7 @@ tools:
     description: "VMware vSphere CLI - govmomi"
     homepage: "https://github.com/vmware/govmomi"
     script:
-      url: "https://raw.githubusercontent.com/vmware/govmomi/v0.52.0/scripts/govc_bash_completion"
+      url: "https://raw.githubusercontent.com/vmware/govmomi/v0.55.1/scripts/govc_bash_completion"
       sha256: "fab72fb274a9ce3aaf2e68b78f1e103fbe06e06be8723d6f2d1ed08215a6b33e"
 
   # Example for future additions:
