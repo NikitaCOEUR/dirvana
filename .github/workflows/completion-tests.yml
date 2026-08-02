@@ -1,16 +1,23 @@
 name: Completion Tests
 
-# The expect-based completion suite is slow and environment-sensitive,
-# so it runs on demand and weekly instead of on every PR.
+# The completion suite drives real shells inside Docker, which is slow and
+# environment-sensitive, so it runs on demand and weekly instead of on
+# every PR.
 on:
   workflow_dispatch:
   schedule:
     - cron: '0 6 * * 1' # Monday 06:00 UTC
 
 jobs:
-  completion-bash:
-    name: Bash completion suite
+  completion:
+    name: ${{ matrix.shell }} completion suite
     runs-on: ubuntu-latest
+    strategy:
+      # One shell failing says nothing about the others, and knowing
+      # whether a break is shell-specific is the whole point
+      fail-fast: false
+      matrix:
+        shell: [bash, zsh, fish]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -25,29 +32,7 @@ jobs:
         with:
           aqua_version: v2.62.3
 
-      - name: Run bash completion tests in Docker
+      - name: Run completion tests in Docker
         run: task test-completion
         env:
-          TEST_SHELL: bash
-
-  completion-fish:
-    name: Fish completion suite
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
-      - name: Set up aqua
-        uses: aquaproj/aqua-installer@11dd79b4e498d471a9385aa9fb7f62bb5f52a73c # v4.0.4
-        with:
-          aqua_version: v2.55.1
-
-      - name: Run fish completion tests in Docker
-        run: task test-completion
-        env:
-          TEST_SHELL: fish
+          TEST_SHELL: ${{ matrix.shell }}

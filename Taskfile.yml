@@ -207,6 +207,9 @@ tasks:
       - echo "Testing completion in zsh..."
       - task: test-completion
         vars: { TEST_SHELL: "zsh" }
+      - echo "Testing completion in fish..."
+      - task: test-completion
+        vars: { TEST_SHELL: "fish" }
 
   generate-schema:
     desc: Generate JSON schema from Go structs
