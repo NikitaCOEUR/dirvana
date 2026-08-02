@@ -14,6 +14,13 @@ aliases:
   # Complex alias with shell features
   findlarge: find . -type f -size +100k -exec ls -lh {} \;
 
+  # Conditional alias: resolves at execution time depending on marker.txt
+  condcmd:
+    command: echo "condition-met"
+    when:
+      file: marker.txt
+    else: echo "condition-missing"
+
 # Test all function features
 functions:
   # Simple function with parameters
