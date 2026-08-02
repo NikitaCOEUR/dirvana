@@ -5,6 +5,8 @@ aliases:
   g:
     command: git
     completion: git
+  # A tool the shells ship no completions for: only dirvana can complete it
+  ut: unpackaged-tool
 
 functions:
   # Simple function with parameters

@@ -24,10 +24,12 @@ var testShell = getTestShell()
 
 // Shell integration tests - test real completion in actual shells
 var shellIntegrationTests = []struct {
-	name           string
-	shell          string
-	alias          string
-	tool           string
+	name  string
+	shell string
+	alias string
+	tool  string
+	// subcommand completes "alias subcommand <TAB>" instead of "alias <TAB>"
+	subcommand     string
 	minCompletions int
 	shouldContain  []string
 }{
@@ -71,6 +73,57 @@ var shellIntegrationTests = []struct {
 		minCompletions: 15,
 		shouldContain:  []string{"init", "plan", "apply"},
 	},
+	// Fish reaches completions two ways, and both have to keep working.
+	//
+	// For a command fish knows - it bundles completions for over a
+	// thousand - `complete -w` forwards every level to them and dirvana
+	// stands aside.
+	{
+		name:           "kubectl-in-fish",
+		shell:          "fish",
+		alias:          "k",
+		tool:           "kubectl",
+		minCompletions: 30,
+		shouldContain:  []string{"get", "apply", "delete"},
+	},
+	{
+		name:           "kubectl-subcommand-in-fish",
+		shell:          "fish",
+		alias:          "k",
+		tool:           "kubectl",
+		subcommand:     "config",
+		minCompletions: 5,
+		shouldContain:  []string{"current-context", "use-context"},
+	},
+	// For a command it does not know, fish can only offer file names, so
+	// dirvana is the only source - from the very first word. v0.9.0 lost
+	// this case by standing down on the first token; these two catch it.
+	{
+		name:           "unpackaged-tool-in-fish",
+		shell:          "fish",
+		alias:          "ut",
+		tool:           "unpackaged-tool",
+		minCompletions: 2,
+		shouldContain:  []string{"alpha", "beta"},
+	},
+	{
+		name:           "unpackaged-tool-subcommand-in-fish",
+		shell:          "fish",
+		alias:          "ut",
+		tool:           "unpackaged-tool",
+		subcommand:     "alpha",
+		minCompletions: 2,
+		shouldContain:  []string{"nested-one", "nested-two"},
+	},
+	// The same tool in bash, where dirvana has always been the only source
+	{
+		name:           "unpackaged-tool-in-bash",
+		shell:          "bash",
+		alias:          "ut",
+		tool:           "unpackaged-tool",
+		minCompletions: 2,
+		shouldContain:  []string{"alpha", "beta"},
+	},
 }
 
 func TestShellIntegration_Completion(t *testing.T) {
@@ -106,7 +159,11 @@ func TestShellIntegration_Completion(t *testing.T) {
 			require.NoError(t, err)
 
 			// Run completion test script
-			cmd := exec.Command(scriptPath, tt.alias, configDir)
+			args := []string{tt.alias, configDir}
+			if tt.subcommand != "" {
+				args = append(args, tt.subcommand)
+			}
+			cmd := exec.Command(scriptPath, args...)
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Logf("Script output:\n%s", string(output))

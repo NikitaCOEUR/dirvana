@@ -1,61 +1,37 @@
-#!/usr/bin/expect -f
-# Test fish completion for dirvana-managed aliases
+#!/usr/bin/env fish
+# Capture the completions fish offers for a dirvana-managed alias.
 #
-# Usage: test_fish_completion.sh <alias> <config_dir>
+# Usage: test_fish_completion.sh <alias> <config_dir> [subcommand]
 #
-# This script:
-# 1. Starts a fish shell
-# 2. Sources dirvana export
-# 3. Simulates TAB completion for the given alias
-# 4. Outputs the completions
+# Unlike bash and zsh, fish exposes completion as a plain command:
+# `complete -C"<line>"` returns exactly what TAB would offer. No expect,
+# no pseudo-terminal, no sleeping - so this reads the same result the
+# user gets, deterministically.
 
-set timeout 5
-set alias_name [lindex $argv 0]
-set config_dir [lindex $argv 1]
+set -l alias_name $argv[1]
+set -l config_dir $argv[2]
+set -l subcommand $argv[3]
 
-if {$alias_name == ""} {
-    send_user "Usage: test_fish_completion.sh <alias> <config_dir>\n"
+if test -z "$alias_name"
+    echo "Usage: test_fish_completion.sh <alias> <config_dir> [subcommand]" >&2
     exit 1
-}
+end
 
-# Start fish with no config files
-spawn fish --no-config
+if test -n "$config_dir"
+    cd $config_dir; or exit 1
+end
 
-# Wait for prompt
-expect {
-    timeout { send_user "TIMEOUT waiting for initial prompt\n"; exit 1 }
-    -re "> "
-}
+# Load the aliases and their completion registrations
+eval (dirvana export 2>/dev/null | string collect)
 
-# Navigate to config directory if provided
-if {$config_dir != ""} {
-    send "cd $config_dir\r"
-    expect {
-        timeout { send_user "TIMEOUT after cd\n"; exit 1 }
-        -re "> "
-    }
-}
+# Build the line being completed: "alias " or "alias subcommand "
+set -l line "$alias_name "
+if test -n "$subcommand"
+    set line "$alias_name $subcommand "
+end
 
-# Source dirvana export (fish syntax)
-send "eval (dirvana export)\r"
-expect {
-    timeout { send_user "TIMEOUT after dirvana export\n"; exit 1 }
-    -re "> "
-}
-
-# Trigger completion by typing the alias and TAB
-# Fish shows completions in a different format than bash/zsh
-send "$alias_name \t"
-
-# Wait a bit for completions to appear
-sleep 0.5
-
-# Capture the output
-expect {
-    timeout { send_user "TIMEOUT waiting for completions\n"; exit 1 }
-    -re "> "
-}
-
-# Exit fish
-send "exit\r"
-expect eof
+# Keep only the value of each suggestion; the parser splits on whitespace
+# and would otherwise take description words for completions
+echo "COMPLETIONS_START"
+complete -C"$line" | string replace -r '\t.*' ''
+echo "COMPLETIONS_END"
