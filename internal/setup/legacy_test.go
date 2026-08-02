@@ -51,6 +51,30 @@ func TestCleanupLegacyHook(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, removed)
 	})
+
+	t.Run("block at the end of the file leaves the content above", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		rcFile := filepath.Join(tmpDir, ".bashrc")
+		content := "export FOO=bar\n\n" + legacyMarkerStart + "\n__dirvana_hook() { :; }\n" + legacyMarkerEnd + "\n"
+		require.NoError(t, os.WriteFile(rcFile, []byte(content), 0o644))
+
+		removed, err := cleanupLegacyHook(rcFile)
+		require.NoError(t, err)
+		assert.True(t, removed)
+
+		data, err := os.ReadFile(rcFile)
+		require.NoError(t, err)
+		assert.Equal(t, "export FOO=bar\n", string(data))
+	})
+
+	t.Run("unreadable file is reported", func(t *testing.T) {
+		// A directory where the RC file is expected
+		rcFile := filepath.Join(t.TempDir(), "rc-dir")
+		require.NoError(t, os.Mkdir(rcFile, 0o755))
+
+		_, err := cleanupLegacyHook(rcFile)
+		require.Error(t, err)
+	})
 }
 
 func TestInstallHook_CleansLegacyInlineHook(t *testing.T) {

@@ -413,15 +413,63 @@ func TestUninstallHook_WithExternalHook(t *testing.T) {
 }
 
 func TestInstallHook_ErrorCases(t *testing.T) {
-	// Test with unsupported shell
-	_, err := InstallHook("unsupported-shell")
-	assert.Error(t, err)
+	t.Run("unsupported shell", func(t *testing.T) {
+		_, err := InstallHook("unsupported-shell")
+		assert.Error(t, err)
+	})
+
+	t.Run("no home directory", func(t *testing.T) {
+		t.Setenv("HOME", "")
+
+		_, err := InstallHook("bash")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "home directory")
+	})
+
+	t.Run("unreadable rc file", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		// A directory where .bashrc is expected: the legacy cleanup cannot
+		// even read the file
+		require.NoError(t, os.Mkdir(filepath.Join(home, ".bashrc"), 0o755))
+
+		_, err := InstallHook("bash")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "legacy inline hook")
+	})
 }
 
 func TestUninstallHook_ErrorCases(t *testing.T) {
-	// Test with unsupported shell
-	_, err := UninstallHook("unsupported-shell")
-	assert.Error(t, err)
+	t.Run("unsupported shell", func(t *testing.T) {
+		_, err := UninstallHook("unsupported-shell")
+		assert.Error(t, err)
+	})
+
+	t.Run("no home directory", func(t *testing.T) {
+		t.Setenv("HOME", "")
+
+		_, err := UninstallHook("bash")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "home directory")
+	})
+
+	t.Run("unreadable rc file", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		require.NoError(t, os.Mkdir(filepath.Join(home, ".bashrc"), 0o755))
+
+		_, err := UninstallHook("bash")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "legacy inline hook")
+	})
+}
+
+func TestGetRCFilePath_NoHomeDirectory(t *testing.T) {
+	t.Setenv("HOME", "")
+
+	_, err := GetRCFilePath("bash")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "home directory")
 }
 
 func TestCheckDirenvConflict_NoConflict(t *testing.T) {

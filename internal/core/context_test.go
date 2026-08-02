@@ -56,12 +56,19 @@ func TestContext_CompletionMap(t *testing.T) {
 			Command:    "echo empty",
 			Completion: "", // Empty string -> uses command
 		},
+		"enabled": {
+			Command:    "echo enabled",
+			Completion: true, // Explicitly enabled -> uses command
+		},
 	}
 
 	completionMap := NewContext(aliases, nil).CompletionMap()
 
 	// Should include all except "test" (completion: false)
-	assert.Len(t, completionMap, 3)
+	assert.Len(t, completionMap, 4)
+
+	// Explicitly enabled -> uses command
+	assert.Equal(t, "echo enabled", completionMap["enabled"])
 
 	// Explicit string completion
 	assert.Equal(t, "kubectl", completionMap["kc"])
@@ -457,4 +464,86 @@ func TestEngine_Load_NoContext(t *testing.T) {
 	ctx, err := NewEngine(cachePath, authPath).Load(emptyDir)
 	require.NoError(t, err)
 	assert.True(t, ctx.Empty())
+}
+
+func TestEngine_Load_KeepsExpiredEntryWhenHierarchyUnchanged(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	projectDir := filepath.Join(tmpDir, "project")
+	require.NoError(t, os.MkdirAll(projectDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".dirvana.yml"), []byte(testAliasConfig), 0o644))
+
+	authMgr, err := auth.New(authPath)
+	require.NoError(t, err)
+	require.NoError(t, authMgr.Allow(projectDir))
+
+	engine := NewEngine(cachePath, authPath)
+	_, err = engine.Load(projectDir)
+	require.NoError(t, err)
+
+	// Expire the TTL without touching the config: the entry survives
+	// validation and is served without reloading the hierarchy
+	cacheStore, err := cache.New(cachePath)
+	require.NoError(t, err)
+	entry, found := cacheStore.Get(projectDir)
+	require.True(t, found)
+	entry.Timestamp = time.Now().Add(-2 * cacheValidationTTL)
+	entry.MergedAliases = map[string]config.AliasConfig{"test": {Command: "echo from-cache"}}
+	require.NoError(t, cacheStore.Set(entry))
+
+	ctx, err := engine.Load(projectDir)
+	require.NoError(t, err)
+	assert.Equal(t, "echo from-cache", ctx.Aliases["test"].Command,
+		"an unchanged hierarchy must be served from the validated cache")
+}
+
+func TestEngine_Load_UnreadableState(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// A regular file where a state directory is expected
+	blocker := filepath.Join(tmpDir, "not-a-dir")
+	require.NoError(t, os.WriteFile(blocker, []byte("x"), 0o644))
+
+	t.Run("broken cache path", func(t *testing.T) {
+		_, err := NewEngine(filepath.Join(blocker, "cache.json"), filepath.Join(tmpDir, "auth.json")).Load(tmpDir)
+		require.Error(t, err)
+	})
+
+	t.Run("broken auth path", func(t *testing.T) {
+		_, err := NewEngine(filepath.Join(tmpDir, "cache.json"), filepath.Join(blocker, "auth.json")).Load(tmpDir)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to initialize auth")
+	})
+}
+
+func TestEngine_Load_InvalidConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	projectDir := filepath.Join(tmpDir, "project")
+	require.NoError(t, os.MkdirAll(projectDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".dirvana.yml"), []byte("aliases:\n  ll: [unterminated\n"), 0o644))
+
+	authMgr, err := auth.New(authPath)
+	require.NoError(t, err)
+	require.NoError(t, authMgr.Allow(projectDir))
+
+	_, err = NewEngine(cachePath, authPath).Load(projectDir)
+	require.Error(t, err)
+}
+
+func TestHierarchyHash_UnreadableConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	projectDir := filepath.Join(tmpDir, "project")
+	require.NoError(t, os.MkdirAll(projectDir, 0o755))
+	// A directory named like a config file cannot be hashed
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, ".dirvana.yml"), 0o755))
+
+	_, _, err := HierarchyHash([]string{projectDir}, config.New())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to hash")
 }
