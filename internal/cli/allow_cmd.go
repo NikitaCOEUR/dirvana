@@ -196,32 +196,25 @@ func RevokeWithParams(params RevokeParams) error {
 	return nil
 }
 
-// Display dynamic shell commands for approval
+// Display dynamic shell commands for approval. The message goes through
+// notifyUser so it reaches the terminal even inside $(dirvana export).
 func displayShellCommandsForApproval(shellEnv map[string]string) error {
 	if len(shellEnv) == 0 {
 		return nil
 	}
 
-	// Open /dev/tty to write directly to the terminal
-	// This ensures messages are visible even when stdout/stderr are redirected (e.g., in eval)
-	tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
-	if err != nil {
-		// Fallback to stderr if /dev/tty is not available
-		tty = os.Stderr
-	} else {
-		defer func() { _ = tty.Close() }()
-	}
-
-	_, _ = fmt.Fprintf(tty, "\n⚠️  This configuration contains dynamic shell commands:\n\n")
+	var b strings.Builder
+	b.WriteString("\n⚠️  This configuration contains dynamic shell commands:\n\n")
 	keys := make([]string, 0, len(shellEnv))
 	for k := range shellEnv {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		_, _ = fmt.Fprintf(tty, "   • %s: %s\n", key, shellEnv[key])
+		fmt.Fprintf(&b, "   • %s: %s\n", key, shellEnv[key])
 	}
-	_, _ = fmt.Fprintf(tty, "\nThese commands will execute to set environment variables.\n")
+	b.WriteString("\nThese commands will execute to set environment variables.\n")
+	notifyUser(b.String())
 	return nil
 }
 

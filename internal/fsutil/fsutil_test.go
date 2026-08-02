@@ -43,6 +43,24 @@ func TestAtomicWrite_InvalidDirectory(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestAtomicWrite_RenameOverDirectoryFails(t *testing.T) {
+	// The destination is a directory: the final rename must fail and the
+	// temp file must not be left behind
+	tmpDir := t.TempDir()
+	target := filepath.Join(tmpDir, "target")
+	require.NoError(t, os.Mkdir(target, 0o755))
+
+	err := AtomicWrite(target, []byte("data"), StateFilePerm)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "rename")
+
+	entries, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	for _, entry := range entries {
+		assert.NotContains(t, entry.Name(), ".dirvana-tmp-", "temp file leaked after failed rename")
+	}
+}
+
 func TestAtomicWrite_Permissions(t *testing.T) {
 	tmpDir := t.TempDir()
 
