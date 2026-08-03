@@ -502,13 +502,19 @@ func TestCollectAll_ValidCache(t *testing.T) {
 	defer func() { _ = os.Chdir(originalDir) }()
 	require.NoError(t, os.Chdir(tmpDir))
 
+	// Key the entry on the directory as the collector sees it. On macOS
+	// t.TempDir() hands back /var/..., which Getwd resolves to /private/var/...,
+	// and an entry filed under the other spelling is simply not found.
+	currentDir, err := os.Getwd()
+	require.NoError(t, err)
+
 	// Fill the cache the way the export path does
 	cacheObj, err := cache.New(cachePath)
 	require.NoError(t, err)
 	configHash, err := config.New().Hash(configPath)
 	require.NoError(t, err)
 	require.NoError(t, cacheObj.Set(&cache.Entry{
-		Path:      tmpDir,
+		Path:      currentDir,
 		Hash:      configHash,
 		Timestamp: time.Now(),
 		Version:   version.Version,
