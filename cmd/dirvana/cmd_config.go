@@ -11,10 +11,17 @@ func newStatusCmd(paths appPaths) *cli.Command {
 	return &cli.Command{
 		Name:  "status",
 		Usage: "Show current Dirvana configuration status",
-		Action: func(_ context.Context, _ *cli.Command) error {
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  "plain",
+				Usage: "Print everything at once instead of opening the foldable view",
+			},
+		},
+		Action: func(_ context.Context, cmd *cli.Command) error {
 			return dircli.Status(dircli.StatusParams{
 				CachePath: paths.cache,
 				AuthPath:  paths.auth,
+				Plain:     cmd.Bool("plain"),
 			})
 		},
 	}

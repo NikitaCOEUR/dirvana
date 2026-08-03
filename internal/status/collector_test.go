@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
+	"github.com/NikitaCOEUR/dirvana/internal/setup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -430,105 +431,51 @@ func TestCollectAll_WithGlobalConfig(t *testing.T) {
 	assert.Equal(t, "git status", data.Aliases["gs"].Command)
 }
 
-// TestCheckRCFileForHook tests the RC file hook detection function
-func TestCheckRCFileForHook(t *testing.T) {
-	t.Run("detects Dirvana comment", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		rcFile := filepath.Join(tmpDir, ".bashrc")
+// TestCollectSystemInfo covers the shell and hook detection status reports.
+// It used to scan the RC file for a handful of patterns, which knew nothing of
+// fish and reported "unknown" for it - the shell dirvana was running under.
+func TestCollectSystemInfo(t *testing.T) {
+	for _, shellName := range []string{"bash", "zsh", "fish"} {
+		t.Run("detects "+shellName, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			t.Setenv("DIRVANA_SHELL", shellName)
 
-		content := `# Some initial content
-export PATH=$PATH:/usr/local/bin
+			data := &Data{}
+			collectSystemInfo(data)
 
-# Dirvana hook
-eval "$(dirvana export)"
+			assert.Equal(t, shellName, data.Shell)
+			// The installer knows where each shell keeps its config, fish
+			// included; status must not have its own idea of it
+			assert.NotEmpty(t, data.RCFile, "an RC file must be reported for %s", shellName)
+			assert.False(t, data.HookInstalled, "nothing is installed in an empty home")
+		})
+	}
 
-# More content below
-`
-		err := os.WriteFile(rcFile, []byte(content), 0o644)
+	t.Run("sees the hook the installer wrote", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("DIRVANA_SHELL", "fish")
+
+		_, err := setup.InstallHook("fish")
 		require.NoError(t, err)
 
-		result := checkRCFileForHook(rcFile)
-		assert.True(t, result)
+		data := &Data{}
+		collectSystemInfo(data)
+
+		assert.True(t, data.HookInstalled)
+		assert.False(t, data.HookOutdated, "a hook just installed cannot be outdated")
 	})
 
-	t.Run("detects hook-bash.sh", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		rcFile := filepath.Join(tmpDir, ".bashrc")
+	t.Run("reports no shell rather than guessing one", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		t.Setenv("DIRVANA_SHELL", "")
+		t.Setenv("SHELL", "")
 
-		content := `export PATH=$PATH:/usr/local/bin
-source ~/.dirvana/hook-bash.sh
-alias ll='ls -la'
-`
-		err := os.WriteFile(rcFile, []byte(content), 0o644)
-		require.NoError(t, err)
+		data := &Data{}
+		collectSystemInfo(data)
 
-		result := checkRCFileForHook(rcFile)
-		assert.True(t, result)
-	})
-
-	t.Run("detects hook-zsh.sh", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		rcFile := filepath.Join(tmpDir, ".zshrc")
-
-		content := `# ZSH config
-source ~/.dirvana/hook-zsh.sh
-`
-		err := os.WriteFile(rcFile, []byte(content), 0o644)
-		require.NoError(t, err)
-
-		result := checkRCFileForHook(rcFile)
-		assert.True(t, result)
-	})
-
-	t.Run("detects dirvana export", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		rcFile := filepath.Join(tmpDir, ".bashrc")
-
-		content := `eval "$(dirvana export)"`
-		err := os.WriteFile(rcFile, []byte(content), 0o644)
-		require.NoError(t, err)
-
-		result := checkRCFileForHook(rcFile)
-		assert.True(t, result)
-	})
-
-	t.Run("returns false when no hook found", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		rcFile := filepath.Join(tmpDir, ".bashrc")
-
-		content := `export PATH=$PATH:/usr/local/bin
-alias ll='ls -la'
-# Just regular bashrc content
-`
-		err := os.WriteFile(rcFile, []byte(content), 0o644)
-		require.NoError(t, err)
-
-		result := checkRCFileForHook(rcFile)
-		assert.False(t, result)
-	})
-
-	t.Run("returns false when file does not exist", func(t *testing.T) {
-		result := checkRCFileForHook("/nonexistent/file")
-		assert.False(t, result)
-	})
-
-	t.Run("handles large files efficiently", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		rcFile := filepath.Join(tmpDir, ".bashrc")
-
-		// Create a large file with hook at the end
-		var content string
-		for i := 0; i < 1000; i++ {
-			content += "# Comment line\n"
-			content += "export VAR" + string(rune(i)) + "=value\n"
-		}
-		content += "# Dirvana hook at the end\n"
-
-		err := os.WriteFile(rcFile, []byte(content), 0o644)
-		require.NoError(t, err)
-
-		// Should still find it (proves line-by-line scanning works)
-		result := checkRCFileForHook(rcFile)
-		assert.True(t, result)
+		assert.Empty(t, data.Shell)
+		assert.Empty(t, data.RCFile)
+		assert.False(t, data.HookInstalled)
 	})
 }
