@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -22,8 +21,37 @@ const currentAuthVersion = 2
 func (a *Auth) GetAuth(path string) *DirAuth {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	normalized := normalizePath(path)
-	return a.authorized[normalized]
+	auth, _ := a.lookup(path)
+	return auth
+}
+
+// lookup finds the entry for a directory under the name given or under the one
+// every symlink along it resolves to, and returns the key it was filed under -
+// or the key a new entry should take.
+//
+// An authorization identifies a directory, not one of the names leading to it:
+// a shell keeps the logical path in $PWD and os.Getwd honours it, so the same
+// project reaches dirvana under whichever name the user typed. Looking the
+// literal name up first keeps entries written by earlier versions working.
+//
+// The caller must hold the lock.
+func (a *Auth) lookup(path string) (*DirAuth, string) {
+	normalized := fsutil.NormalizePath(path)
+	if auth := a.authorized[normalized]; auth != nil {
+		return auth, normalized
+	}
+
+	resolved := fsutil.ResolvePath(path)
+	if resolved != normalized {
+		if auth := a.authorized[resolved]; auth != nil {
+			return auth, resolved
+		}
+	}
+
+	// Nothing yet: a new entry is filed under the resolved name, so it holds
+	// wherever the directory is reached from - and stops holding if the
+	// symlink that led to it is later pointed somewhere else
+	return nil, resolved
 }
 
 // RequiresShellApproval returns true if shell command approval is needed for the directory
@@ -58,8 +86,7 @@ func hashShellCommands(cmds map[string]string) string {
 func (a *Auth) ApproveShellCommands(dir string, shellCmds map[string]string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	normalized := normalizePath(dir)
-	auth := a.authorized[normalized]
+	auth, _ := a.lookup(dir)
 	if auth == nil {
 		return fmt.Errorf("directory not authorized")
 	}
@@ -114,22 +141,22 @@ func (a *Auth) Allow(path string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	normalized := normalizePath(path)
+	existing, key := a.lookup(path)
 
 	// Check if already allowed - idempotent operation
-	if existing := a.authorized[normalized]; existing != nil && existing.Allowed {
+	if existing != nil && existing.Allowed {
 		return nil
 	}
 
 	now := time.Now()
-	if a.authorized[normalized] == nil {
-		a.authorized[normalized] = &DirAuth{
+	if existing == nil {
+		a.authorized[key] = &DirAuth{
 			Allowed:   true,
 			AllowedAt: now,
 		}
 	} else {
-		a.authorized[normalized].Allowed = true
-		a.authorized[normalized].AllowedAt = now
+		existing.Allowed = true
+		existing.AllowedAt = now
 	}
 	return a.persist()
 }
@@ -139,8 +166,7 @@ func (a *Auth) IsAllowed(path string) (bool, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	normalized := normalizePath(path)
-	auth := a.authorized[normalized]
+	auth, _ := a.lookup(path)
 	return auth != nil && auth.Allowed, nil
 }
 
@@ -149,8 +175,10 @@ func (a *Auth) Revoke(path string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	normalized := normalizePath(path)
-	delete(a.authorized, normalized)
+	// Both spellings go: an entry left under the other one would keep the
+	// directory authorized after the user asked for that to stop
+	delete(a.authorized, fsutil.NormalizePath(path))
+	delete(a.authorized, fsutil.ResolvePath(path))
 	return a.persist()
 }
 
@@ -194,7 +222,7 @@ func (a *Auth) load() error {
 	a.authorized = make(map[string]*DirAuth)
 	for path, auth := range authFile.Directories {
 		if auth != nil {
-			a.authorized[normalizePath(path)] = auth
+			a.authorized[fsutil.NormalizePath(path)] = auth
 		}
 	}
 
@@ -213,10 +241,4 @@ func (a *Auth) persist() error {
 		return err
 	}
 	return fsutil.AtomicWrite(a.path, data, fsutil.StateFilePerm)
-}
-
-// normalizePath removes trailing slashes and cleans the path
-func normalizePath(path string) string {
-	cleaned := filepath.Clean(path)
-	return strings.TrimSuffix(cleaned, "/")
 }

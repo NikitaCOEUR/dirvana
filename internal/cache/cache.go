@@ -72,8 +72,15 @@ func (c *Cache) Get(path string) (*Entry, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	entry, found := c.entries[path]
+	entry, found := c.entries[cacheKey(path)]
 	return entry, found
+}
+
+// cacheKey is how a directory is identified here: the same identity auth uses,
+// so reaching a project through a symlink and through its real path shares one
+// entry instead of building two.
+func cacheKey(path string) string {
+	return fsutil.ResolvePath(path)
 }
 
 // Set stores an entry in cache and persists it
@@ -81,6 +88,9 @@ func (c *Cache) Set(entry *Entry) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// The stored path is keyed the same way, so the hierarchy walks below
+	// compare like with like
+	entry.Path = cacheKey(entry.Path)
 	c.entries[entry.Path] = entry
 	return c.persist()
 }
@@ -90,7 +100,7 @@ func (c *Cache) Delete(path string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	delete(c.entries, path)
+	delete(c.entries, cacheKey(path))
 	return c.persist()
 }
 
@@ -108,15 +118,14 @@ func (c *Cache) ClearHierarchy(dir string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Normalize path
-	dir = filepath.Clean(dir)
+	dir = cacheKey(dir)
 
 	// Track which entries to delete
 	toDelete := []string{}
 
 	for path := range c.entries {
 		// Delete if path is the directory or is within its hierarchy
-		cleanPath := filepath.Clean(path)
+		cleanPath := fsutil.NormalizePath(path)
 		if cleanPath == dir || isParentOf(dir, cleanPath) || isParentOf(cleanPath, dir) {
 			toDelete = append(toDelete, path)
 		}
@@ -137,15 +146,14 @@ func (c *Cache) DeleteWithSubdirs(dir string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Normalize path
-	dir = filepath.Clean(dir)
+	dir = cacheKey(dir)
 
 	// Track which entries to delete
 	toDelete := []string{}
 
 	for path := range c.entries {
 		// Delete if path is the directory or is a subdirectory
-		cleanPath := filepath.Clean(path)
+		cleanPath := fsutil.NormalizePath(path)
 		if cleanPath == dir || isParentOf(dir, cleanPath) {
 			toDelete = append(toDelete, path)
 		}
