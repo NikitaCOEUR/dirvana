@@ -41,13 +41,19 @@ shown and consented to in the same interaction. You will only be prompted
 again when those commands change. `--auto-approve-shell` skips the prompt
 (useful for CI).
 
+An authorization applies to the directory itself, not to the path used to
+reach it: symlinks are resolved, so authorizing `~/work` when it points at
+`/mnt/data/project` authorizes that project under either name. Repointing the
+symlink elsewhere does not carry the authorization over — the new target is a
+different directory, and has to be authorized on its own.
+
 ### `dirvana revoke [path]`
 
 Removes authorization for a directory and invalidates its cache (including subdirectories).
 
 ### `dirvana list`
 
-Lists all authorized directories.
+Lists all authorized directories, by the path their symlinks resolve to.
 
 ## Configuration
 

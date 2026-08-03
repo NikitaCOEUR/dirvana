@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -356,4 +357,33 @@ func TestCache_DeleteWithSubdirs_EmptyCache(t *testing.T) {
 	// Should not error on empty cache
 	err = c.DeleteWithSubdirs("/home/user/project")
 	require.NoError(t, err)
+}
+
+// TestCache_SymlinkedPathSharesOneEntry keeps the cache keyed the way auth
+// identifies a directory: reaching a project through a symlink and through its
+// target path is the same project, so it must not be computed twice.
+func TestCache_SymlinkedPathSharesOneEntry(t *testing.T) {
+	tmp := t.TempDir()
+	target := filepath.Join(tmp, "project")
+	link := filepath.Join(tmp, "link")
+	require.NoError(t, os.Mkdir(target, 0o755))
+	require.NoError(t, os.Symlink(target, link))
+
+	c, err := New(filepath.Join(tmp, "cache.json"))
+	require.NoError(t, err)
+
+	require.NoError(t, c.Set(&Entry{Path: link, Hash: "h", Version: "v1"}))
+
+	entry, found := c.Get(target)
+	require.True(t, found, "the entry filed through the symlink must be found by the target path")
+	assert.Equal(t, "h", entry.Hash)
+	assert.True(t, c.IsValid(target, "h", "v1"))
+
+	// And one entry, not two
+	require.NoError(t, c.Set(&Entry{Path: target, Hash: "h2", Version: "v1"}))
+	assert.Len(t, c.entries, 1)
+
+	require.NoError(t, c.Delete(link))
+	_, found = c.Get(target)
+	assert.False(t, found, "deleting through either name removes the entry")
 }

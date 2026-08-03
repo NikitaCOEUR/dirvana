@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -398,4 +399,121 @@ func TestAuth_Load_EdgeCases(t *testing.T) {
 		assert.NotNil(t, a)
 		assert.Empty(t, a.List())
 	})
+}
+
+// symlinkedProject returns a directory and a symlink pointing at it, the shape
+// of a project reached through ~/work -> /mnt/data/work.
+func symlinkedProject(t *testing.T) (target, link string) {
+	t.Helper()
+
+	tmp := t.TempDir()
+	target = filepath.Join(tmp, "project")
+	link = filepath.Join(tmp, "link")
+	require.NoError(t, os.Mkdir(target, 0o755))
+	require.NoError(t, os.Symlink(target, link))
+	return target, link
+}
+
+// TestAuth_SymlinkedPathIsTheSameProject covers what an authorization means: a
+// directory, not the name used to reach it. Authorizing one spelling and
+// arriving through the other used to be refused, with no way to tell why.
+func TestAuth_SymlinkedPathIsTheSameProject(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		allowed, tried func(target, link string) string
+	}{
+		{
+			"allow target, arrive by link",
+			func(target, _ string) string { return target },
+			func(_, link string) string { return link },
+		},
+		{
+			"allow link, arrive by target",
+			func(_, link string) string { return link },
+			func(target, _ string) string { return target },
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			target, link := symlinkedProject(t)
+			a, err := New(filepath.Join(t.TempDir(), "authorized.json"))
+			require.NoError(t, err)
+
+			require.NoError(t, a.Allow(tt.allowed(target, link)))
+
+			allowed, err := a.IsAllowed(tt.tried(target, link))
+			require.NoError(t, err)
+			assert.True(t, allowed)
+		})
+	}
+}
+
+func TestAuth_RevokeReachesBothSpellings(t *testing.T) {
+	target, link := symlinkedProject(t)
+	a, err := New(filepath.Join(t.TempDir(), "authorized.json"))
+	require.NoError(t, err)
+
+	require.NoError(t, a.Allow(link))
+	require.NoError(t, a.Revoke(target))
+
+	// Revoking has to mean revoked, whichever name either side used
+	for _, path := range []string{target, link} {
+		allowed, err := a.IsAllowed(path)
+		require.NoError(t, err)
+		assert.False(t, allowed, "still authorized through %s", path)
+	}
+}
+
+// TestAuth_DoesNotFollowARepointedSymlink is the security half of resolving:
+// an authorization is pinned to the directory it was granted for, so pointing
+// the symlink somewhere else does not carry it over.
+func TestAuth_DoesNotFollowARepointedSymlink(t *testing.T) {
+	target, link := symlinkedProject(t)
+	other := filepath.Join(filepath.Dir(target), "other")
+	require.NoError(t, os.Mkdir(other, 0o755))
+
+	a, err := New(filepath.Join(t.TempDir(), "authorized.json"))
+	require.NoError(t, err)
+	require.NoError(t, a.Allow(link))
+
+	require.NoError(t, os.Remove(link))
+	require.NoError(t, os.Symlink(other, link))
+
+	allowed, err := a.IsAllowed(link)
+	require.NoError(t, err)
+	assert.False(t, allowed, "the authorization was granted for another directory")
+}
+
+// TestAuth_HonoursEntriesWrittenBeforeResolving keeps upgrades quiet: releases
+// up to v0.10.0 filed entries under the literal path, and those must keep
+// working rather than silently asking for authorization again.
+func TestAuth_HonoursEntriesWrittenBeforeResolving(t *testing.T) {
+	_, link := symlinkedProject(t)
+	authPath := filepath.Join(t.TempDir(), "authorized.json")
+
+	legacy := fmt.Sprintf(`{"_version": 2, "directories": {%q: {"allowed": true}}}`, link)
+	require.NoError(t, os.WriteFile(authPath, []byte(legacy), 0o600))
+
+	a, err := New(authPath)
+	require.NoError(t, err)
+
+	allowed, err := a.IsAllowed(link)
+	require.NoError(t, err)
+	assert.True(t, allowed)
+
+	// And approving shell commands finds that entry rather than creating a
+	// second one under the resolved name
+	require.NoError(t, a.ApproveShellCommands(link, map[string]string{"BRANCH": "git branch"}))
+	assert.Len(t, a.List(), 1)
+}
+
+func TestAuth_AllowIsIdempotentAcrossSpellings(t *testing.T) {
+	target, link := symlinkedProject(t)
+	a, err := New(filepath.Join(t.TempDir(), "authorized.json"))
+	require.NoError(t, err)
+
+	require.NoError(t, a.Allow(target))
+	require.NoError(t, a.Allow(link))
+	require.NoError(t, a.Allow(target+"/"))
+
+	assert.Len(t, a.List(), 1, "one directory, one entry")
 }
