@@ -3,6 +3,7 @@ package setup
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/NikitaCOEUR/dirvana/internal/shell"
@@ -182,4 +183,42 @@ func writeFishHook(t *testing.T, home, content string) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(rcFile), 0o755))
 	require.NoError(t, os.WriteFile(rcFile,
 		[]byte("if status is-interactive\n    source "+hookPath+"\nend\n"), 0o644))
+}
+
+func TestMatchHook_RejectsUnrelatedContent(t *testing.T) {
+	_, matches := matchHook("bash", "# something else entirely\n")
+	assert.False(t, matches)
+}
+
+func TestMatchHook_RejectsHookWithoutTheTrailingCode(t *testing.T) {
+	pattern, err := shell.GenerateHookCode("bash", hookBinarySentinel)
+	require.NoError(t, err)
+
+	// Everything up to the binary path, and nothing of what follows it
+	prefix, _, _ := strings.Cut(pattern, hookBinarySentinel)
+
+	_, matches := matchHook("bash", prefix+"/usr/bin/dirvana")
+	assert.False(t, matches, "the text after the path must be there too")
+}
+
+// TestInspectHook_UnreadableHookFile covers the registered-but-unreadable case:
+// reinstalling is the only way out, so it has to read as outdated.
+func TestInspectHook_UnreadableHookFile(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads anything, so the permission bits prove nothing")
+	}
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	writeFishHook(t, home, "whatever")
+	hookPath := filepath.Join(home, ".config", "dirvana", "hook-fish.sh")
+	require.NoError(t, os.Chmod(hookPath, 0o000))
+	defer func() { _ = os.Chmod(hookPath, 0o644) }()
+
+	state, err := InspectHook("fish")
+	require.NoError(t, err)
+
+	assert.True(t, state.Installed)
+	assert.True(t, state.Outdated)
 }

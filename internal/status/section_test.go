@@ -3,6 +3,8 @@ package status
 import (
 	"testing"
 
+	"github.com/NikitaCOEUR/dirvana/internal/setup"
+	shellpkg "github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -272,4 +274,148 @@ func TestCountLabel(t *testing.T) {
 	assert.Equal(t, "2 files", countLabel(2, "file"))
 	assert.Equal(t, "3 aliases", countLabel(3, "alias", "aliases"))
 	assert.Equal(t, "1 alias", countLabel(1, "alias", "aliases"))
+}
+
+// TestInstallHookAction runs the action the Setup row offers, against a home
+// directory of its own.
+func TestInstallHookAction(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	action := installHookAction("fish", "install the hook")
+	require.NotNil(t, action)
+	assert.Equal(t, "install the hook", action.Label)
+
+	message, err := action.Run()
+	require.NoError(t, err)
+	assert.NotEmpty(t, message)
+	assert.NotContains(t, message, "\n", "the view has one line for it")
+
+	// And it really installed something
+	state, err := setup.InspectHook("fish")
+	require.NoError(t, err)
+	assert.True(t, state.Installed)
+}
+
+func TestInstallHookAction_ReportsFailure(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	_, err := installHookAction("nushell", "install the hook").Run()
+	assert.Error(t, err)
+}
+
+func TestFirstLine(t *testing.T) {
+	assert.Equal(t, "one", firstLine("one\ntwo\nthree"))
+	assert.Equal(t, "alone", firstLine("alone"))
+	assert.Empty(t, firstLine(""))
+}
+
+func TestBuildSections_BrokenHook(t *testing.T) {
+	data := emptyData()
+	data.HookInstalled = true
+	data.HookBroken = true
+	data.HookBinary = "/gone/dirvana"
+	data.HookFile = "/home/user/.config/dirvana/hook-bash.sh"
+
+	section := findSection(t, BuildSections(data), "Setup")
+
+	assert.Equal(t, "hook broken", section.Summary)
+	assert.Contains(t, section.Rows[0].Value, "/gone/dirvana")
+	assert.Equal(t, ToneError, section.Rows[0].Tone)
+	// The fix names the binary it would write in, since it is not the one there
+	assert.Contains(t, section.Rows[1].Value, "calling ")
+}
+
+func TestBuildSections_FixRowStaysQuietWhenTheBinaryIsTheSameOne(t *testing.T) {
+	data := emptyData()
+	data.HookInstalled = true
+	data.HookOutdated = true
+	data.HookBinary = shellpkg.BinaryPath()
+
+	section := findSection(t, BuildSections(data), "Setup")
+
+	assert.NotContains(t, section.Rows[1].Value, "calling ")
+}
+
+func TestBuildSections_CacheLocalOnly(t *testing.T) {
+	data := emptyData()
+	data.HasAnyConfig = true
+	data.CacheValid = true
+	data.CacheLocalOnly = true
+
+	rows := findSection(t, BuildSections(data), "Cache").Rows
+
+	assert.True(t, rows[len(rows)-1].Detail)
+	assert.Contains(t, rows[len(rows)-1].Value, "local only")
+}
+
+func TestBuildSections_CompletionNotProbedYet(t *testing.T) {
+	data := emptyData()
+	data.CompletionRegistry = &CompletionRegistryInfo{Path: "/reg.yml", Size: 10}
+
+	section := findSection(t, BuildSections(data), "Completion")
+
+	assert.Equal(t, "nothing detected yet", section.Summary)
+	assert.Contains(t, section.Rows[0].Value, "detection happens on first completion")
+}
+
+func TestBuildSections_DownloadedScripts(t *testing.T) {
+	data := emptyData()
+	data.CompletionDetection = &CompletionDetectionInfo{Commands: map[string]string{"helm": "Cobra"}}
+	data.CompletionScripts = []CompletionScriptInfo{{Tool: "kubectl", Size: 2048}}
+
+	rows := findSection(t, BuildSections(data), "Completion").Rows
+
+	last := rows[len(rows)-1]
+	assert.Equal(t, "Script", last.Key)
+	assert.Equal(t, "kubectl", last.Value)
+	assert.Equal(t, "2.0 KB", last.Note)
+}
+
+func TestBuildSections_NotLoadedConfig(t *testing.T) {
+	data := emptyData()
+	data.HasAnyConfig = true
+	data.LocalConfigs = []FileInfo{{Path: "/test/dir/.dirvana.yml", Authorized: true, Loaded: false}}
+
+	rows := findSection(t, BuildSections(data), "Config").Rows
+
+	assert.Equal(t, "not loaded", rows[0].Note)
+	assert.Equal(t, ToneWarn, rows[0].Tone)
+}
+
+func TestBuildSections_LocalOnlyConfig(t *testing.T) {
+	data := emptyData()
+	data.HasAnyConfig = true
+	data.LocalConfigs = []FileInfo{{Path: "/test/dir/.dirvana.yml", Authorized: true, Loaded: true, LocalOnly: true}}
+
+	rows := findSection(t, BuildSections(data), "Config").Rows
+
+	assert.Equal(t, "loaded, local only", rows[0].Note)
+}
+
+func TestFirstWord(t *testing.T) {
+	assert.Equal(t, "kubectl", firstWord("kubectl get pods"))
+	assert.Equal(t, "wrapper.sh", firstWord("/opt/bin/wrapper.sh kubectl"))
+	assert.Empty(t, firstWord(""))
+	assert.Empty(t, firstWord("   "))
+}
+
+func TestBuildHeader_BrokenHook(t *testing.T) {
+	data := emptyData()
+	data.HookInstalled = true
+	data.HookBroken = true
+
+	texts := make([]string, 0)
+	for _, chip := range BuildHeader(data).Chips {
+		texts = append(texts, chip.Text)
+	}
+	assert.Contains(t, texts, "bash, hook broken")
+}
+
+func TestShorten_WithoutAUsableHome(t *testing.T) {
+	// A home of "/" would turn every absolute path into a bare "~"
+	t.Setenv("HOME", "/")
+	assert.Equal(t, "/etc/hosts", shorten("/etc/hosts"))
+
+	t.Setenv("HOME", "")
+	assert.Equal(t, "/etc/hosts", shorten("/etc/hosts"))
 }

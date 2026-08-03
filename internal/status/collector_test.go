@@ -5,9 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
+	"github.com/NikitaCOEUR/dirvana/internal/cache"
+	"github.com/NikitaCOEUR/dirvana/internal/config"
 	"github.com/NikitaCOEUR/dirvana/internal/setup"
+	"github.com/NikitaCOEUR/dirvana/pkg/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -478,4 +482,41 @@ func TestCollectSystemInfo(t *testing.T) {
 		assert.Empty(t, data.RCFile)
 		assert.False(t, data.HookInstalled)
 	})
+}
+
+// TestCollectAll_ValidCache exercises the branch that reads the entry back:
+// everything else in this file leaves the cache cold.
+func TestCollectAll_ValidCache(t *testing.T) {
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache.json")
+	authPath := filepath.Join(tmpDir, "auth.json")
+
+	configPath := filepath.Join(tmpDir, ".dirvana.yml")
+	require.NoError(t, os.WriteFile(configPath, []byte("aliases:\n  ll: ls -la\n"), 0o644))
+
+	authMgr, err := auth.New(authPath)
+	require.NoError(t, err)
+	require.NoError(t, authMgr.Allow(tmpDir))
+
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+	require.NoError(t, os.Chdir(tmpDir))
+
+	// Fill the cache the way the export path does
+	cacheObj, err := cache.New(cachePath)
+	require.NoError(t, err)
+	configHash, err := config.New().Hash(configPath)
+	require.NoError(t, err)
+	require.NoError(t, cacheObj.Set(&cache.Entry{
+		Path:      tmpDir,
+		Hash:      configHash,
+		Timestamp: time.Now(),
+		Version:   version.Version,
+	}))
+
+	data, err := CollectAll(cachePath, authPath)
+	require.NoError(t, err)
+
+	assert.True(t, data.CacheValid)
+	assert.False(t, data.CacheUpdated.IsZero(), "a valid entry carries when it was generated")
 }

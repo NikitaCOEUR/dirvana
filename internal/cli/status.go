@@ -27,6 +27,10 @@ var isTerminal = func(f *os.File) bool {
 	return term.IsTerminal(f.Fd())
 }
 
+// runInteractive is a variable for the same reason as isTerminal: a test can
+// exercise the branch without a program taking over the terminal.
+var runInteractive = status.RunInteractive
+
 // Status displays the current Dirvana configuration status. On a terminal it
 // opens the foldable view; anywhere else - a pipe, a log, `--plain` - it
 // prints everything at once.
@@ -41,5 +45,5 @@ func Status(params StatusParams) error {
 		return nil
 	}
 
-	return status.RunInteractive(data, os.Stdin, os.Stdout)
+	return runInteractive(data, os.Stdin, os.Stdout)
 }

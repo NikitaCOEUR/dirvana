@@ -1,6 +1,7 @@
 package status
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -281,4 +282,81 @@ func TestTUI_ResizeIsHonoured(t *testing.T) {
 
 	assert.Equal(t, 120, m.width)
 	assert.Equal(t, 50, m.height)
+}
+
+func TestTUI_IgnoresMessagesItDoesNotHandle(t *testing.T) {
+	m := newTestModel(t)
+	before := m.render()
+
+	model, cmd := m.Update("something else entirely")
+
+	assert.Same(t, m, model)
+	assert.Nil(t, cmd)
+	assert.Equal(t, before, m.render())
+}
+
+func TestTUI_UnknownKeysDoNothing(t *testing.T) {
+	m := newTestModel(t)
+	before := m.cursor
+
+	assert.Nil(t, m.handleKey("ctrl+alt+z"))
+	assert.Equal(t, before, m.cursor)
+}
+
+func TestTUI_PagingMovesByAScreen(t *testing.T) {
+	m := newTestModel(t)
+	m.height = 12
+	press(m, "a") // unfold everything
+
+	press(m, "pgdown")
+	assert.Positive(t, m.cursor)
+
+	press(m, "pgup")
+	assert.Equal(t, 0, m.cursor)
+}
+
+// TestTUI_NothingToShow covers the degenerate model: no section at all, so
+// every cursor lookup has to cope with an empty line list.
+func TestTUI_NothingToShow(t *testing.T) {
+	m := &tuiModel{data: &Data{}, sections: nil, width: 80, height: 24}
+	m.rebuild()
+
+	assert.Empty(t, m.lines)
+	assert.Nil(t, m.currentAction())
+	assert.Equal(t, -1, m.currentSection())
+	assert.Equal(t, cursorTarget{row: -1}, m.cursorTarget())
+
+	// None of these may panic on an empty view
+	press(m, "down")
+	press(m, "left")
+	press(m, "right")
+	press(m, "a")
+	assert.NotEmpty(t, m.render())
+}
+
+func TestTUI_CursorOnALineWithoutAGutter(t *testing.T) {
+	// Whatever the line looks like, the cursor has to be visible on it
+	assert.Contains(t, withCursor("no gutter here"), "›")
+	assert.Contains(t, withCursor("  gutter here"), "›")
+}
+
+func TestTUI_ViewRunsOnTheAlternateScreen(t *testing.T) {
+	m := newTestModel(t)
+
+	view := m.View()
+
+	assert.True(t, view.AltScreen, "the terminal must be left as it was found")
+	assert.Nil(t, m.Init())
+}
+
+// TestRunInteractive drives the real bubbletea program end to end, quitting on
+// the first keystroke.
+func TestRunInteractive(t *testing.T) {
+	data := emptyData()
+	data.HasAnyConfig = true
+	data.LocalConfigs = []FileInfo{{Path: "/test/dir/.dirvana.yml", Loaded: true, Authorized: true}}
+
+	var out bytes.Buffer
+	require.NoError(t, RunInteractive(data, strings.NewReader("q"), &out))
+	assert.NotEmpty(t, out.String(), "the view must have been drawn")
 }

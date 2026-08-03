@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/NikitaCOEUR/dirvana/internal/status"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -486,4 +489,53 @@ func TestStatus_DevNullIsNotATerminal(t *testing.T) {
 	defer func() { _ = devNull.Close() }()
 
 	assert.False(t, isTerminal(devNull), "%s must not pass for a terminal", os.DevNull)
+}
+
+// TestStatus_OpensTheFoldableViewOnATerminal covers the branch the other tests
+// deliberately avoid, without a program taking over the terminal.
+func TestStatus_OpensTheFoldableViewOnATerminal(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	require.NoError(t, os.Chdir(tmpDir))
+
+	originalTerminal, originalRun := isTerminal, runInteractive
+	defer func() { isTerminal, runInteractive = originalTerminal, originalRun }()
+
+	isTerminal = func(*os.File) bool { return true }
+	called := false
+	runInteractive = func(data *status.Data, _ io.Reader, _ io.Writer) error {
+		called = true
+		assert.NotNil(t, data)
+		return nil
+	}
+
+	require.NoError(t, Status(StatusParams{
+		CachePath: filepath.Join(tmpDir, "cache.json"),
+		AuthPath:  filepath.Join(tmpDir, "auth.json"),
+	}))
+	assert.True(t, called, "a terminal should get the foldable view")
+}
+
+func TestStatus_ReportsAnInteractiveFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	require.NoError(t, os.Chdir(tmpDir))
+
+	originalTerminal, originalRun := isTerminal, runInteractive
+	defer func() { isTerminal, runInteractive = originalTerminal, originalRun }()
+
+	isTerminal = func(*os.File) bool { return true }
+	runInteractive = func(*status.Data, io.Reader, io.Writer) error { return assert.AnError }
+
+	err = Status(StatusParams{
+		CachePath: filepath.Join(tmpDir, "cache.json"),
+		AuthPath:  filepath.Join(tmpDir, "auth.json"),
+	})
+	assert.ErrorIs(t, err, assert.AnError)
 }
