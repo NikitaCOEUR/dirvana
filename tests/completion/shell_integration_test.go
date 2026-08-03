@@ -32,6 +32,9 @@ var shellIntegrationTests = []struct {
 	subcommand     string
 	minCompletions int
 	shouldContain  []string
+	// shouldNotContain catches suggestions that should never reach the user,
+	// such as file names mixed into a tool's subcommands
+	shouldNotContain []string
 }{
 	{
 		name:           "kubectl-in-bash",
@@ -143,6 +146,32 @@ var shellIntegrationTests = []struct {
 		minCompletions: 2,
 		shouldContain:  []string{"nested-one", "nested-two"},
 	},
+	// A wrapper aliased under the name of the command it wraps. Probing that
+	// name re-enters dirvana's own provider, which fish used to abort with
+	// "maximum recursion depth, possible cycle?" - printed under the prompt
+	// before the user even pressed TAB. Both sides of the probe are covered:
+	// a command fish knows, whose own completions must survive untouched...
+	{
+		name:           "self-named-alias-in-fish",
+		shell:          "fish",
+		alias:          "kubectl",
+		tool:           "kubectl",
+		minCompletions: 30,
+		shouldContain:  []string{"get", "apply", "delete"},
+	},
+	// ...and one it does not, where dirvana has to answer despite the alias
+	// and the command sharing a name
+	{
+		name:           "self-named-unknown-alias-in-fish",
+		shell:          "fish",
+		alias:          "unpackaged-tool",
+		tool:           "unpackaged-tool",
+		minCompletions: 2,
+		shouldContain:  []string{"alpha", "beta"},
+		// dirvana is the only source here, so file names have no business
+		// showing up next to the tool's subcommands
+		shouldNotContain: []string{".dirvana.yml"},
+	},
 	// The same tool in bash, where dirvana has always been the only source
 	{
 		name:           "unpackaged-tool-in-bash",
@@ -194,6 +223,11 @@ func TestShellIntegration_Completion(t *testing.T) {
 				t.Fatalf("Completion test failed: %v", err)
 			}
 
+			// A shell that gives up mid-completion still exits 0 and prints
+			// something; the complaint only shows up on stderr
+			assert.NotContains(t, string(output), "recursion",
+				"the shell hit a completion cycle for %s", tt.alias)
+
 			// Parse completions from output
 			completions := parseCompletionOutput(string(output))
 
@@ -207,6 +241,12 @@ func TestShellIntegration_Completion(t *testing.T) {
 				assert.Contains(t, completions, expected,
 					"Completion should contain '%s' for %s in %s",
 					expected, tt.alias, tt.shell)
+			}
+
+			for _, unwanted := range tt.shouldNotContain {
+				assert.NotContains(t, completions, unwanted,
+					"Completion should not contain '%s' for %s in %s",
+					unwanted, tt.alias, tt.shell)
 			}
 		})
 	}

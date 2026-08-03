@@ -431,7 +431,43 @@ func TestFishCodeGenerator_GenerateCompletionFunction_DefersToFishWhenCovered(t 
 	assert.Contains(t, script, `complete -C"$cmd --"`)
 
 	// And it must be answered once per command, not on every keypress
-	assert.Contains(t, script, "set -g $varname")
+	assert.Contains(t, script, "set -g $answer")
+}
+
+func TestFishCodeGenerator_GenerateCompletionFunction_SelfNamedAlias(t *testing.T) {
+	gen := &FishCodeGenerator{}
+
+	// An alias named after the command it wraps, e.g. `kubectl: wrapper kubectl`
+	aliasCommands := map[string]string{"kubectl": "kubectl"}
+	script := strings.Join(gen.GenerateCompletionFunction(aliasCommands), "\n")
+
+	// Wrapping a command in itself says nothing
+	assert.NotContains(t, script, "complete -c kubectl -w kubectl")
+
+	// dirvana still registers, for the case where fish knows nothing about
+	// the command; the coverage probe decides whether it answers
+	assert.Contains(t, script, "complete -c kubectl -a '(__dirvana_complete_fish kubectl)'")
+
+	// File names must go when dirvana is the only source, and stay when fish
+	// answers for the real command - so -f is conditional rather than absent
+	assert.NotContains(t, script, "complete -c kubectl -f\n")
+	assert.Contains(t, script, "complete -c kubectl -f -n '! __dirvana_fish_covers kubectl'")
+
+	// The probe re-enters this provider when it completes the very command it
+	// is asking about. It must claim coverage while running, so the nested
+	// call returns nothing instead of looping - fish aborts such cycles with
+	// "maximum recursion depth, possible cycle?" right under the prompt.
+	probe := script[strings.Index(script, "function __dirvana_fish_covers"):]
+	probe = probe[:strings.Index(probe, "\nend")]
+	assert.Regexp(t, `(?s)set -g \$probing 1.*complete -C"\$cmd --"`, probe,
+		"the re-entrancy marker must be set before probing, not after")
+
+	// An interrupted probe must leave no verdict: the marker is what gets
+	// cleared, and only the outer call ever records an answer
+	assert.Regexp(t, `(?s)complete -C"\$cmd --".*set -e \$probing.*set -g \$answer`, probe,
+		"a verdict recorded before the probe returns would outlive an interrupt")
+	assert.Contains(t, script, "string match '__dirvana_fish_probing_*'",
+		"a marker left by an interrupted probe must be cleared on the next cd")
 }
 
 func TestGenerateHookCode_Fish(t *testing.T) {

@@ -54,6 +54,18 @@ func (f *FishCodeGenerator) GenerateCompletionFunction(aliasCommands map[string]
 	lines = append(lines, strings.Split(fishFunctionTemplate, "\n")...)
 	for _, alias := range sortedKeys(aliasCommands) {
 		cmd := aliasCommands[alias]
+		if cmd == alias {
+			// The alias carries the name of the command it wraps. Whatever
+			// fish knows about that name already applies and wrapping a
+			// command in itself says nothing, so only dirvana is registered.
+			// -f still has to be conditional here: suppressing file names
+			// unconditionally would strip them from the real command, while
+			// leaving them on mixes every file of the directory into the
+			// suggestions dirvana is the sole source of.
+			lines = append(lines, fmt.Sprintf("complete -c %s -f -n '! __dirvana_fish_covers %s'", alias, cmd))
+			lines = append(lines, fmt.Sprintf("complete -c %s -a '(__dirvana_complete_fish %s)'", alias, cmd))
+			continue
+		}
 		// Standalone -f globally disables file completions for this command.
 		// Without this, -w can inherit file completion behavior from the wrapped command.
 		lines = append(lines, fmt.Sprintf("complete -c %s -f", alias))
