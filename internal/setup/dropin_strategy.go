@@ -122,3 +122,9 @@ func (s *DropInStrategy) GetMessage() string {
 func (s *DropInStrategy) GetRCFile() string {
 	return s.rcFile
 }
+
+// HookFile returns the drop-in file, which is where the hook code lives; the
+// RC file is untouched by this strategy.
+func (s *DropInStrategy) HookFile() string {
+	return s.dropInFile
+}

@@ -19,6 +19,9 @@ type InstallStrategy interface {
 	GetMessage() string
 	// GetRCFile returns the RC file path (if applicable)
 	GetRCFile() string
+	// HookFile returns the file holding the hook code itself, which is not
+	// the RC file whenever the strategy keeps it separate.
+	HookFile() string
 }
 
 // Common messages used across strategies
