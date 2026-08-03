@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/NikitaCOEUR/dirvana/internal/status"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -428,4 +432,110 @@ func TestStatus_WithLocalOnly(t *testing.T) {
 	// Should only show child config due to local_only
 	err = Status(params)
 	require.NoError(t, err)
+}
+
+// TestStatus_PlainOnATerminal proves --plain wins over the terminal check: the
+// report is printed and the foldable view never opens, which is what a user
+// piping the output through a pager or copying it wants.
+func TestStatus_PlainOnATerminal(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	require.NoError(t, os.Chdir(tmpDir))
+
+	// Pretend both ends are a terminal; without --plain this would try to take
+	// it over and hang the test
+	original := isTerminal
+	defer func() { isTerminal = original }()
+	isTerminal = func(*os.File) bool { return true }
+
+	err = Status(StatusParams{
+		CachePath: filepath.Join(tmpDir, "cache.json"),
+		AuthPath:  filepath.Join(tmpDir, "auth.json"),
+		Plain:     true,
+	})
+	require.NoError(t, err)
+}
+
+// TestStatus_PlainWhenRedirected covers the default path taken by a pipe, a
+// log or the test suite itself.
+func TestStatus_PlainWhenRedirected(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	require.NoError(t, os.Chdir(tmpDir))
+
+	original := isTerminal
+	defer func() { isTerminal = original }()
+	isTerminal = func(*os.File) bool { return false }
+
+	err = Status(StatusParams{
+		CachePath: filepath.Join(tmpDir, "cache.json"),
+		AuthPath:  filepath.Join(tmpDir, "auth.json"),
+	})
+	require.NoError(t, err)
+}
+
+// TestStatus_DevNullIsNotATerminal pins the check that used to be a mode test:
+// /dev/null has ModeCharDevice set, so `dirvana status > /dev/null` opened the
+// interactive view, drew into the void and hung until interrupted.
+func TestStatus_DevNullIsNotATerminal(t *testing.T) {
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	require.NoError(t, err)
+	defer func() { _ = devNull.Close() }()
+
+	assert.False(t, isTerminal(devNull), "%s must not pass for a terminal", os.DevNull)
+}
+
+// TestStatus_OpensTheFoldableViewOnATerminal covers the branch the other tests
+// deliberately avoid, without a program taking over the terminal.
+func TestStatus_OpensTheFoldableViewOnATerminal(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	require.NoError(t, os.Chdir(tmpDir))
+
+	originalTerminal, originalRun := isTerminal, runInteractive
+	defer func() { isTerminal, runInteractive = originalTerminal, originalRun }()
+
+	isTerminal = func(*os.File) bool { return true }
+	called := false
+	runInteractive = func(data *status.Data, _ io.Reader, _ io.Writer) error {
+		called = true
+		assert.NotNil(t, data)
+		return nil
+	}
+
+	require.NoError(t, Status(StatusParams{
+		CachePath: filepath.Join(tmpDir, "cache.json"),
+		AuthPath:  filepath.Join(tmpDir, "auth.json"),
+	}))
+	assert.True(t, called, "a terminal should get the foldable view")
+}
+
+func TestStatus_ReportsAnInteractiveFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalWd, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() { _ = os.Chdir(originalWd) }()
+	require.NoError(t, os.Chdir(tmpDir))
+
+	originalTerminal, originalRun := isTerminal, runInteractive
+	defer func() { isTerminal, runInteractive = originalTerminal, originalRun }()
+
+	isTerminal = func(*os.File) bool { return true }
+	runInteractive = func(*status.Data, io.Reader, io.Writer) error { return assert.AnError }
+
+	err = Status(StatusParams{
+		CachePath: filepath.Join(tmpDir, "cache.json"),
+		AuthPath:  filepath.Join(tmpDir, "auth.json"),
+	})
+	assert.ErrorIs(t, err, assert.AnError)
 }

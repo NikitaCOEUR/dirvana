@@ -1,6 +1,15 @@
 #!/usr/bin/env fish
 # Fish completions
 
+# A probe interrupted mid-flight (ctrl-c during completion, a slow tool)
+# leaves its re-entrancy marker behind, which would keep dirvana quiet for
+# that command until the shell is restarted. This file is re-sourced on every
+# cd, so clearing them here makes that state recoverable.
+for __dirvana_stale_probe in (set --names | string match '__dirvana_fish_probing_*')
+  set -e $__dirvana_stale_probe
+end
+set -e __dirvana_stale_probe
+
 # __dirvana_fish_covers reports whether fish can already complete a
 # command on its own, so dirvana can stay out of the way.
 #
@@ -14,17 +23,35 @@
 # kept for the session, since it cannot change under a running shell.
 function __dirvana_fish_covers -a cmd
   set -l key (string replace -a -r '[^a-zA-Z0-9_]' _ -- $cmd)
-  set -l varname __dirvana_fish_covers_$key
+  set -l answer __dirvana_fish_covers_$key
+  set -l probing __dirvana_fish_probing_$key
 
-  if not set -q $varname
-    if test (count (complete -C"$cmd --")) -gt 0
-      set -g $varname 1
-    else
-      set -g $varname 0
-    end
+  if set -q $answer
+    test $$answer -eq 1
+    return
   end
 
-  test $$varname -eq 1
+  # `complete -C` below re-enters this very provider whenever an alias carries
+  # the name of the command it wraps (kubectl -> "with-cluster.sh kubectl").
+  # Claiming coverage makes that nested call contribute nothing, so the probe
+  # measures fish's own completions rather than ours - and never spins into
+  # the cycle fish aborts with "maximum recursion depth, possible cycle?".
+  # A nested call records nothing: only the outer one learns the answer, so an
+  # interrupted probe leaves no verdict behind.
+  if set -q $probing
+    return 0
+  end
+
+  set -g $probing 1
+  set -l found (count (complete -C"$cmd --"))
+  set -e $probing
+
+  set -g $answer 0
+  if test $found -gt 0
+    set -g $answer 1
+  end
+
+  test $$answer -eq 1
 end
 
 function __dirvana_complete_fish

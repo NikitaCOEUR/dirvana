@@ -7,6 +7,15 @@ aliases:
     completion: git
   # A tool the shells ship no completions for: only dirvana can complete it
   ut: unpackaged-tool
+  # Aliases named after the command they wrap, the usual shape of a wrapper
+  # script. In fish these make the coverage probe complete the very name it
+  # is registered on, which used to loop.
+  kubectl:
+    command: kubectl
+    completion: kubectl
+  unpackaged-tool:
+    command: unpackaged-tool
+    completion: unpackaged-tool
 
 functions:
   # Simple function with parameters

@@ -86,6 +86,14 @@ eval "$(dirvana export)"
 Shows a full report: detected shell, hook installation, configuration hierarchy,
 authorization state, merged aliases/functions/env and cache contents.
 
+On a terminal it opens a foldable view — `↑↓` to move, `→`/`←` to unfold and
+fold a section, `a` for all of them, `q` to leave. When something stands
+between dirvana and a working shell, a Setup section says so and `⏎` applies
+the fix without leaving the view.
+
+Redirect it and the same report is printed at once, every section unfolded;
+`--plain` forces that on a terminal too.
+
 ### `dirvana clean`
 
 Removes the cache entries of the current directory hierarchy, or everything with `--all`.

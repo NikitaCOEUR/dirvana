@@ -264,3 +264,8 @@ func (s *FishHookStrategy) GetMessage() string {
 func (s *FishHookStrategy) GetRCFile() string {
 	return s.rcFile
 }
+
+// HookFile returns the hook file config.fish sources
+func (s *FishHookStrategy) HookFile() string {
+	return s.hookPath
+}

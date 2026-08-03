@@ -10,12 +10,25 @@ type Data struct {
 	CurrentDir string
 	Version    string
 
-	// System & Installation
+	// System & Installation. Shell is empty when it could not be identified,
+	// which is a different thing from an unsupported one.
 	Shell         string
 	HookInstalled bool
-	RCFile        string
-	CachePath     string
-	AuthPath      string
+	// HookOutdated marks a hook installed by an older release: it still runs,
+	// but its code no longer matches what this binary generates. Which dirvana
+	// it points at is not part of that judgement - see HookBroken.
+	HookOutdated bool
+	// HookBroken means the hook points at a dirvana that is gone, so it fails
+	// silently on every cd.
+	HookBroken bool
+	// HookBinary is the dirvana the installed hook invokes.
+	HookBinary string
+	// HookFile holds the hook code; RCFile is the shell config pulling it in,
+	// and the two differ for every strategy but the inline one.
+	HookFile  string
+	RCFile    string
+	CachePath string
+	AuthPath  string
 
 	// Authorization
 	Authorized   bool

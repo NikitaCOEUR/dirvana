@@ -5,20 +5,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// TestRender_EmptyData tests rendering with minimal data
-func TestRender_EmptyData(t *testing.T) {
-	data := &Data{
+// emptyData returns data with every map and slice initialised, the shape
+// CollectAll always hands over.
+func emptyData() *Data {
+	return &Data{
 		CurrentDir:          "/test/dir",
 		Version:             "1.0.0",
 		Shell:               "bash",
-		HookInstalled:       false,
-		RCFile:              "/home/user/.bashrc",
+		HookInstalled:       true,
 		CachePath:           "/test/cache.json",
 		AuthPath:            "/test/auth.json",
-		HasAnyConfig:        false,
 		Authorized:          true,
 		Aliases:             make(map[string]AliasInfo),
 		Functions:           make([]string, 0),
@@ -29,426 +31,244 @@ func TestRender_EmptyData(t *testing.T) {
 		CompletionScripts:   make([]CompletionScriptInfo, 0),
 		CompletionOverrides: make(map[string]string),
 	}
+}
+
+func TestRender_NoConfig(t *testing.T) {
+	data := emptyData()
 
 	output := Render(data)
 
-	// Verify sections are present
-	assert.Contains(t, output, "Current directory:")
+	assert.Contains(t, output, "dirvana 1.0.0")
 	assert.Contains(t, output, "/test/dir")
-	assert.Contains(t, output, "Version:")
-	assert.Contains(t, output, "1.0.0")
-	assert.Contains(t, output, "System & Installation:")
-	assert.Contains(t, output, "Shell:")
-	assert.Contains(t, output, "bash")
-	assert.Contains(t, output, "Hook:")
-	assert.Contains(t, output, "Not installed")
-	assert.Contains(t, output, "Configuration hierarchy:")
-	assert.Contains(t, output, "No configuration files found")
-	assert.Contains(t, output, "Cache:")
-	assert.Contains(t, output, "Completion:")
+	assert.Contains(t, output, "bash, hook installed")
+	assert.Contains(t, output, "no config here")
 
-	// Authorization section should NOT be present (no config)
-	assert.NotContains(t, output, "Authorization:")
+	// Nothing to say about aliases or configs here, so those sections are not
+	// printed as empty shells
+	assert.NotContains(t, output, "Aliases")
+	assert.NotContains(t, output, "Config\n")
 }
 
-// TestRender_WithUnauthorizedConfig tests rendering with unauthorized config
-func TestRender_WithUnauthorizedConfig(t *testing.T) {
-	data := &Data{
-		CurrentDir:    "/test/dir",
-		Version:       "1.0.0",
-		Shell:         "bash",
-		HookInstalled: true,
-		RCFile:        "/home/user/.bashrc",
-		CachePath:     "/test/cache.json",
-		AuthPath:      "/test/auth.json",
-		HasAnyConfig:  true,
-		Authorized:    false,
-		LocalConfigs: []FileInfo{
-			{
-				Path:       "/test/dir/.dirvana.yml",
-				Loaded:     false,
-				Authorized: false,
-				LocalOnly:  false,
-			},
-		},
-		Aliases:             make(map[string]AliasInfo),
-		Functions:           make([]string, 0),
-		EnvStatic:           make(map[string]string),
-		EnvShell:            make(map[string]EnvShellInfo),
-		Flags:               make([]string, 0),
-		CompletionScripts:   make([]CompletionScriptInfo, 0),
-		CompletionOverrides: make(map[string]string),
-	}
+func TestRender_UnauthorizedConfig(t *testing.T) {
+	data := emptyData()
+	data.HasAnyConfig = true
+	data.Authorized = false
+	data.LocalConfigs = []FileInfo{{Path: "/test/dir/.dirvana.yml"}}
 
 	output := Render(data)
 
-	// Authorization section SHOULD be present
-	assert.Contains(t, output, "Authorization:")
-	assert.Contains(t, output, "Not authorized")
-	assert.Contains(t, output, "Run 'dirvana allow")
-
-	// Hook should show as installed
-	assert.Contains(t, output, "Installed")
-
-	// Config should show as not authorized
-	assert.Contains(t, output, "/test/dir/.dirvana.yml")
 	assert.Contains(t, output, "not authorized")
-}
-
-// TestRender_WithAuthorizedConfig tests rendering with authorized config and content
-func TestRender_WithAuthorizedConfig(t *testing.T) {
-	data := &Data{
-		CurrentDir:    "/test/dir",
-		Version:       "1.0.0",
-		Shell:         "zsh",
-		HookInstalled: true,
-		RCFile:        "/home/user/.zshrc",
-		CachePath:     "/test/cache.json",
-		AuthPath:      "/test/auth.json",
-		HasAnyConfig:  true,
-		Authorized:    true,
-		LocalConfigs: []FileInfo{
-			{
-				Path:       "/test/dir/.dirvana.yml",
-				Loaded:     true,
-				Authorized: true,
-				LocalOnly:  false,
-			},
-		},
-		Aliases: map[string]AliasInfo{
-			"gs": {Command: "git status"},
-			"k":  {Command: "kubectl"},
-		},
-		Functions: []string{"greet", "mkcd"},
-		EnvStatic: map[string]string{
-			"PROJECT_NAME": "dirvana",
-			"BUILD_DIR":    "./build",
-		},
-		EnvShell: map[string]EnvShellInfo{
-			"GIT_BRANCH": {
-				Command:  "git branch --show-current",
-				Approved: true,
-			},
-		},
-		Flags:               []string{"local_only"},
-		CompletionScripts:   make([]CompletionScriptInfo, 0),
-		CompletionOverrides: make(map[string]string),
-	}
-
-	output := Render(data)
-
-	// Authorization
-	assert.Contains(t, output, "Authorization:")
-	assert.Contains(t, output, "Authorized")
-	assert.NotContains(t, output, "Run 'dirvana allow")
-
-	// Config
 	assert.Contains(t, output, "/test/dir/.dirvana.yml")
-	assert.NotContains(t, output, "not authorized")
+	// The way out has to be on screen, not in the docs
+	assert.Contains(t, output, "dirvana allow /test/dir")
+}
 
-	// Aliases
-	assert.Contains(t, output, "Aliases:")
-	assert.Contains(t, output, "gs")
+func TestRender_OutdatedHook(t *testing.T) {
+	data := emptyData()
+	data.Shell = "fish"
+	data.HookOutdated = true
+	data.RCFile = "/home/user/.config/fish/config.fish"
+
+	output := Render(data)
+
+	assert.Contains(t, output, "fish, hook outdated")
+	assert.Contains(t, output, "dirvana setup fish")
+}
+
+func TestRender_MissingHook(t *testing.T) {
+	data := emptyData()
+	data.Shell = "zsh"
+	data.HookInstalled = false
+
+	output := Render(data)
+
+	assert.Contains(t, output, "zsh, hook not installed")
+	// Nothing else in the output matters if the hook never runs
+	assert.Contains(t, output, "dirvana setup zsh")
+}
+
+func TestRender_UndetectedShell(t *testing.T) {
+	data := emptyData()
+	data.Shell = ""
+
+	// Reporting bash when nothing was detected is what made status claim a
+	// missing hook under fish
+	assert.Contains(t, Render(data), "shell not detected")
+}
+
+func TestRender_FullConfig(t *testing.T) {
+	data := emptyData()
+	data.HasAnyConfig = true
+	data.Shell = "zsh"
+	data.LocalConfigs = []FileInfo{{Path: "/test/dir/.dirvana.yml", Loaded: true, Authorized: true}}
+	data.GlobalConfig = &GlobalInfo{Path: "/home/user/config.yml", Exists: true, Loaded: true}
+	data.Aliases = map[string]AliasInfo{
+		"gs": {Command: "git status"},
+		"k":  {Command: "wrapper kubectl"},
+	}
+	data.CompletionOverrides = map[string]string{"k": "kubectl"}
+	data.Functions = []string{"mkcd", "greet"}
+	data.EnvStatic = map[string]string{"PROJECT": "dirvana"}
+	data.EnvShell = map[string]EnvShellInfo{"BRANCH": {Command: "git branch --show-current"}}
+	data.Flags = []string{"local_only"}
+	data.CacheTotalEntries = 5
+	data.CacheFileSize = 4096
+	data.CacheValid = true
+	data.CacheUpdated = time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	output := Render(data)
+
 	assert.Contains(t, output, "git status")
-	assert.Contains(t, output, "k")
-	assert.Contains(t, output, "kubectl")
+	// The completion an alias resolves to belongs next to the alias, not in a
+	// separate section further down
+	assert.Regexp(t, `k\s+wrapper kubectl\s+⇥ kubectl`, output)
 
-	// Functions
-	assert.Contains(t, output, "Functions:")
 	assert.Contains(t, output, "greet()")
-	assert.Contains(t, output, "mkcd()")
-
-	// Environment variables
-	assert.Contains(t, output, "Environment variables:")
-	assert.Contains(t, output, "Static:")
-	assert.Contains(t, output, "PROJECT_NAME")
-	assert.Contains(t, output, "dirvana")
-	assert.Contains(t, output, "Dynamic (shell):")
-	assert.Contains(t, output, "GIT_BRANCH")
-	assert.Contains(t, output, "git branch --show-current")
-	assert.Contains(t, output, "approved")
-
-	// Flags
-	assert.Contains(t, output, "Flags:")
+	assert.Contains(t, output, "PROJECT")
+	assert.Contains(t, output, "$(git branch --show-current)")
+	assert.Contains(t, output, "not approved")
 	assert.Contains(t, output, "local_only")
+	assert.Contains(t, output, "4.0 KB")
+	assert.Contains(t, output, "2024-01-01 12:00")
 }
 
-// TestRender_WithConditionalAliases tests rendering with conditional aliases
-func TestRender_WithConditionalAliases(t *testing.T) {
-	data := &Data{
-		CurrentDir:    "/test/dir",
-		Version:       "1.0.0",
-		Shell:         "bash",
-		HookInstalled: true,
-		RCFile:        "/home/user/.bashrc",
-		CachePath:     "/test/cache.json",
-		AuthPath:      "/test/auth.json",
-		HasAnyConfig:  true,
-		Authorized:    true,
-		LocalConfigs: []FileInfo{
-			{
-				Path:       "/test/dir/.dirvana.yml",
-				Loaded:     true,
-				Authorized: true,
-				LocalOnly:  false,
-			},
-		},
-		Aliases: map[string]AliasInfo{
-			"simple": {
-				Command: "echo simple",
-				HasWhen: false,
-			},
-			"k": {
-				Command:     "kubectl",
-				HasWhen:     true,
-				WhenSummary: "var:KUBECONFIG + file:$KUBECONFIG",
-				Else:        "echo 'Error: KUBECONFIG not set'",
-			},
-			"dev": {
-				Command:     "npm run dev",
-				HasWhen:     true,
-				WhenSummary: "file:package.json",
-				Else:        "echo 'Error: package.json not found'",
-			},
-			"prod": {
-				Command:     "npm run prod",
-				HasWhen:     true,
-				WhenSummary: "all(file:package.json, var:NODE_ENV)",
-				Else:        "",
-			},
-		},
-		Functions:           make([]string, 0),
-		EnvStatic:           make(map[string]string),
-		EnvShell:            make(map[string]EnvShellInfo),
-		Flags:               make([]string, 0),
-		CompletionScripts:   make([]CompletionScriptInfo, 0),
-		CompletionOverrides: make(map[string]string),
+func TestRender_SortsEverything(t *testing.T) {
+	data := emptyData()
+	data.HasAnyConfig = true
+	data.Aliases = map[string]AliasInfo{
+		"zeta": {Command: "z"}, "alpha": {Command: "a"}, "mid": {Command: "m"},
 	}
+	data.Functions = []string{"zfunc", "afunc"}
+	data.EnvStatic = map[string]string{"ZVAR": "z", "AVAR": "a"}
+
+	// Map iteration order is random: rendering twice used to give two
+	// different listings, which makes the output impossible to diff
+	first := Render(data)
+	for range 10 {
+		assert.Equal(t, first, Render(data))
+	}
+
+	assert.Less(t, strings.Index(first, "alpha"), strings.Index(first, "mid"))
+	assert.Less(t, strings.Index(first, "mid"), strings.Index(first, "zeta"))
+	assert.Less(t, strings.Index(first, "afunc"), strings.Index(first, "zfunc"))
+	assert.Less(t, strings.Index(first, "AVAR"), strings.Index(first, "ZVAR"))
+}
+
+func TestRender_PathsAreListedOnce(t *testing.T) {
+	data := emptyData()
 
 	output := Render(data)
 
-	// Aliases section
-	assert.Contains(t, output, "Aliases:")
-
-	// Simple alias without condition
-	assert.Contains(t, output, "simple")
-	assert.Contains(t, output, "echo simple")
-
-	// Conditional alias with when and else
-	assert.Contains(t, output, "k")
-	assert.Contains(t, output, "kubectl")
-	assert.Contains(t, output, "when:")
-	assert.Contains(t, output, "var:KUBECONFIG + file:$KUBECONFIG")
-	assert.Contains(t, output, "else:")
-	assert.Contains(t, output, "echo 'Error: KUBECONFIG not set'")
-
-	// Conditional alias with file condition
-	assert.Contains(t, output, "dev")
-	assert.Contains(t, output, "npm run dev")
-	assert.Contains(t, output, "file:package.json")
-	assert.Contains(t, output, "echo 'Error: package.json not found'")
-
-	// Conditional alias with composite condition (all) and no else
-	assert.Contains(t, output, "prod")
-	assert.Contains(t, output, "npm run prod")
-	assert.Contains(t, output, "all(file:package.json, var:NODE_ENV)")
-
-	// Verify the "when:" label appears multiple times (once for each conditional alias)
-	whenCount := strings.Count(output, "when:")
-	assert.Equal(t, 3, whenCount, "Should have 3 conditional aliases with 'when:'")
-
-	// Verify the "else:" label appears for aliases with else (k and dev)
-	elseCount := strings.Count(output, "else:")
-	assert.Equal(t, 2, elseCount, "Should have 2 aliases with 'else:'")
+	// The cache path used to be printed by two different sections
+	assert.Equal(t, 1, strings.Count(output, "/test/cache.json"))
 }
 
-// TestRender_WithGlobalConfig tests rendering with global and local configs
-func TestRender_WithGlobalConfig(t *testing.T) {
-	data := &Data{
-		CurrentDir:    "/test/dir",
-		Version:       "1.0.0",
-		Shell:         "bash",
-		HookInstalled: true,
-		CachePath:     "/test/cache.json",
-		AuthPath:      "/test/auth.json",
-		HasAnyConfig:  true,
-		Authorized:    true,
-		GlobalConfig: &GlobalInfo{
-			Path:   "/home/user/.config/dirvana/config.yaml",
-			Exists: true,
-			Loaded: true,
-		},
-		LocalConfigs: []FileInfo{
-			{
-				Path:       "/test/dir/.dirvana.yml",
-				Loaded:     true,
-				Authorized: true,
-				LocalOnly:  false,
-			},
-		},
-		Aliases:             make(map[string]AliasInfo),
-		Functions:           make([]string, 0),
-		EnvStatic:           make(map[string]string),
-		EnvShell:            make(map[string]EnvShellInfo),
-		Flags:               make([]string, 0),
-		CompletionScripts:   make([]CompletionScriptInfo, 0),
-		CompletionOverrides: make(map[string]string),
+func TestRenderRows_AlignsColumns(t *testing.T) {
+	rows := []Row{
+		{Key: "k", Value: "kubectl", Note: "⇥ kubectl"},
+		{Key: "terraform", Value: "task terraform --", Note: "⇥ terraform"},
+		{Key: "gs", Value: "git status"},
 	}
 
-	output := Render(data)
+	lines := RenderRows(rows, 0)
+	require.Len(t, lines, 3)
 
-	// Global config should appear first
-	assert.Contains(t, output, "/home/user/.config/dirvana/config.yaml")
-	assert.Contains(t, output, "(global)")
+	// Values start at the same column whatever the key length
+	assert.Equal(t, strings.Index(lines[0], "kubectl"), strings.Index(lines[1], "task"))
+	// And so do the notes, past the longest value
+	assert.Equal(t, strings.Index(lines[0], "⇥"), strings.Index(lines[1], "⇥"))
+}
 
-	// Local config should appear after
-	lines := strings.Split(output, "\n")
-	globalIdx := -1
-	localIdx := -1
-	for i, line := range lines {
-		if strings.Contains(line, "(global)") {
-			globalIdx = i
-		}
-		if strings.Contains(line, "/test/dir/.dirvana.yml") {
-			localIdx = i
+func TestRenderRows_DetailRowsAreIndented(t *testing.T) {
+	rows := []Row{
+		{Key: "k", Value: "kubectl"},
+		{Value: "when var:KUBECONFIG", Detail: true},
+	}
+
+	lines := RenderRows(rows, 0)
+
+	assert.Greater(t, indentOf(lines[1]), indentOf(lines[0]),
+		"a condition belongs under the alias it qualifies")
+}
+
+func TestRenderRows_ShortensToWidth(t *testing.T) {
+	rows := []Row{{Key: "k", Value: strings.Repeat("x", 200), Note: "⇥ kubectl"}}
+
+	line := RenderRows(rows, 40)[0]
+
+	assert.LessOrEqual(t, len([]rune(stripANSI(line))), 40)
+	// The note is what says where a completion comes from; it must survive the
+	// value being cut
+	assert.Contains(t, line, "⇥ kubectl")
+	assert.Contains(t, line, "…")
+}
+
+// TestRenderRows_NeverExceedsWidth is the property the whole layout rests on:
+// the TUI counts one screen line per row, so a row that overflows wraps and
+// pushes the footer out of view. Honouring only the note column let a long key
+// blow past the right edge.
+func TestRenderRows_NeverExceedsWidth(t *testing.T) {
+	rows := []Row{
+		{Key: strings.Repeat("K", 44), Value: strings.Repeat("v", 41), Note: "not approved"},
+		{Key: "short", Value: strings.Repeat("v", 200), Note: "⇥ kubectl"},
+		{Key: strings.Repeat("K", 60), Value: "x"},
+		{Value: strings.Repeat("d", 120), Detail: true},
+		{Key: strings.Repeat("K", 30)},
+	}
+
+	for _, width := range []int{20, 37, 50, 80, 120} {
+		for i, line := range RenderRows(rows, width) {
+			assert.LessOrEqual(t, lipgloss.Width(stripANSI(line)), width,
+				"row %d overflows at width %d: %q", i, width, stripANSI(line))
 		}
 	}
-	assert.True(t, globalIdx < localIdx, "Global config should appear before local config")
 }
 
-// TestRender_WithCache tests rendering with cache information
-func TestRender_WithCache(t *testing.T) {
-	cacheUpdated := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	data := &Data{
-		CurrentDir:    "/test/dir",
-		Version:       "1.0.0",
-		Shell:         "bash",
-		HookInstalled: true,
-		CachePath:     "/test/cache.json",
-		AuthPath:      "/test/auth.json",
-		HasAnyConfig:  true,
-		Authorized:    true,
-		LocalConfigs: []FileInfo{
-			{
-				Path:       "/test/dir/.dirvana.yml",
-				Loaded:     true,
-				Authorized: true,
-				LocalOnly:  false,
-			},
-		},
-		CacheFileSize:       4096,
-		CacheTotalEntries:   5,
-		CacheValid:          true,
-		CacheUpdated:        cacheUpdated,
-		CacheLocalOnly:      false,
-		Aliases:             make(map[string]AliasInfo),
-		Functions:           make([]string, 0),
-		EnvStatic:           make(map[string]string),
-		EnvShell:            make(map[string]EnvShellInfo),
-		Flags:               make([]string, 0),
-		CompletionScripts:   make([]CompletionScriptInfo, 0),
-		CompletionOverrides: make(map[string]string),
+func TestRenderRows_KeepsTheNoteWhenSpaceIsTight(t *testing.T) {
+	rows := []Row{{Key: "KUBECONFIG", Value: strings.Repeat("v", 80), Note: "not approved"}}
+
+	line := stripANSI(RenderRows(rows, 40)[0])
+
+	// The note is the actionable half of the row; the value is what gives way
+	assert.Contains(t, line, "not approved")
+	assert.LessOrEqual(t, lipgloss.Width(line), 40)
+}
+
+func TestTruncate_NeverGrowsPastWidth(t *testing.T) {
+	for _, s := range []string{"abc", "élan vital", "日本語のテキスト", strings.Repeat("x", 50)} {
+		for width := range 12 {
+			assert.LessOrEqual(t, lipgloss.Width(truncate(s, width)), width,
+				"truncate(%q, %d)", s, width)
+		}
+	}
+}
+
+func TestRenderRows_NoNotesNoPadding(t *testing.T) {
+	rows := []Row{{Key: "a", Value: "one"}, {Key: "b", Value: "two"}}
+
+	for _, line := range RenderRows(rows, 0) {
+		assert.Equal(t, line, strings.TrimRight(line, " "), "no trailing padding without notes")
+	}
+}
+
+func TestTruncate(t *testing.T) {
+	tests := []struct {
+		input    string
+		width    int
+		expected string
+	}{
+		{"short", 10, "short"},
+		{"exactly-ten", 11, "exactly-ten"},
+		{"truncate me please", 10, "truncate…"},
+		{"abc", 1, "…"},
+		{"élan vital", 5, "élan…"},
 	}
 
-	output := Render(data)
-
-	// Cache section
-	assert.Contains(t, output, "Cache:")
-	assert.Contains(t, output, "/test/cache.json")
-	assert.Contains(t, output, "4.0 KB")
-	assert.Contains(t, output, "Total entries:")
-	assert.Contains(t, output, "5")
-
-	// Current directory cache (since HasAnyConfig = true)
-	assert.Contains(t, output, "Current directory:")
-	assert.Contains(t, output, "Valid")
-	assert.Contains(t, output, "2024-01-01")
-}
-
-// TestRender_WithCompletion tests rendering with completion information
-func TestRender_WithCompletion(t *testing.T) {
-	data := &Data{
-		CurrentDir:    "/test/dir",
-		Version:       "1.0.0",
-		Shell:         "bash",
-		HookInstalled: true,
-		CachePath:     "/test/cache.json",
-		AuthPath:      "/test/auth.json",
-		HasAnyConfig:  false,
-		Authorized:    true,
-		CompletionDetection: &CompletionDetectionInfo{
-			Path: "/test/detection.json",
-			Size: 1024,
-			Commands: map[string]string{
-				"kubectl": "Cobra",
-				"helm":    "Cobra",
-				"go":      "Flag",
-				"custom":  "Script",
-			},
-		},
-		CompletionRegistry: &CompletionRegistryInfo{
-			Path:       "/test/registry.yaml",
-			Size:       2048,
-			ToolsCount: 10,
-		},
-		CompletionScripts: []CompletionScriptInfo{
-			{Tool: "kubectl", Path: "/test/scripts/kubectl.sh", Size: 4096},
-			{Tool: "helm", Path: "/test/scripts/helm.sh", Size: 3072},
-		},
-		CompletionOverrides: map[string]string{
-			"k": "kubectl",
-		},
-		Aliases:      make(map[string]AliasInfo),
-		Functions:    make([]string, 0),
-		EnvStatic:    make(map[string]string),
-		EnvShell:     make(map[string]EnvShellInfo),
-		Flags:        make([]string, 0),
-		LocalConfigs: make([]FileInfo, 0),
+	for _, tt := range tests {
+		assert.Equal(t, tt.expected, truncate(tt.input, tt.width), "truncate(%q, %d)", tt.input, tt.width)
 	}
-
-	output := Render(data)
-
-	// Completion section
-	assert.Contains(t, output, "Completion:")
-
-	// Detection cache
-	assert.Contains(t, output, "Detection cache:")
-	assert.Contains(t, output, "/test/detection.json")
-	assert.Contains(t, output, "1.0 KB")
-	assert.Contains(t, output, "Detected commands:")
-	assert.Contains(t, output, "4")
-
-	// Sources
-	assert.Contains(t, output, "Sources:")
-	assert.Contains(t, output, "Cobra")
-	assert.Contains(t, output, "kubectl")
-	assert.Contains(t, output, "helm")
-	assert.Contains(t, output, "Flag")
-	assert.Contains(t, output, "go")
-	assert.Contains(t, output, "Script")
-	assert.Contains(t, output, "custom")
-
-	// Registry
-	assert.Contains(t, output, "Registry:")
-	assert.Contains(t, output, "/test/registry.yaml")
-	assert.Contains(t, output, "2.0 KB")
-	assert.Contains(t, output, "Tools available:")
-	assert.Contains(t, output, "10")
-
-	// Downloaded scripts
-	assert.Contains(t, output, "Downloaded scripts:")
-	assert.Contains(t, output, "kubectl")
-	assert.Contains(t, output, "4.0 KB")
-	assert.Contains(t, output, "helm")
-	assert.Contains(t, output, "3.0 KB")
-
-	// Completion overrides
-	assert.Contains(t, output, "Completion overrides:")
-	assert.Contains(t, output, "k")
-	assert.Contains(t, output, "kubectl")
 }
 
-// TestFormatBytes tests byte formatting
 func TestFormatBytes(t *testing.T) {
 	tests := []struct {
 		input    int64
@@ -463,27 +283,26 @@ func TestFormatBytes(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result := formatBytes(tt.input)
-		assert.Equal(t, tt.expected, result, "formatBytes(%d)", tt.input)
+		assert.Equal(t, tt.expected, formatBytes(tt.input), "formatBytes(%d)", tt.input)
 	}
 }
 
-// TestTruncateString tests string truncation
-func TestTruncateString(t *testing.T) {
-	tests := []struct {
-		input    string
-		maxLen   int
-		expected string
-	}{
-		{"short", 10, "short"},
-		{"exactly ten ch", 14, "exactly ten ch"},
-		{"this is a very long string that needs truncation", 20, "this is a very lo..."},
-		{"abc", 3, "abc"},
-		{"abcd", 3, "..."},
-	}
+// indentOf counts the leading spaces of a rendered line, escapes aside.
+func indentOf(line string) int {
+	return len(line) - len(strings.TrimLeft(stripANSI(line), " "))
+}
 
-	for _, tt := range tests {
-		result := truncateString(tt.input, tt.maxLen)
-		assert.Equal(t, tt.expected, result, "truncateString(%q, %d)", tt.input, tt.maxLen)
+// stripANSI removes escape sequences so tests can measure visible text.
+func stripANSI(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\x1b' {
+			for i < len(s) && s[i] != 'm' {
+				i++
+			}
+			continue
+		}
+		b.WriteByte(s[i])
 	}
+	return b.String()
 }

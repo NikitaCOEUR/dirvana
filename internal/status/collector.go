@@ -2,16 +2,15 @@
 package status
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/NikitaCOEUR/dirvana/internal/auth"
 	"github.com/NikitaCOEUR/dirvana/internal/cache"
 	"github.com/NikitaCOEUR/dirvana/internal/completion"
 	"github.com/NikitaCOEUR/dirvana/internal/config"
+	"github.com/NikitaCOEUR/dirvana/internal/setup"
 	shellpkg "github.com/NikitaCOEUR/dirvana/internal/shell"
 	"github.com/NikitaCOEUR/dirvana/pkg/version"
 )
@@ -104,67 +103,28 @@ func CollectAll(cachePath, authPath string) (*Data, error) {
 }
 
 func collectSystemInfo(data *Data) {
-	// Detect current shell
-	sh := os.Getenv("SHELL")
-	shellName := "unknown"
-	if strings.Contains(sh, shellpkg.Bash) {
-		shellName = shellpkg.Bash
-	} else if strings.Contains(sh, shellpkg.Zsh) {
-		shellName = shellpkg.Zsh
-	}
-	data.Shell = shellName
-
-	// Check if hook is installed
-	hookInstalled := false
-	rcFile := ""
-	if shellName == shellpkg.Bash || shellName == shellpkg.Zsh {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			switch shellName {
-			case shellpkg.Bash:
-				rcFile = filepath.Join(home, ".bashrc")
-			case shellpkg.Zsh:
-				rcFile = filepath.Join(home, ".zshrc")
-			}
-
-			if rcFile != "" {
-				hookInstalled = checkRCFileForHook(rcFile)
-			}
-		}
+	// Same detection the rest of dirvana uses, so status cannot disagree with
+	// the hook about which shell is running. DetectRaw leaves the answer empty
+	// rather than falling back to bash, which is what we want to report here.
+	data.Shell = shellpkg.DetectRaw("auto")
+	if data.Shell == "" {
+		return
 	}
 
-	data.HookInstalled = hookInstalled
-	data.RCFile = rcFile
-}
-
-// checkRCFileForHook scans RC file line by line for hook patterns (optimized)
-func checkRCFileForHook(rcFile string) bool {
-	file, err := os.Open(rcFile)
+	// Ask the installer itself: it knows where each shell keeps its hook,
+	// whichever way it was installed, and whether that hook still matches
+	// this dirvana.
+	hook, err := setup.InspectHook(data.Shell)
 	if err != nil {
-		return false
-	}
-	defer func() { _ = file.Close() }()
-
-	// Hook patterns to search for
-	patterns := []string{
-		"# Dirvana",
-		"hook-bash.sh",
-		"hook-zsh.sh",
-		"dirvana export",
+		return
 	}
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		// Check each pattern
-		for _, pattern := range patterns {
-			if strings.Contains(line, pattern) {
-				return true
-			}
-		}
-	}
-
-	return false
+	data.RCFile = hook.RCFile
+	data.HookFile = hook.File
+	data.HookInstalled = hook.Installed
+	data.HookOutdated = hook.Outdated
+	data.HookBroken = hook.Broken
+	data.HookBinary = hook.BinaryPath
 }
 
 func collectCacheInfo(data *Data, cacheObj *cache.Cache, currentDir string) {

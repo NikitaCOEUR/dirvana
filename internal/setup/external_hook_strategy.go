@@ -186,3 +186,8 @@ func (s *ExternalHookStrategy) GetMessage() string {
 func (s *ExternalHookStrategy) GetRCFile() string {
 	return s.rcFile
 }
+
+// HookFile returns the external hook file the RC file sources
+func (s *ExternalHookStrategy) HookFile() string {
+	return s.hookPath
+}

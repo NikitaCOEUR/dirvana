@@ -5,360 +5,272 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
+)
+
+const (
+	// rowIndent is the left margin of every row under a section title.
+	rowIndent = 3
+	// detailIndent lines continuation rows up past their parent's key.
+	detailIndent = 6
+	// colGap separates the key, value and note columns.
+	colGap = 2
 )
 
 var (
-	// Colors and styles
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("12"))
+	headerBox = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			Padding(0, 1)
 
-	sectionStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("14"))
+	versionStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
+	dirStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+	sectionStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
+	keyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+	valueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 
-	keyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
-
-	valueStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("15"))
-
-	successStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("10"))
-
-	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("9"))
-
-	warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("11"))
-
-	subtleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241"))
+	toneStyles = map[Tone]lipgloss.Style{
+		ToneNeutral: lipgloss.NewStyle(),
+		ToneMuted:   lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
+		ToneOK:      lipgloss.NewStyle().Foreground(lipgloss.Color("10")),
+		ToneWarn:    lipgloss.NewStyle().Foreground(lipgloss.Color("11")),
+		ToneError:   lipgloss.NewStyle().Foreground(lipgloss.Color("9")),
+	}
 )
 
-// Render renders the status data to a string
+// Render writes the whole status as plain scrolling output, every section
+// unfolded. This is what non-interactive callers get: a pipe, a CI log, or
+// `dirvana status --plain`.
 func Render(data *Data) string {
 	var b strings.Builder
 
-	// Header
-	b.WriteString(renderHeader(data))
+	b.WriteString(RenderHeader(BuildHeader(data)))
 	b.WriteString("\n")
 
-	// System & Installation
-	b.WriteString(renderSystemInfo(data))
-	b.WriteString("\n")
-
-	// Authorization (only if there are configs)
-	if data.HasAnyConfig {
-		b.WriteString(renderAuthInfo(data))
+	for _, section := range BuildSections(data) {
 		b.WriteString("\n")
-	}
-
-	// Configuration hierarchy
-	b.WriteString(renderConfigHierarchy(data))
-	b.WriteString("\n")
-
-	// Aliases
-	if len(data.Aliases) > 0 {
-		b.WriteString(renderAliases(data))
+		b.WriteString(RenderSectionTitle(section, ""))
 		b.WriteString("\n")
-	}
-
-	// Functions
-	if len(data.Functions) > 0 {
-		b.WriteString(renderFunctions(data))
-		b.WriteString("\n")
-	}
-
-	// Environment variables
-	if len(data.EnvStatic) > 0 || len(data.EnvShell) > 0 {
-		b.WriteString(renderEnvVars(data))
-		b.WriteString("\n")
-	}
-
-	// Flags
-	if len(data.Flags) > 0 {
-		b.WriteString(renderFlags(data))
-		b.WriteString("\n")
-	}
-
-	// Cache
-	b.WriteString(renderCacheInfo(data))
-	b.WriteString("\n")
-
-	// Completion
-	b.WriteString(renderCompletionInfo(data))
-
-	return b.String()
-}
-
-func renderHeader(data *Data) string {
-	var b strings.Builder
-	b.WriteString(titleStyle.Render("📂 Current directory: ") + valueStyle.Render(data.CurrentDir) + "\n")
-	b.WriteString(titleStyle.Render("📦 Version: ") + valueStyle.Render(data.Version))
-	return b.String()
-}
-
-func renderSystemInfo(data *Data) string {
-	var b strings.Builder
-	b.WriteString(sectionStyle.Render("⚙️  System & Installation:") + "\n")
-
-	b.WriteString("   " + keyStyle.Render("Shell: ") + valueStyle.Render(data.Shell) + "\n")
-
-	if data.HookInstalled {
-		b.WriteString("   " + keyStyle.Render("Hook: ") + successStyle.Render("✓ Installed") + "\n")
-		if data.RCFile != "" {
-			b.WriteString("   " + keyStyle.Render("RC file: ") + subtleStyle.Render(data.RCFile) + "\n")
+		for _, line := range RenderRows(section.Rows, 0) {
+			b.WriteString(line + "\n")
 		}
+	}
+
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// RenderHeader frames what dirvana is and where it is looking, over the state
+// worth knowing before reading any section.
+func RenderHeader(h Header) string {
+	var b strings.Builder
+	b.WriteString(versionStyle.Render("dirvana " + h.Version))
+	b.WriteString("  ")
+	b.WriteString(dirStyle.Render(h.Dir))
+
+	if len(h.Chips) > 0 {
+		parts := make([]string, 0, len(h.Chips))
+		for _, chip := range h.Chips {
+			parts = append(parts, toneStyles[chip.Tone].Render(chip.Text))
+		}
+		b.WriteString("\n")
+		b.WriteString(strings.Join(parts, toneStyles[ToneMuted].Render(" · ")))
+	}
+
+	return headerBox.Render(b.String())
+}
+
+// RenderSectionTitle renders a section's heading. marker is prepended as-is,
+// which is how the interactive view shows whether a section is folded.
+func RenderSectionTitle(section Section, marker string) string {
+	title := sectionStyle.Render(section.Icon + "  " + section.Title)
+	if section.Summary != "" {
+		title += "  " + toneStyles[ToneMuted].Render(section.Summary)
+	}
+	return marker + title
+}
+
+// RenderRows lays rows out in aligned columns: keys padded to a common width,
+// notes pinned to a common column past the longest value.
+//
+// width is the space available; pass 0 to let the rows size themselves, which
+// keeps the output identical whatever terminal produced it - what a pipe or a
+// test wants. A positive width shortens values that would not fit.
+func RenderRows(rows []Row, width int) []string {
+	l := layout{width: width, noteWidth: widestNote(rows)}
+	l.keyWidth, l.noteColumn = measureRows(rows)
+
+	if width > 0 {
+		// Notes carry the actionable half of a row - "not approved", the
+		// completion a command resolves to - so they are the last to give way
+		l.noteWidth = min(l.noteWidth, max(width-rowIndent, 0))
+
+		// Then the key column, so that a long key cannot push the line past
+		// the right edge on its own
+		if l.keyWidth > 0 {
+			l.keyWidth = max(min(l.keyWidth, width-rowIndent-colGap-l.noteWidth), 1)
+		}
+
+		// Pull the notes in when the terminal cannot hold the natural layout
+		l.noteColumn = min(l.noteColumn, width-l.noteWidth)
+	}
+
+	lines := make([]string, 0, len(rows))
+	for _, row := range rows {
+		lines = append(lines, renderRow(row, l))
+	}
+	return lines
+}
+
+// layout is the column geometry shared by every row of a section.
+type layout struct {
+	keyWidth   int
+	noteColumn int
+	// noteWidth is what the note column takes, its leading gap included, and
+	// 0 when no row carries a note.
+	noteWidth int
+	// width is the space available, or 0 to let the rows size themselves.
+	width int
+}
+
+// renderRow assembles one line. Widths are measured on the plain text and the
+// styles applied per segment, so a truncation never lands inside an escape
+// sequence.
+func renderRow(row Row, l layout) string {
+	tone := toneStyles[row.Tone]
+
+	if row.Detail {
+		value := row.Value
+		if l.width > 0 {
+			value = truncate(value, l.width-detailIndent)
+		}
+		return strings.Repeat(" ", detailIndent) + tone.Render(value)
+	}
+
+	var b strings.Builder
+	col := rowIndent
+	b.WriteString(strings.Repeat(" ", rowIndent))
+
+	if l.keyWidth > 0 {
+		key := truncate(row.Key, l.keyWidth)
+		// Nothing follows, so nothing to line up against
+		if row.Value == "" && row.Note == "" {
+			return b.String() + keyStyle.Render(key)
+		}
+		b.WriteString(keyStyle.Render(pad(key, l.keyWidth)))
+		b.WriteString(strings.Repeat(" ", colGap))
+		col += l.keyWidth + colGap
+	}
+
+	note := row.Note
+	if l.width > 0 && note != "" {
+		note = truncate(note, l.noteWidth-colGap)
+	}
+
+	// How much room the value has: it must clear the note column, and it must
+	// clear the right edge. Both constraints apply - honouring only the note
+	// column let a long key push the line past the terminal width.
+	limited, room := false, 0
+	if note != "" && l.noteColumn > 0 {
+		limited, room = true, l.noteColumn-col-colGap
+	}
+	if l.width > 0 {
+		if edge := l.width - col - widthOf(note, colGap); !limited || edge < room {
+			limited, room = true, edge
+		}
+	}
+	value := row.Value
+	if limited {
+		value = truncate(value, max(room, 0))
+	}
+
+	// The value carries the row's tone when there is no note to carry it
+	if note == "" && row.Tone != ToneNeutral {
+		b.WriteString(tone.Render(value))
 	} else {
-		b.WriteString("   " + keyStyle.Render("Hook: ") + errorStyle.Render("✗ Not installed") + "\n")
-		if data.Shell != "unknown" {
-			b.WriteString("   " + warningStyle.Render(fmt.Sprintf("Run 'dirvana setup %s' to install", data.Shell)) + "\n")
-		}
+		b.WriteString(valueStyle.Render(value))
+	}
+	col += lipgloss.Width(value)
+
+	if note != "" {
+		padding := max(l.noteColumn-col, colGap)
+		b.WriteString(strings.Repeat(" ", padding))
+		b.WriteString(tone.Render(note))
 	}
 
-	b.WriteString("   " + keyStyle.Render("Cache path: ") + subtleStyle.Render(data.CachePath) + "\n")
-	b.WriteString("   " + keyStyle.Render("Auth path: ") + subtleStyle.Render(data.AuthPath))
-
-	return b.String()
+	line := b.String()
+	if l.width > 0 {
+		// Last resort: too narrow for any arrangement to fit. Cutting here is
+		// ANSI-aware, so it can never land inside an escape sequence.
+		line = ansi.Truncate(line, l.width, "")
+	}
+	return line
 }
 
-func renderAuthInfo(data *Data) string {
-	var b strings.Builder
-	b.WriteString(sectionStyle.Render("🔒 Authorization:") + "\n")
-
-	if data.Authorized {
-		b.WriteString("   " + successStyle.Render("✓ Authorized"))
-	} else {
-		b.WriteString("   " + errorStyle.Render("✗ Not authorized") + "\n")
-		b.WriteString("   " + warningStyle.Render(fmt.Sprintf("Run 'dirvana allow %s' to authorize", data.CurrentDir)))
+// measureRows returns the width the key column needs and the column the notes
+// should start at, so every row of a section lines up.
+func measureRows(rows []Row) (keyWidth, noteColumn int) {
+	for _, row := range rows {
+		if !row.Detail {
+			keyWidth = max(keyWidth, lipgloss.Width(row.Key))
+		}
 	}
 
-	return b.String()
+	for _, row := range rows {
+		if row.Detail || row.Note == "" {
+			continue
+		}
+		body := rowIndent + lipgloss.Width(row.Value)
+		if keyWidth > 0 {
+			body += keyWidth + colGap
+		}
+		noteColumn = max(noteColumn, body+colGap)
+	}
+	return keyWidth, noteColumn
 }
 
-func renderConfigHierarchy(data *Data) string {
-	var b strings.Builder
-	b.WriteString(sectionStyle.Render("📝 Configuration hierarchy:") + "\n")
-
-	hasGlobal := data.GlobalConfig != nil && data.GlobalConfig.Exists
-	if len(data.LocalConfigs) == 0 && !hasGlobal {
-		b.WriteString("   " + subtleStyle.Render("No configuration files found"))
-		return b.String()
-	}
-
-	idx := 1
-	if hasGlobal {
-		status := successStyle.Render("✓")
-		note := ""
-		if !data.GlobalConfig.Loaded {
-			status = errorStyle.Render("✗")
-			note = subtleStyle.Render(" (ignored)")
+// widestNote returns the room the note column needs, gap included.
+func widestNote(rows []Row) int {
+	widest := 0
+	for _, row := range rows {
+		if !row.Detail {
+			widest = max(widest, lipgloss.Width(row.Note))
 		}
-		fmt.Fprintf(&b, "   %d. %s %s%s\n",
-			idx,
-			subtleStyle.Render(data.GlobalConfig.Path+" (global)"),
-			status,
-			note)
-		idx++
 	}
-
-	for _, cfg := range data.LocalConfigs {
-		status := successStyle.Render("✓")
-		statusText := ""
-		if !cfg.Authorized {
-			status = errorStyle.Render("✗")
-			statusText = subtleStyle.Render(" (not authorized)")
-		} else if !cfg.Loaded {
-			status = errorStyle.Render("✗")
-			statusText = subtleStyle.Render(" (not loaded)")
-		} else if cfg.LocalOnly {
-			statusText = subtleStyle.Render(" (local only)")
-		}
-
-		fmt.Fprintf(&b, "   %d. %s %s%s\n",
-			idx,
-			valueStyle.Render(cfg.Path),
-			status,
-			statusText)
-		idx++
+	if widest > 0 {
+		widest += colGap
 	}
-
-	// Remove trailing newline
-	return strings.TrimSuffix(b.String(), "\n")
+	return widest
 }
 
-func renderAliases(data *Data) string {
-	var b strings.Builder
-	b.WriteString(sectionStyle.Render("🔗 Aliases:") + "\n")
-
-	for name, info := range data.Aliases {
-		fmt.Fprintf(&b, "   %s → %s",
-			keyStyle.Render(name),
-			valueStyle.Render(info.Command))
-
-		// Show conditional information if present
-		if info.HasWhen {
-			b.WriteString("\n")
-			fmt.Fprintf(&b, "      %s %s",
-				subtleStyle.Render("when:"),
-				subtleStyle.Render(info.WhenSummary))
-
-			if info.Else != "" {
-				b.WriteString("\n")
-				fmt.Fprintf(&b, "      %s %s",
-					subtleStyle.Render("else:"),
-					subtleStyle.Render(info.Else))
-			}
-		}
-
-		b.WriteString("\n")
+func pad(s string, width int) string {
+	if gap := width - lipgloss.Width(s); gap > 0 {
+		return s + strings.Repeat(" ", gap)
 	}
-
-	return strings.TrimSuffix(b.String(), "\n")
+	return s
 }
 
-func renderFunctions(data *Data) string {
-	var b strings.Builder
-	b.WriteString(sectionStyle.Render("⚙️  Functions:") + "\n")
-
-	for _, fn := range data.Functions {
-		b.WriteString("   " + valueStyle.Render(fn+"()") + "\n")
+// truncate shortens plain text to width display cells, marking the cut with an
+// ellipsis. The result never exceeds width, ellipsis included.
+func truncate(s string, width int) string {
+	if width <= 0 {
+		return ""
 	}
-
-	return strings.TrimSuffix(b.String(), "\n")
+	if lipgloss.Width(s) <= width {
+		return s
+	}
+	// ansi.Truncate measures once and walks the string a single time; dropping
+	// runes one at a time and re-measuring is quadratic, and these strings are
+	// re-truncated on every frame of the interactive view
+	return strings.TrimRight(ansi.Truncate(s, width-1, ""), " ") + "…"
 }
 
-func renderEnvVars(data *Data) string {
-	var b strings.Builder
-	b.WriteString(sectionStyle.Render("🌍 Environment variables:") + "\n")
-
-	if len(data.EnvStatic) > 0 {
-		b.WriteString("   " + keyStyle.Render("Static:") + "\n")
-		for name, value := range data.EnvStatic {
-			displayValue := truncateString(value, 50)
-			fmt.Fprintf(&b, "      %s=%s\n",
-				keyStyle.Render(name),
-				subtleStyle.Render(displayValue))
-		}
+// widthOf returns the space a piece of text needs including its leading gap,
+// or nothing at all when there is no text.
+func widthOf(s string, gap int) int {
+	if s == "" {
+		return 0
 	}
-
-	if len(data.EnvShell) > 0 {
-		b.WriteString("   " + keyStyle.Render("Dynamic (shell):") + "\n")
-		for name, v := range data.EnvShell {
-			displayCmd := truncateString(v.Command, 50)
-			status := warningStyle.Render("⏳ not approved")
-			if v.Approved {
-				status = successStyle.Render("✓ approved")
-			}
-			fmt.Fprintf(&b, "      %s=$(%s) [%s]\n",
-				keyStyle.Render(name),
-				subtleStyle.Render(displayCmd),
-				status)
-		}
-	}
-
-	return strings.TrimSuffix(b.String(), "\n")
-}
-
-func renderFlags(data *Data) string {
-	var b strings.Builder
-	b.WriteString(sectionStyle.Render("🏴 Flags:") + "\n")
-	b.WriteString("   " + valueStyle.Render(strings.Join(data.Flags, ", ")))
-	return b.String()
-}
-
-func renderCacheInfo(data *Data) string {
-	var b strings.Builder
-	b.WriteString(sectionStyle.Render("💾 Cache:") + "\n")
-
-	b.WriteString("   " + keyStyle.Render("Path: ") + subtleStyle.Render(data.CachePath) + "\n")
-	b.WriteString("   " + keyStyle.Render("Size: ") + valueStyle.Render(formatBytes(data.CacheFileSize)) + "\n")
-	b.WriteString("   " + keyStyle.Render("Total entries: ") + valueStyle.Render(fmt.Sprintf("%d", data.CacheTotalEntries)))
-
-	// Only show current directory cache status if there's a config
-	if data.HasAnyConfig {
-		b.WriteString("\n")
-		if data.CacheValid {
-			b.WriteString("   " + keyStyle.Render("Current directory:") + "\n")
-			b.WriteString("      " + keyStyle.Render("Status: ") + successStyle.Render("✓ Valid") + "\n")
-			b.WriteString("      " + keyStyle.Render("Updated: ") + valueStyle.Render(data.CacheUpdated.Format("2006-01-02 15:04:05")) + "\n")
-			if data.CacheLocalOnly {
-				b.WriteString("      " + keyStyle.Render("Local only: ") + valueStyle.Render("yes"))
-			}
-		} else {
-			b.WriteString("   " + keyStyle.Render("Current directory:") + "\n")
-			b.WriteString("      " + keyStyle.Render("Status: ") + errorStyle.Render("✗ Invalid") + "\n")
-			b.WriteString("      " + subtleStyle.Render("Will regenerate on next cd"))
-		}
-	}
-
-	return strings.TrimSuffix(b.String(), "\n")
-}
-
-func renderCompletionInfo(data *Data) string {
-	var b strings.Builder
-	b.WriteString(sectionStyle.Render("🔄 Completion:") + "\n")
-
-	// Detection cache info
-	if data.CompletionDetection != nil {
-		b.WriteString("   " + keyStyle.Render("Detection cache: ") + subtleStyle.Render(data.CompletionDetection.Path) + "\n")
-		b.WriteString("   " + keyStyle.Render("Detection cache size: ") + valueStyle.Render(formatBytes(data.CompletionDetection.Size)) + "\n")
-
-		if len(data.CompletionDetection.Commands) > 0 {
-			b.WriteString("   " + keyStyle.Render("Detected commands: ") + valueStyle.Render(fmt.Sprintf("%d", len(data.CompletionDetection.Commands))) + "\n\n")
-
-			// Group commands by source
-			sourceGroups := make(map[string][]string)
-			for cmd, source := range data.CompletionDetection.Commands {
-				sourceGroups[source] = append(sourceGroups[source], cmd)
-			}
-
-			b.WriteString("   " + keyStyle.Render("Sources:") + "\n")
-			for _, source := range []string{"Cobra", "Flag", "Env", "Script"} {
-				if cmds, ok := sourceGroups[source]; ok {
-					fmt.Fprintf(&b, "      %s (%s): %s\n",
-						keyStyle.Render(source),
-						valueStyle.Render(fmt.Sprintf("%d", len(cmds))),
-						subtleStyle.Render(strings.Join(cmds, ", ")))
-				}
-			}
-		}
-	} else {
-		b.WriteString("   " + subtleStyle.Render("Detection cache not created yet"))
-	}
-
-	// Registry info
-	if data.CompletionRegistry != nil && data.CompletionRegistry.Size > 0 {
-		b.WriteString("\n   " + keyStyle.Render("Registry:") + "\n")
-		b.WriteString("      " + keyStyle.Render("Path: ") + subtleStyle.Render(data.CompletionRegistry.Path) + "\n")
-		b.WriteString("      " + keyStyle.Render("Size: ") + valueStyle.Render(formatBytes(data.CompletionRegistry.Size)) + "\n")
-		if data.CompletionRegistry.ToolsCount > 0 {
-			b.WriteString("      " + keyStyle.Render("Tools available: ") + valueStyle.Render(fmt.Sprintf("%d", data.CompletionRegistry.ToolsCount)) + "\n")
-		}
-	}
-
-	// Downloaded scripts
-	if len(data.CompletionScripts) > 0 {
-		b.WriteString("\n   " + keyStyle.Render("Downloaded scripts:") + "\n")
-		for _, script := range data.CompletionScripts {
-			fmt.Fprintf(&b, "      %s (%s)\n",
-				valueStyle.Render(script.Tool),
-				subtleStyle.Render(formatBytes(script.Size)))
-		}
-	}
-
-	// Completion overrides
-	if len(data.CompletionOverrides) > 0 {
-		b.WriteString("\n   " + keyStyle.Render("Completion overrides:") + "\n")
-		for alias, cmd := range data.CompletionOverrides {
-			fmt.Fprintf(&b, "      %s → %s\n",
-				keyStyle.Render(alias),
-				valueStyle.Render(cmd))
-		}
-	}
-
-	return strings.TrimSuffix(b.String(), "\n")
+	return lipgloss.Width(s) + gap
 }
 
 func formatBytes(bytes int64) string {
@@ -372,11 +284,4 @@ func formatBytes(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
-
-func truncateString(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen-3] + "..."
-	}
-	return s
 }
