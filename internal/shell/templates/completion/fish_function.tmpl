@@ -18,9 +18,15 @@ set -e __dirvana_stale_probe
 # completions exist, fish offers plain file names and dirvana is the only
 # thing that can help - from the very first word.
 #
-# The probe asks for long-flag completions: file names never match `--`,
-# so anything coming back proves real completions exist. The answer is
-# kept for the session, since it cannot change under a running shell.
+# The probe compares what fish offers for the command against what it
+# offers for a command it has never heard of, which is exactly the file
+# names of the current directory. Anything else proves real completions
+# exist. Asking for `--` completions instead looked cheaper but answered
+# "no" for every tool whose flags take a single dash - terraform among
+# them, which fish knows 22 subcommands of.
+#
+# The answer is kept for the session, since it cannot change under a
+# running shell.
 function __dirvana_fish_covers -a cmd
   set -l key (string replace -a -r '[^a-zA-Z0-9_]' _ -- $cmd)
   set -l answer __dirvana_fish_covers_$key
@@ -43,11 +49,14 @@ function __dirvana_fish_covers -a cmd
   end
 
   set -g $probing 1
-  set -l found (count (complete -C"$cmd --"))
+  # What fish falls back to for a command it knows nothing about: the file
+  # names of this directory, whatever they happen to be
+  set -l fallback (complete -C"__dirvana_unknown_command__ ")
+  set -l offered (complete -C"$cmd ")
   set -e $probing
 
   set -g $answer 0
-  if test $found -gt 0
+  if test "$offered" != "$fallback"
     set -g $answer 1
   end
 
