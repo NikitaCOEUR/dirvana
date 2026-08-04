@@ -3,6 +3,7 @@ package completion
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -30,7 +31,23 @@ const (
 	MaxRegistrySize = 1 * 1024 * 1024
 	// MaxScriptSize is the maximum size for downloaded completion script (5MB)
 	MaxScriptSize = 5 * 1024 * 1024
+
+	// DownloadTimeout bounds a download that happens while the user is waiting
+	// at the prompt: the registry is fetched during a completion, not ahead of
+	// it. Fetching it takes 100-400ms on a working connection, so this leaves
+	// room to spare - what it rules out is the unbounded wait of a network
+	// that accepts the connection and never answers.
+	DownloadTimeout = 2 * time.Second
+
+	// DownloadRetryAfter is how long a network failure is remembered. Every
+	// completion runs in its own process, so an in-memory note would be lost
+	// and the timeout above paid again on every single keypress.
+	DownloadRetryAfter = 10 * time.Minute
 )
+
+// errDownloadPaused reports that the network was tried recently and failed, so
+// this completion will not wait on it again.
+var errDownloadPaused = errors.New("download paused after a recent network failure")
 
 // DevMode is set by ldflags during dev builds
 // Production builds will have this as empty string
@@ -53,8 +70,10 @@ type Registry struct {
 func NewRegistry(cacheDir string) *Registry {
 	return &Registry{
 		cacheDir: cacheDir,
-		client:   http.DefaultClient,
-		baseURL:  RegistryBaseURL,
+		// Not http.DefaultClient: it has no timeout at all, and this runs
+		// while the user waits at the prompt
+		client:  &http.Client{Timeout: DownloadTimeout},
+		baseURL: RegistryBaseURL,
 	}
 }
 
@@ -122,11 +141,19 @@ func isLoopbackHost(host string) bool {
 
 // downloadWithSizeLimit downloads data with a size limit
 func (r *Registry) downloadWithSizeLimit(url string, maxSize int64) ([]byte, error) {
+	if r.downloadRecentlyFailed() {
+		return nil, errDownloadPaused
+	}
+
 	resp, err := r.client.Get(url)
 	if err != nil {
+		// Only a transport failure counts: an HTTP error means the network is
+		// fine and the answer simply is not there
+		r.noteDownloadFailure()
 		return nil, fmt.Errorf("failed to download: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	r.clearDownloadFailure()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to download: HTTP %d", resp.StatusCode)
@@ -150,6 +177,42 @@ func (r *Registry) downloadWithSizeLimit(url string, maxSize int64) ([]byte, err
 	}
 
 	return data, nil
+}
+
+// downloadFailurePath is the marker recording that the network was tried and
+// did not answer. Its modification time is the record.
+func (r *Registry) downloadFailurePath() string {
+	if r.cacheDir == "" {
+		return ""
+	}
+	return filepath.Join(r.cacheDir, "completion-download-failed")
+}
+
+// downloadRecentlyFailed reports whether the last attempt failed recently
+// enough that trying again would just make the user wait for nothing.
+func (r *Registry) downloadRecentlyFailed() bool {
+	path := r.downloadFailurePath()
+	if path == "" {
+		return false
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return time.Since(info.ModTime()) < DownloadRetryAfter
+}
+
+func (r *Registry) noteDownloadFailure() {
+	if path := r.downloadFailurePath(); path != "" {
+		_ = fsutil.AtomicWrite(path, nil, fsutil.StateFilePerm)
+	}
+}
+
+func (r *Registry) clearDownloadFailure() {
+	if path := r.downloadFailurePath(); path != "" {
+		_ = os.Remove(path)
+	}
 }
 
 // getRegistryPath returns the local cache path for the registry
