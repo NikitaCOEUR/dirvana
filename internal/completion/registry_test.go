@@ -3,6 +3,7 @@ package completion
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1068,4 +1069,127 @@ func BenchmarkLoadRegistry(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _ = NewRegistry(tmpDir).Load()
 	}
+}
+
+// blackholeListener accepts connections and never answers them, which is what
+// a blocked proxy or a captive network looks like from here.
+func blackholeListener(t *testing.T) net.Listener {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+
+	go func() {
+		var held []net.Conn
+		defer func() {
+			for _, c := range held {
+				_ = c.Close()
+			}
+		}()
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			held = append(held, conn)
+		}
+	}()
+
+	return ln
+}
+
+// TestRegistry_DownloadIsBounded covers the wait a user sits through: the
+// registry is fetched during a completion, and http.DefaultClient - which is
+// what this used to use - has no timeout at all. A network that accepts the
+// connection and never answers hung the completion outright; one such attempt
+// was measured at 69 seconds.
+func TestRegistry_DownloadIsBounded(t *testing.T) {
+	ln := blackholeListener(t)
+
+	r := NewRegistry(t.TempDir())
+	r.baseURL = "http://" + ln.Addr().String()
+
+	start := time.Now()
+	_, err := r.Load()
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	assert.Less(t, elapsed, DownloadTimeout*2, "the wait must be bounded by the timeout")
+	assert.GreaterOrEqual(t, elapsed, DownloadTimeout, "and it really did wait for it")
+}
+
+// TestRegistry_FailureIsRememberedAcrossProcesses is the other half: every
+// completion runs in its own process, so a failure noted only in memory would
+// be forgotten and the timeout paid again on every keypress.
+func TestRegistry_FailureIsRememberedAcrossProcesses(t *testing.T) {
+	ln := blackholeListener(t)
+	cacheDir := t.TempDir()
+
+	first := NewRegistry(cacheDir)
+	first.baseURL = "http://" + ln.Addr().String()
+	_, err := first.Load()
+	require.Error(t, err)
+
+	// A fresh Registry over the same cache dir, as the next completion would be
+	second := NewRegistry(cacheDir)
+	second.baseURL = "http://" + ln.Addr().String()
+
+	start := time.Now()
+	_, err = second.Load()
+	elapsed := time.Since(start)
+
+	require.ErrorIs(t, err, errDownloadPaused)
+	assert.Less(t, elapsed, 100*time.Millisecond, "a remembered failure must cost nothing")
+}
+
+func TestRegistry_SuccessClearsTheFailureMarker(t *testing.T) {
+	cacheDir := t.TempDir()
+	r := NewRegistry(cacheDir)
+
+	// An old failure, past the point where it still holds downloads back
+	r.noteDownloadFailure()
+	stale := time.Now().Add(-DownloadRetryAfter - time.Minute)
+	require.NoError(t, os.Chtimes(r.downloadFailurePath(), stale, stale))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("version: v1\ntools: {}\n"))
+	}))
+	defer server.Close()
+	r.baseURL = server.URL
+
+	_, err := r.Load()
+	require.NoError(t, err)
+
+	assert.NoFileExists(t, r.downloadFailurePath(), "a working network clears the note")
+}
+
+// TestRegistry_HTTPErrorIsNotANetworkFailure keeps the pause for the case it
+// is meant for: a 404 means the network works and the answer is not there, so
+// the next tool must still be looked up.
+func TestRegistry_HTTPErrorIsNotANetworkFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	r := NewRegistry(t.TempDir())
+	r.baseURL = server.URL
+
+	_, err := r.Load()
+	require.Error(t, err)
+	assert.False(t, r.downloadRecentlyFailed())
+}
+
+// TestRegistry_ExpiredMarkerIsRetried keeps a transient outage from disabling
+// downloads for good.
+func TestRegistry_ExpiredMarkerIsRetried(t *testing.T) {
+	cacheDir := t.TempDir()
+	r := NewRegistry(cacheDir)
+
+	r.noteDownloadFailure()
+	stale := time.Now().Add(-DownloadRetryAfter - time.Minute)
+	require.NoError(t, os.Chtimes(r.downloadFailurePath(), stale, stale))
+
+	assert.False(t, r.downloadRecentlyFailed(), "the network deserves another chance eventually")
 }
