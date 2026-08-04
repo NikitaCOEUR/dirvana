@@ -2,10 +2,10 @@ package status
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,9 +32,10 @@ func newTestModel(t *testing.T) *tuiModel {
 	return m
 }
 
-// press sends a key by name, the way Update does once bubbletea has decoded it.
+// press sends a key by name, the way the screen loop does once it has decoded
+// the bytes.
 func press(m *tuiModel, key string) {
-	m.handleKey(key)
+	m.Key(key)
 }
 
 func TestTUI_StartsOnConfigAndAliases(t *testing.T) {
@@ -61,7 +62,7 @@ func TestTUI_FoldAndUnfold(t *testing.T) {
 	press(m, "enter")
 	assert.NotContains(t, m.render(), ".dirvana.yml")
 
-	press(m, " ")
+	press(m, "space")
 	assert.Contains(t, m.render(), ".dirvana.yml")
 }
 
@@ -173,9 +174,7 @@ func TestTUI_RunsTheFixFromTheRowReportingIt(t *testing.T) {
 	// The key is advertised before it is pressed
 	assert.Contains(t, m.render(), "⏎ install the hook")
 
-	cmd := m.handleKey("enter")
-	require.NotNil(t, cmd)
-	m.Update(cmd())
+	press(m, "enter")
 
 	assert.True(t, ran)
 	assert.Contains(t, m.render(), "✓ Hook installed")
@@ -188,7 +187,7 @@ func TestTUI_ReportsAFailedFix(t *testing.T) {
 
 	press(m, "down")
 	press(m, "down")
-	m.Update(m.handleKey("enter")())
+	press(m, "enter")
 
 	assert.Contains(t, m.render(), assert.AnError.Error())
 	assert.Equal(t, ToneError, m.noticeTone)
@@ -199,7 +198,7 @@ func TestTUI_ForgetsTheNoticeOnTheNextMove(t *testing.T) {
 
 	press(m, "down")
 	press(m, "down")
-	m.Update(m.handleKey("enter")())
+	press(m, "enter")
 	require.Contains(t, m.render(), "done")
 
 	press(m, "up")
@@ -269,38 +268,25 @@ func TestTUI_Quits(t *testing.T) {
 	m := newTestModel(t)
 
 	for _, key := range []string{"q", "esc", "ctrl+c"} {
-		cmd := m.handleKey(key)
-		require.NotNil(t, cmd, "%s should quit", key)
-		assert.Equal(t, tea.Quit(), cmd(), "%s should quit", key)
+		assert.False(t, m.Key(key), "%s should leave the view", key)
 	}
 }
 
 func TestTUI_ResizeIsHonoured(t *testing.T) {
 	m := newTestModel(t)
 
-	m.Update(tea.WindowSizeMsg{Width: 120, Height: 50})
+	m.Resize(120, 50)
 
 	assert.Equal(t, 120, m.width)
 	assert.Equal(t, 50, m.height)
 }
 
-func TestTUI_IgnoresMessagesItDoesNotHandle(t *testing.T) {
+func TestTUI_UnknownKeysChangeNothing(t *testing.T) {
 	m := newTestModel(t)
 	before := m.render()
 
-	model, cmd := m.Update("something else entirely")
-
-	assert.Same(t, m, model)
-	assert.Nil(t, cmd)
+	assert.True(t, m.Key("ctrl+alt+z"), "an unknown key must not leave the view")
 	assert.Equal(t, before, m.render())
-}
-
-func TestTUI_UnknownKeysDoNothing(t *testing.T) {
-	m := newTestModel(t)
-	before := m.cursor
-
-	assert.Nil(t, m.handleKey("ctrl+alt+z"))
-	assert.Equal(t, before, m.cursor)
 }
 
 func TestTUI_PagingMovesByAScreen(t *testing.T) {
@@ -340,13 +326,10 @@ func TestTUI_CursorOnALineWithoutAGutter(t *testing.T) {
 	assert.Contains(t, withCursor("  gutter here"), "›")
 }
 
-func TestTUI_ViewRunsOnTheAlternateScreen(t *testing.T) {
+func TestTUI_ViewRendersTheScreen(t *testing.T) {
 	m := newTestModel(t)
 
-	view := m.View()
-
-	assert.True(t, view.AltScreen, "the terminal must be left as it was found")
-	assert.Nil(t, m.Init())
+	assert.Equal(t, m.render(), m.View())
 }
 
 // TestRunInteractive drives the real bubbletea program end to end, quitting on
@@ -356,7 +339,14 @@ func TestRunInteractive(t *testing.T) {
 	data.HasAnyConfig = true
 	data.LocalConfigs = []FileInfo{{Path: "/test/dir/.dirvana.yml", Loaded: true, Authorized: true}}
 
+	in, keyboard, err := os.Pipe()
+	require.NoError(t, err)
+	go func() {
+		_, _ = keyboard.WriteString("q")
+		_ = keyboard.Close()
+	}()
+
 	var out bytes.Buffer
-	require.NoError(t, RunInteractive(data, strings.NewReader("q"), &out))
+	require.NoError(t, RunInteractive(data, in, &out))
 	assert.NotEmpty(t, out.String(), "the view must have been drawn")
 }

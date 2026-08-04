@@ -506,7 +506,7 @@ func TestStatus_OpensTheFoldableViewOnATerminal(t *testing.T) {
 
 	isTerminal = func(*os.File) bool { return true }
 	called := false
-	runInteractive = func(data *status.Data, _ io.Reader, _ io.Writer) error {
+	runInteractive = func(data *status.Data, _ *os.File, _ io.Writer) error {
 		called = true
 		assert.NotNil(t, data)
 		return nil
@@ -531,7 +531,7 @@ func TestStatus_ReportsAnInteractiveFailure(t *testing.T) {
 	defer func() { isTerminal, runInteractive = originalTerminal, originalRun }()
 
 	isTerminal = func(*os.File) bool { return true }
-	runInteractive = func(*status.Data, io.Reader, io.Writer) error { return assert.AnError }
+	runInteractive = func(*status.Data, *os.File, io.Writer) error { return assert.AnError }
 
 	err = Status(StatusParams{
 		CachePath: filepath.Join(tmpDir, "cache.json"),

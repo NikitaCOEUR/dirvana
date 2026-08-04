@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
+	"github.com/NikitaCOEUR/dirvana/internal/tui"
 )
 
 const (
@@ -18,23 +17,19 @@ const (
 )
 
 var (
-	headerBox = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240")).
-			Padding(0, 1)
+	borderStyle  = tui.NewStyle().Foreground(240)
+	versionStyle = tui.NewStyle().Bold().Foreground(12)
+	dirStyle     = tui.NewStyle().Foreground(15)
+	sectionStyle = tui.NewStyle().Bold().Foreground(14)
+	keyStyle     = tui.NewStyle().Foreground(15)
+	valueStyle   = tui.NewStyle().Foreground(252)
 
-	versionStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
-	dirStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	sectionStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("14"))
-	keyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	valueStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-
-	toneStyles = map[Tone]lipgloss.Style{
-		ToneNeutral: lipgloss.NewStyle(),
-		ToneMuted:   lipgloss.NewStyle().Foreground(lipgloss.Color("244")),
-		ToneOK:      lipgloss.NewStyle().Foreground(lipgloss.Color("10")),
-		ToneWarn:    lipgloss.NewStyle().Foreground(lipgloss.Color("11")),
-		ToneError:   lipgloss.NewStyle().Foreground(lipgloss.Color("9")),
+	toneStyles = map[Tone]tui.Style{
+		ToneNeutral: tui.NewStyle(),
+		ToneMuted:   tui.NewStyle().Foreground(244),
+		ToneOK:      tui.NewStyle().Foreground(10),
+		ToneWarn:    tui.NewStyle().Foreground(11),
+		ToneError:   tui.NewStyle().Foreground(9),
 	}
 )
 
@@ -76,7 +71,7 @@ func RenderHeader(h Header) string {
 		b.WriteString(strings.Join(parts, toneStyles[ToneMuted].Render(" · ")))
 	}
 
-	return headerBox.Render(b.String())
+	return box(b.String())
 }
 
 // RenderSectionTitle renders a section's heading. marker is prepended as-is,
@@ -189,7 +184,7 @@ func renderRow(row Row, l layout) string {
 	} else {
 		b.WriteString(valueStyle.Render(value))
 	}
-	col += lipgloss.Width(value)
+	col += tui.Width(value)
 
 	if note != "" {
 		padding := max(l.noteColumn-col, colGap)
@@ -201,7 +196,7 @@ func renderRow(row Row, l layout) string {
 	if l.width > 0 {
 		// Last resort: too narrow for any arrangement to fit. Cutting here is
 		// ANSI-aware, so it can never land inside an escape sequence.
-		line = ansi.Truncate(line, l.width, "")
+		line = tui.Truncate(line, l.width, "")
 	}
 	return line
 }
@@ -211,7 +206,7 @@ func renderRow(row Row, l layout) string {
 func measureRows(rows []Row) (keyWidth, noteColumn int) {
 	for _, row := range rows {
 		if !row.Detail {
-			keyWidth = max(keyWidth, lipgloss.Width(row.Key))
+			keyWidth = max(keyWidth, tui.Width(row.Key))
 		}
 	}
 
@@ -219,7 +214,7 @@ func measureRows(rows []Row) (keyWidth, noteColumn int) {
 		if row.Detail || row.Note == "" {
 			continue
 		}
-		body := rowIndent + lipgloss.Width(row.Value)
+		body := rowIndent + tui.Width(row.Value)
 		if keyWidth > 0 {
 			body += keyWidth + colGap
 		}
@@ -233,7 +228,7 @@ func widestNote(rows []Row) int {
 	widest := 0
 	for _, row := range rows {
 		if !row.Detail {
-			widest = max(widest, lipgloss.Width(row.Note))
+			widest = max(widest, tui.Width(row.Note))
 		}
 	}
 	if widest > 0 {
@@ -243,10 +238,7 @@ func widestNote(rows []Row) int {
 }
 
 func pad(s string, width int) string {
-	if gap := width - lipgloss.Width(s); gap > 0 {
-		return s + strings.Repeat(" ", gap)
-	}
-	return s
+	return tui.Pad(s, width)
 }
 
 // truncate shortens plain text to width display cells, marking the cut with an
@@ -255,13 +247,13 @@ func truncate(s string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	if lipgloss.Width(s) <= width {
+	if tui.Width(s) <= width {
 		return s
 	}
-	// ansi.Truncate measures once and walks the string a single time; dropping
-	// runes one at a time and re-measuring is quadratic, and these strings are
-	// re-truncated on every frame of the interactive view
-	return strings.TrimRight(ansi.Truncate(s, width-1, ""), " ") + "…"
+	// Measured once and walked once; dropping runes one at a time and
+	// re-measuring is quadratic, and these strings are re-truncated on every
+	// frame of the interactive view
+	return strings.TrimRight(tui.Truncate(s, width-1, ""), " ") + "…"
 }
 
 // widthOf returns the space a piece of text needs including its leading gap,
@@ -270,7 +262,7 @@ func widthOf(s string, gap int) int {
 	if s == "" {
 		return 0
 	}
-	return lipgloss.Width(s) + gap
+	return tui.Width(s) + gap
 }
 
 func formatBytes(bytes int64) string {
@@ -284,4 +276,26 @@ func formatBytes(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// box draws a rounded frame around a block of lines, sized to its widest one.
+// It replaces what a styling framework did for this one header, and is the
+// only border dirvana draws.
+func box(content string) string {
+	lines := strings.Split(content, "\n")
+	inner := 0
+	for _, line := range lines {
+		inner = max(inner, tui.Width(line))
+	}
+
+	horizontal := strings.Repeat("─", inner+2)
+
+	var b strings.Builder
+	b.WriteString(borderStyle.Render("╭"+horizontal+"╮") + "\n")
+	for _, line := range lines {
+		b.WriteString(borderStyle.Render("│") + " " + pad(line, inner) + " " + borderStyle.Render("│") + "\n")
+	}
+	b.WriteString(borderStyle.Render("╰" + horizontal + "╯"))
+
+	return b.String()
 }
