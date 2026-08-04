@@ -1193,3 +1193,25 @@ func TestRegistry_ExpiredMarkerIsRetried(t *testing.T) {
 
 	assert.False(t, r.downloadRecentlyFailed(), "the network deserves another chance eventually")
 }
+
+// TestRegistry_NoCacheDirKeepsWorking covers the Registry built without a
+// cache directory: there is nowhere to note a failure, so downloads simply
+// carry on unguarded rather than breaking.
+func TestRegistry_NoCacheDirKeepsWorking(t *testing.T) {
+	r := NewRegistry("")
+
+	assert.Empty(t, r.downloadFailurePath())
+	assert.False(t, r.downloadRecentlyFailed(), "with nowhere to look, nothing is remembered")
+
+	// Neither of these has anywhere to write, and neither may panic
+	r.noteDownloadFailure()
+	r.clearDownloadFailure()
+	assert.False(t, r.downloadRecentlyFailed())
+}
+
+func TestRegistry_NoMarkerMeansNoRecentFailure(t *testing.T) {
+	r := NewRegistry(t.TempDir())
+
+	// Nothing written yet: os.Stat fails and that is not a failure to honour
+	assert.False(t, r.downloadRecentlyFailed())
+}
