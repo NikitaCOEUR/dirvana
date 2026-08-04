@@ -2,13 +2,10 @@ package status
 
 import (
 	"io"
+	"os"
 	"strings"
 
-	// bubbletea v2, not v1: v1 queries the terminal for its background colour
-	// from an init(), which every dirvana command would pay for - including
-	// the ones the shell hook runs on each cd.
-	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/NikitaCOEUR/dirvana/internal/tui"
 )
 
 // gutter is the plain left margin every line carries, and where the cursor is
@@ -17,9 +14,9 @@ import (
 const gutter = 2
 
 var (
-	cursorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("12"))
-	helpStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-	fullStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	cursorStyle = tui.NewStyle().Bold().Foreground(12)
+	helpStyle   = tui.NewStyle().Foreground(244)
+	fullStyle   = tui.NewStyle().Foreground(252)
 )
 
 // line is one navigable entry of the view. A line is either a section heading,
@@ -47,16 +44,17 @@ type tuiModel struct {
 	height int
 }
 
-// actionDone carries an action's outcome back into the view.
-type actionDone struct {
-	message string
-	err     error
-}
-
 // RunInteractive shows the status as a foldable view and returns once the user
 // leaves it. Callers are expected to have checked that they are on a terminal;
 // Render is the answer when they are not.
-func RunInteractive(data *Data, in io.Reader, out io.Writer) error {
+func RunInteractive(data *Data, in *os.File, out io.Writer) error {
+	m := newModel(data)
+	return tui.Run(m, in, out)
+}
+
+// newModel builds the view over collected data, at a default size the terminal
+// corrects as soon as it reports its own.
+func newModel(data *Data) *tuiModel {
 	m := &tuiModel{
 		data:     data,
 		header:   BuildHeader(data),
@@ -65,9 +63,129 @@ func RunInteractive(data *Data, in io.Reader, out io.Writer) error {
 		height:   24,
 	}
 	m.rebuild()
+	return m
+}
 
-	_, err := tea.NewProgram(m, tea.WithInput(in), tea.WithOutput(out)).Run()
-	return err
+// Key handles a keystroke and reports whether the view keeps running.
+func (m *tuiModel) Key(key string) bool {
+	switch key {
+	case "q", "esc", "ctrl+c":
+		return false
+	case "up", "k":
+		m.move(-1)
+	case "down", "j":
+		m.move(1)
+	case "pgup":
+		m.move(-m.bodyHeight())
+	case "pgdown":
+		m.move(m.bodyHeight())
+	case "home", "g":
+		m.move(-len(m.lines))
+	case "end", "G":
+		m.move(len(m.lines))
+	case "right", "l":
+		m.setFold(true)
+	case "left", "h":
+		m.setFold(false)
+	case "enter", "space", "tab":
+		// A row offering a fix is what enter is for; folding is what the rest
+		// of the line does
+		if action := m.currentAction(); action != nil {
+			m.run(action)
+			return true
+		}
+		m.toggleFold()
+	case "a":
+		m.toggleAll()
+	}
+	return true
+}
+
+// Resize records the terminal size reported at startup and on every change.
+func (m *tuiModel) Resize(width, height int) {
+	m.width, m.height = width, height
+}
+
+// View renders the whole screen.
+func (m *tuiModel) View() string {
+	return m.render()
+}
+
+// run applies a fix and reports what happened. It is synchronous: installing a
+// hook takes a few milliseconds, and a view that cannot be typed into while it
+// runs is simpler than one that can.
+func (m *tuiModel) run(action *Action) {
+	message, err := action.Run()
+	if err != nil {
+		m.notice, m.noticeTone = err.Error(), ToneError
+		return
+	}
+
+	m.notice, m.noticeTone = message, ToneOK
+
+	// What the fix changed is what the header reports
+	collectSystemInfo(m.data)
+	m.header = BuildHeader(m.data)
+	m.refreshSections()
+}
+
+func (m *tuiModel) move(delta int) {
+	m.cursor = min(max(m.cursor+delta, 0), max(len(m.lines)-1, 0))
+	// The footer belongs to the line under the cursor again
+	m.notice = ""
+}
+
+// currentSection returns the section the cursor sits in, heading or row alike.
+func (m *tuiModel) currentSection() int {
+	if m.cursor >= len(m.lines) {
+		return -1
+	}
+	return m.lines[m.cursor].section
+}
+
+func (m *tuiModel) setFold(expanded bool) {
+	idx := m.currentSection()
+	if idx < 0 || m.sections[idx].Expanded == expanded {
+		return
+	}
+	m.sections[idx].Expanded = expanded
+	m.rebuild()
+}
+
+func (m *tuiModel) toggleFold() {
+	if idx := m.currentSection(); idx >= 0 {
+		m.setFold(!m.sections[idx].Expanded)
+	}
+}
+
+// toggleAll unfolds everything, or folds everything back once nothing is left
+// to unfold.
+func (m *tuiModel) toggleAll() {
+	expand := false
+	for _, section := range m.sections {
+		if !section.Expanded {
+			expand = true
+			break
+		}
+	}
+	for i := range m.sections {
+		m.sections[i].Expanded = expand
+	}
+	m.rebuild()
+}
+
+func (m *tuiModel) render() string {
+	header := RenderHeader(m.header)
+	height := m.bodyHeightBelow(header)
+	m.scrollTo(height)
+
+	var b strings.Builder
+	b.WriteString(header)
+	b.WriteString("\n\n")
+	b.WriteString(strings.Join(m.body(m.offset, min(m.offset+height, len(m.lines))), "\n"))
+	b.WriteString("\n\n")
+	b.WriteString(m.footer(height))
+	return b.String()
 }
 
 // cursorTarget names the line the cursor is on by section title rather than by
@@ -121,34 +239,6 @@ func (m *tuiModel) rebuildTo(target cursorTarget) {
 	}
 }
 
-func (m *tuiModel) Init() tea.Cmd { return nil }
-
-func (m *tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-	case actionDone:
-		m.applyActionResult(msg)
-	case tea.KeyPressMsg:
-		return m, m.handleKey(msg.String())
-	}
-	return m, nil
-}
-
-// applyActionResult reports what an action did and refreshes what it changed,
-// so the header stops warning about a hook that is now installed.
-func (m *tuiModel) applyActionResult(msg actionDone) {
-	if msg.err != nil {
-		m.notice, m.noticeTone = msg.err.Error(), ToneError
-		return
-	}
-	m.notice, m.noticeTone = msg.message, ToneOK
-
-	collectSystemInfo(m.data)
-	m.header = BuildHeader(m.data)
-	m.refreshSections()
-}
-
 // refreshSections rebuilds the sections while keeping every fold as the user
 // left it. Sections that appear or disappear - Setup, once it is fixed - take
 // their default state.
@@ -169,41 +259,6 @@ func (m *tuiModel) refreshSections() {
 	m.rebuildTo(target)
 }
 
-// handleKey acts on a key by name, which is all the view needs to know about
-// the terminal.
-func (m *tuiModel) handleKey(key string) tea.Cmd {
-	switch key {
-	case "q", "esc", "ctrl+c":
-		return tea.Quit
-	case "up", "k":
-		m.move(-1)
-	case "down", "j":
-		m.move(1)
-	case "pgup":
-		m.move(-m.bodyHeight())
-	case "pgdown":
-		m.move(m.bodyHeight())
-	case "home", "g":
-		m.move(-len(m.lines))
-	case "end", "G":
-		m.move(len(m.lines))
-	case "right", "l":
-		m.setFold(true)
-	case "left", "h":
-		m.setFold(false)
-	case "enter", "space", " ", "tab":
-		// A row offering a fix is what enter is for; folding is what the rest
-		// of the line does
-		if action := m.currentAction(); action != nil {
-			return m.run(action)
-		}
-		m.toggleFold()
-	case "a":
-		m.toggleAll()
-	}
-	return nil
-}
-
 // currentAction returns the fix offered by the selected row, if any.
 func (m *tuiModel) currentAction() *Action {
 	if m.cursor >= len(m.lines) {
@@ -214,83 +269,6 @@ func (m *tuiModel) currentAction() *Action {
 		return nil
 	}
 	return m.sections[l.section].Rows[l.row].Action
-}
-
-// run performs an action off the event loop, so a slow install does not freeze
-// the view.
-func (m *tuiModel) run(action *Action) tea.Cmd {
-	m.notice, m.noticeTone = "running: "+action.Label+"…", ToneMuted
-	return func() tea.Msg {
-		message, err := action.Run()
-		return actionDone{message: message, err: err}
-	}
-}
-
-func (m *tuiModel) move(delta int) {
-	m.cursor = min(max(m.cursor+delta, 0), max(len(m.lines)-1, 0))
-	// The footer belongs to the line under the cursor again
-	m.notice = ""
-}
-
-// currentSection returns the section the cursor sits in, heading or row alike.
-func (m *tuiModel) currentSection() int {
-	if m.cursor >= len(m.lines) {
-		return -1
-	}
-	return m.lines[m.cursor].section
-}
-
-func (m *tuiModel) setFold(expanded bool) {
-	idx := m.currentSection()
-	if idx < 0 || m.sections[idx].Expanded == expanded {
-		return
-	}
-	m.sections[idx].Expanded = expanded
-	m.rebuild()
-}
-
-func (m *tuiModel) toggleFold() {
-	if idx := m.currentSection(); idx >= 0 {
-		m.setFold(!m.sections[idx].Expanded)
-	}
-}
-
-// toggleAll unfolds everything, or folds everything back once nothing is left
-// to unfold.
-func (m *tuiModel) toggleAll() {
-	expand := false
-	for _, section := range m.sections {
-		if !section.Expanded {
-			expand = true
-			break
-		}
-	}
-	for i := range m.sections {
-		m.sections[i].Expanded = expand
-	}
-	m.rebuild()
-}
-
-// View hands the rendered screen to bubbletea, on the alternate screen so the
-// terminal is left as it was found.
-func (m *tuiModel) View() tea.View {
-	view := tea.NewView(m.render())
-	view.AltScreen = true
-	return view
-}
-
-func (m *tuiModel) render() string {
-	header := RenderHeader(m.header)
-	height := m.bodyHeightBelow(header)
-	m.scrollTo(height)
-
-	var b strings.Builder
-	b.WriteString(header)
-	b.WriteString("\n\n")
-	b.WriteString(strings.Join(m.body(m.offset, min(m.offset+height, len(m.lines))), "\n"))
-	b.WriteString("\n\n")
-	b.WriteString(m.footer(height))
-	return b.String()
 }
 
 // body renders the lines in [from, to), with the cursor drawn in the left
@@ -361,7 +339,7 @@ func (m *tuiModel) bodyHeight() int {
 // the whole bordered box several times just to count its lines.
 func (m *tuiModel) bodyHeightBelow(header string) int {
 	const chrome = 4 // two blank lines and the two footer lines
-	return max(m.height-lipgloss.Height(header)-chrome, 1)
+	return max(m.height-tui.Height(header)-chrome, 1)
 }
 
 // footer takes the body height its caller already computed, rather than

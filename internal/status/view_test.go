@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/NikitaCOEUR/dirvana/internal/tui"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -218,7 +218,7 @@ func TestRenderRows_NeverExceedsWidth(t *testing.T) {
 
 	for _, width := range []int{20, 37, 50, 80, 120} {
 		for i, line := range RenderRows(rows, width) {
-			assert.LessOrEqual(t, lipgloss.Width(stripANSI(line)), width,
+			assert.LessOrEqual(t, tui.Width(stripANSI(line)), width,
 				"row %d overflows at width %d: %q", i, width, stripANSI(line))
 		}
 	}
@@ -231,13 +231,13 @@ func TestRenderRows_KeepsTheNoteWhenSpaceIsTight(t *testing.T) {
 
 	// The note is the actionable half of the row; the value is what gives way
 	assert.Contains(t, line, "not approved")
-	assert.LessOrEqual(t, lipgloss.Width(line), 40)
+	assert.LessOrEqual(t, tui.Width(line), 40)
 }
 
 func TestTruncate_NeverGrowsPastWidth(t *testing.T) {
 	for _, s := range []string{"abc", "élan vital", "日本語のテキスト", strings.Repeat("x", 50)} {
 		for width := range 12 {
-			assert.LessOrEqual(t, lipgloss.Width(truncate(s, width)), width,
+			assert.LessOrEqual(t, tui.Width(truncate(s, width)), width,
 				"truncate(%q, %d)", s, width)
 		}
 	}

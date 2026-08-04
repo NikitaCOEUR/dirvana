@@ -8,21 +8,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestBinaryDoesNotQueryTheTerminalAtStartup guards the whole binary against
-// dependencies that talk to the terminal from an init().
+// TestBinaryStaysCheapToStart guards what every dirvana command pays before it
+// does anything: package init.
 //
-// Bubble Tea v1 does exactly that: its init() calls lipgloss.HasDarkBackground,
-// which writes an OSC 11 query and waits for the terminal to answer. Every
-// dirvana command paid for it - including `dirvana exec`, behind every alias,
-// and anything the shell hook runs on cd. On a terminal that does not answer
-// the query that is a five second stall, and the escape sequences show up on
-// the user's prompt.
+// dirvana runs on every cd and behind every alias, so a dependency that builds
+// tables at init is charged to all of them. Two have been paid for already:
+//
+//   - Bubble Tea v1 calls lipgloss.HasDarkBackground from an init(), which
+//     queries the terminal and waits for an answer - five seconds of stall on
+//     a terminal that never sends one.
+//   - go-runewidth fills 2.2MB of Unicode lookup tables at init, 24ms on every
+//     single command, for a `dirvana export` that measures nothing.
 //
 // Listing dependencies is coarse but cheap and stable; the alternative is a
 // pty harness for a property that is really about what gets linked in.
-func TestBinaryDoesNotQueryTheTerminalAtStartup(t *testing.T) {
+func TestBinaryStaysCheapToStart(t *testing.T) {
 	forbidden := map[string]string{
-		"github.com/charmbracelet/bubbletea": "queries the terminal from init(); use charm.land/bubbletea/v2",
+		"github.com/charmbracelet/bubbletea": "queries the terminal from init()",
+		"github.com/mattn/go-runewidth":      "builds 2.2MB of lookup tables at init; use clipperhouse/displaywidth",
+		"github.com/charmbracelet/lipgloss":  "pulls in go-runewidth through x/ansi; use internal/tui",
+		"charm.land/bubbletea/v2":            "pulls in go-runewidth through x/ansi; use internal/tui",
 	}
 
 	out, err := exec.Command("go", "list", "-deps", ".").Output()
