@@ -426,9 +426,13 @@ func TestFishCodeGenerator_GenerateCompletionFunction_DefersToFishWhenCovered(t 
 	assert.Contains(t, script, "function __dirvana_fish_covers")
 	assert.Contains(t, script, `if test -n "$underlying_cmd"; and __dirvana_fish_covers $underlying_cmd`)
 
-	// The probe must ask for long flags: file names never match them, so a
-	// non-empty answer proves the command has completions of its own
-	assert.Contains(t, script, `complete -C"$cmd --"`)
+	// The probe compares what fish offers against what it offers for a
+	// command it has never heard of. Asking for `--` completions answered
+	// "no" for every tool whose flags take a single dash, terraform included,
+	// so dirvana paid a fork per keypress for commands fish completes itself.
+	assert.Contains(t, script, `complete -C"__dirvana_unknown_command__ "`)
+	assert.Contains(t, script, `complete -C"$cmd "`)
+	assert.NotContains(t, script, `complete -C"$cmd --"`)
 
 	// And it must be answered once per command, not on every keypress
 	assert.Contains(t, script, "set -g $answer")
@@ -459,12 +463,12 @@ func TestFishCodeGenerator_GenerateCompletionFunction_SelfNamedAlias(t *testing.
 	// "maximum recursion depth, possible cycle?" right under the prompt.
 	probe := script[strings.Index(script, "function __dirvana_fish_covers"):]
 	probe = probe[:strings.Index(probe, "\nend")]
-	assert.Regexp(t, `(?s)set -g \$probing 1.*complete -C"\$cmd --"`, probe,
+	assert.Regexp(t, `(?s)set -g \$probing 1.*complete -C"\$cmd "`, probe,
 		"the re-entrancy marker must be set before probing, not after")
 
 	// An interrupted probe must leave no verdict: the marker is what gets
 	// cleared, and only the outer call ever records an answer
-	assert.Regexp(t, `(?s)complete -C"\$cmd --".*set -e \$probing.*set -g \$answer`, probe,
+	assert.Regexp(t, `(?s)complete -C"\$cmd ".*set -e \$probing.*set -g \$answer`, probe,
 		"a verdict recorded before the probe returns would outlive an interrupt")
 	assert.Contains(t, script, "string match '__dirvana_fish_probing_*'",
 		"a marker left by an interrupted probe must be cleared on the next cd")

@@ -400,3 +400,39 @@ func parseCompletionOutput(output string) []string {
 
 	return unique
 }
+
+// TestShellIntegration_FishCoverageProbe pins the decision that keeps dirvana
+// out of fish's way. Getting it wrong is not a broken completion but a slow
+// one: dirvana is asked on every keypress for a command fish completes itself,
+// which costs a fork plus a run of the tool.
+//
+// The first shape of this probe asked for `--` completions, which answered
+// "uncovered" for every tool whose flags take a single dash. terraform is one,
+// and fish knows 22 of its subcommands - completing `tf ` went from 10ms to
+// over 300ms because of it.
+func TestShellIntegration_FishCoverageProbe(t *testing.T) {
+	if os.Getenv("TEST_SHELL") == "" {
+		t.Skip("Skipping shell integration tests (run with task test-completion in Docker)")
+	}
+	if testShell != "fish" {
+		t.Skip("The coverage probe is fish-specific")
+	}
+
+	setupTestEnvironment(t)
+
+	configDir, err := filepath.Abs("testdata")
+	require.NoError(t, err)
+	scriptPath, err := filepath.Abs(filepath.Join("scripts", "test_fish_coverage.sh"))
+	require.NoError(t, err)
+
+	// terraform and kubectl ship fish completions; unpackaged-tool is the one
+	// nothing knows about, so dirvana has to answer for it
+	output, err := exec.Command(scriptPath, configDir, "terraform", "kubectl", "unpackaged-tool").CombinedOutput()
+	require.NoError(t, err, "coverage probe failed:\n%s", string(output))
+
+	assert.Contains(t, string(output), "terraform covered",
+		"fish completes terraform, so dirvana must not be asked on every keypress")
+	assert.Contains(t, string(output), "kubectl covered")
+	assert.Contains(t, string(output), "unpackaged-tool uncovered",
+		"nothing else can complete it, so dirvana has to answer")
+}
